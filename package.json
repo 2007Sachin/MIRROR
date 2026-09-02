@@ -4,11 +4,12 @@
   "version": "0.1.0",
   "workspaces": ["apps/web", "packages/*"],
   "scripts": {
+    "predev": "node scripts/free-ports.js",
     "dev": "concurrently -n web,api -c green,cyan \"npm run dev:web\" \"npm run dev:api\"",
     "dev:web": "npm --workspace @mirror/web run dev",
-    "dev:api": "python -m uvicorn app.main:app --reload --app-dir apps/api",
+    "dev:api": "node scripts/run-python.js -m uvicorn app.main:app --reload --app-dir apps/api",
     "build": "npm --workspace @mirror/web run build",
-    "test": "python -m pytest && npm --workspace @mirror/web run typecheck",
+    "test": "node scripts/run-python.js -m pytest && npm --workspace @mirror/web run typecheck",
     "lint": "npm --workspace @mirror/web run lint"
   },
   "devDependencies": {
