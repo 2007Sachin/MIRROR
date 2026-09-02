@@ -116,7 +116,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       try {
         const session = await mirrorApi.session(sessionId);
         if (session.status === "COMPLETED" || session.status === "ASSESSING") {
-          router.replace("/app");
+          router.replace(`/app/report/${sessionId}`);
           return;
         }
         if (session.status !== "READY" && session.status !== "ACTIVE") {
@@ -203,7 +203,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     player.onended = () => {
       if (!mountedRef.current) return;
       setVoiceState("IDLE");
-      if (navigateAfter) router.replace("/app");
+      if (navigateAfter) router.replace(`/app/report/${sessionId}`);
     };
     player.onerror = () => {
       if (!mountedRef.current) return;
@@ -372,7 +372,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       setClosing(isClosing);
       setVoiceState("IDLE");
       if (isClosing) {
-        redirectTimerRef.current = window.setTimeout(() => router.replace("/app"), 1800);
+        redirectTimerRef.current = window.setTimeout(() => router.replace(`/app/report/${sessionId}`), 1800);
       }
     } catch (caught) {
       if (!mountedRef.current) return;
@@ -389,7 +389,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     try {
       await mirrorApi.endInterview(sessionId);
       if (!mountedRef.current) return;
-      router.replace("/app");
+      router.replace(`/app/report/${sessionId}`);
     } catch (caught) {
       if (!mountedRef.current) return;
       setError(caught instanceof ApiError ? caught.message : "Mirror could not end the interview.");

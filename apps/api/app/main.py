@@ -34,6 +34,7 @@ from .dependencies import (
     get_skeptic_admin_service,
     get_text_interview_service,
     get_voice_interview_service,
+    get_report_service,
 )
 from .interview_engine import (
     ConcurrentSessionChange,
@@ -136,6 +137,8 @@ from .schemas import (
     SessionStatus,
     onboarding_is_complete,
 )
+from .report_models import ReportResponse
+from .report_service import ReportAssessmentIncomplete, ReportNotFound, ReportService, ReportUnavailable
 
 settings = get_settings()
 app = FastAPI(title="Mirror API", version="0.1.0", docs_url="/api/docs")
@@ -146,6 +149,22 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+
+@app.get("/api/v1/sessions/{session_id}/report", response_model=ReportResponse)
+async def read_session_report(
+    session_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    report: ReportService = Depends(get_report_service),
+) -> ReportResponse:
+    try:
+        return await report.get_report(session_id, user.id)
+    except ReportNotFound as exc:
+        raise HTTPException(status_code=404, detail="Session report not found") from exc
+    except ReportAssessmentIncomplete as exc:
+        raise HTTPException(status_code=409, detail="Session assessment is not complete") from exc
+    except ReportUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Session report is temporarily unavailable") from exc
 
 
 @app.get(

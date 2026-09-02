@@ -115,6 +115,7 @@ from .specialist_assessment_repository import (
 )
 from .specialist_assessor_models import AssessorType
 from .evidence_service import EvidenceQuoteValidator
+from .report_service import ReportService, SupabaseReportRepository
 
 
 @lru_cache
@@ -555,4 +556,9 @@ def get_specialist_assessment_orchestrator() -> AssessmentOrchestrator:
         get_specialist_assessment_repository(), runners,
         EvidenceQuoteValidator(get_evidence_repository()),
     )
+
+
+@lru_cache
+def get_report_service() -> ReportService:
+    return ReportService(SupabaseReportRepository(get_settings()))
 

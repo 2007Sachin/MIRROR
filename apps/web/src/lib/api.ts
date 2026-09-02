@@ -205,6 +205,44 @@ export type VoiceTurnResult = {
   remaining_time_seconds: number;
 };
 
+export type ReportEvidence = {
+  turn_id: string | null;
+  timecode_ms: number | null;
+  quote: string;
+  direction: "SUPPORTS" | "WEAKENS" | "CONTEXT_ONLY";
+};
+
+export type ReportClaim = {
+  id: string;
+  claim_text: string;
+  source: "RESUME" | "JD" | "SPOKEN" | "PROJECT";
+  status: "UNVERIFIED" | "CORROBORATED" | "PARTIALLY_HELD" | "WALKED_BACK" | "CONTRADICTED" | "INSUFFICIENT_EVIDENCE";
+  explanation: string;
+  evidence: ReportEvidence[];
+  confidence: number;
+};
+
+export type ReportReadiness = {
+  low: number | null;
+  high: number | null;
+  label: string;
+  signal_strength: string;
+  confidence_note: string;
+};
+
+export type ReportResponse = {
+  session: { target_role: string; completed_at: string; duration_seconds: number; assessment_confidence: number };
+  verdict: { code: "NOT_READY_YET" | "DEVELOPING" | "NEAR_READY" | "READY" | "STRONG"; label: string; summary: string };
+  role_readiness: ReportReadiness;
+  interview_readiness: ReportReadiness;
+  claims_audit: { held: ReportClaim[]; partially_held: ReportClaim[]; walked_back: ReportClaim[]; contradicted: ReportClaim[]; insufficient_evidence: ReportClaim[]; unverified: ReportClaim[] };
+  skill_assessments: Array<{ skill: string; status: string; readiness: ReportReadiness | null; signal_strength: string; evidence: ReportEvidence[]; explanation: string }>;
+  session_moments: Array<{ type: "STRONG_EVIDENCE" | "RECOVERY" | "OWNERSHIP_CLARIFICATION" | "UNSUPPORTED_SCALE" | "TECHNICAL_DEPTH"; turn_id: string | null; timecode_ms: number | null; quote: string | null; explanation: string }>;
+  root_cause: string;
+  trust_and_limitations: { ai_assessments_can_make_mistakes: boolean; candidate_may_dispute_assessments: boolean; skills_may_have_insufficient_signal: boolean; evaluates_this_interview_evidence: boolean; outcome_validation_status: string };
+  prescription: Record<string, unknown> | null;
+};
+
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string, public readonly code?: string) {
     super(message);
@@ -400,5 +438,6 @@ export const mirrorApi = {
     }),
   endInterview: (id: string) => request<Session>(`/api/v1/sessions/${id}/end`, { method: "POST" }),
   retryTurnAudio: (turnId: string) => request<VoiceTurnResult>(`/api/v1/turns/${turnId}/audio/retry`, { method: "POST" }),
+  report: (id: string) => request<ReportResponse>(`/api/v1/sessions/${id}/report`),
 };
 
