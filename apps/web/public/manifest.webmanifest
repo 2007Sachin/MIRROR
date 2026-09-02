@@ -1,0 +1,12 @@
+{
+  "name": "Mirror by Pathwisse",
+  "short_name": "Mirror",
+  "description": "Evidence-backed interview diagnostic and claims audit.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#10120F",
+  "theme_color": "#10120F",
+  "icons": []
+}
+
+

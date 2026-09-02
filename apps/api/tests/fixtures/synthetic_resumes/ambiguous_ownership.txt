@@ -1,0 +1,5 @@
+AMBIGUOUS OWNERSHIP — SYNTHETIC TEST DATA
+Worked on the migration to a new payments platform.
+Helped deliver reliability improvements across the service.
+Participated in architecture discussions and production support.
+

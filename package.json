@@ -1,0 +1,18 @@
+{
+  "name": "mirror-by-pathwisse",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/web", "packages/*"],
+  "scripts": {
+    "dev": "concurrently -n web,api -c green,cyan \"npm run dev:web\" \"npm run dev:api\"",
+    "dev:web": "npm --workspace @mirror/web run dev",
+    "dev:api": "python -m uvicorn app.main:app --reload --app-dir apps/api",
+    "build": "npm --workspace @mirror/web run build",
+    "test": "python -m pytest && npm --workspace @mirror/web run typecheck",
+    "lint": "npm --workspace @mirror/web run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
+

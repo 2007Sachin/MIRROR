@@ -1,0 +1,4 @@
+BEGINNER — SYNTHETIC TEST DATA
+Computer science student familiar with Python and Git.
+Built a small task tracker as a classroom project.
+

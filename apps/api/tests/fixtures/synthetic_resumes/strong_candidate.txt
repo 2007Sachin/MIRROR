@@ -1,0 +1,5 @@
+STRONG CANDIDATE — SYNTHETIC TEST DATA
+Skills: Python, PostgreSQL, distributed systems.
+Led the design of an event processing service handling 2 million events per day.
+Reduced processing latency by 35% through batching and query optimization.
+

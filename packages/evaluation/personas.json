@@ -1,0 +1,16 @@
+{
+  "version": "persona-v1",
+  "source": "synthetic",
+  "variants_per_persona": ["baseline", "short-answer", "transcription-noise", "recovery"],
+  "personas": [
+    {"id":"P1","name":"Inflater","assertions":["contradiction_or_unsupported_scale>=1","claim_reliability=needs_clarification"]},
+    {"id":"P2","name":"Underseller","assertions":["role_readiness>interview_readiness","contradiction<=1"]},
+    {"id":"P3","name":"Rehearsed","assertions":["depth_after_probe_2<initial_fluency"]},
+    {"id":"P4","name":"Collapser","assertions":["role_readiness=high","interview_readiness<role_readiness"]},
+    {"id":"P5","name":"Honest Beginner","assertions":["role_readiness=low","exposed_contradiction=0","honesty_label_absent=true"]},
+    {"id":"P6","name":"Coasting Contributor","assertions":["ownership_drift>=1","walked_back_ownership>=1"]},
+    {"id":"P7","name":"Strong Candidate","assertions":["role_readiness=top","interview_readiness=top","flags<=1"]}
+  ]
+}
+
+

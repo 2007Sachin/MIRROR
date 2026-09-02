@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+pythonpath = ["apps/api"]
+testpaths = ["apps/api/tests", "tests/unit", "tests/personas"]
+addopts = "-q -p no:logfire -p no:pytest_logfire"
+

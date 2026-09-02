@@ -1,0 +1,62 @@
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/public-sans";
+@import "@fontsource-variable/geist-mono";
+@import "tailwindcss";
+
+:root {
+  --ink: #10120f;
+  --slate: #2a2e28;
+  --paper: #edeeea;
+  --silver: #9ba29a;
+  --brass: #c9922f;
+  --pulse: #4fd1a5;
+  --line: rgba(237, 238, 234, 0.16);
+  --font-display: "Bricolage Grotesque Variable", "Arial Narrow", sans-serif;
+  --font-body: "Public Sans Variable", Arial, sans-serif;
+  --font-mono: "Geist Mono Variable", "SFMono-Regular", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--ink); color-scheme: dark; }
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+button, input, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+::selection { background: var(--pulse); color: var(--ink); }
+:focus-visible { outline: 2px solid var(--pulse); outline-offset: 4px; }
+
+.display { font-family: var(--font-display); }
+.mono { font-family: var(--font-mono); }
+.orb-scale { width: 4rem; height: 4rem; }
+.orb-render { transform: scale(4.5); transform-origin: center; }
+.orb-hd { display: block; width: min(72vw, 22rem); height: min(72vw, 22rem); }
+.orb-voice { display: block; width: min(78vw, 25rem); height: min(78vw, 25rem); }
+.shell { width: min(100% - 2rem, 74rem); margin-inline: auto; }
+.hairline { border-color: var(--line); }
+.button-primary {
+  display: inline-flex; min-height: 3rem; align-items: center; justify-content: center; gap: .6rem;
+  border: 1px solid var(--paper); border-radius: .5rem; background: var(--paper); color: var(--ink);
+  padding: .75rem 1rem; font-weight: 650; transition: transform 120ms ease, background 120ms ease;
+}
+.button-primary:hover { background: #dfe1dc; }
+.button-primary:active { transform: translateY(1px); }
+.button-secondary {
+  display: inline-flex; min-height: 3rem; align-items: center; justify-content: center; gap: .6rem;
+  border: 1px solid var(--line); border-radius: .5rem; color: var(--paper); padding: .75rem 1rem;
+}
+.button-secondary:hover { border-color: rgba(237, 238, 234, .42); }
+.field {
+  width: 100%; border: 1px solid var(--line); border-radius: .5rem; background: rgba(42, 46, 40, .28);
+  color: var(--paper); padding: .85rem 1rem;
+}
+.field::placeholder { color: var(--silver); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+

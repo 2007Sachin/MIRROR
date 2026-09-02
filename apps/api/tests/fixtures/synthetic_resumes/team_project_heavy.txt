@@ -1,0 +1,5 @@
+TEAM PROJECT — SYNTHETIC TEST DATA
+Our five-person team built a campus events application using React and Firebase.
+I contributed the event search screen and helped test the release.
+The team presented the project at the annual showcase.
+
