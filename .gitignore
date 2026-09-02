@@ -1,13 +1,35 @@
+# Local environment files (the template is intentionally committed)
 .env
 .env.local
-.venv/
-__pycache__/
-.pytest_cache/
+.env.development
+.env.test
+.env.production
+.env.*.local
+!.env.example
+
+# Node / Next.js
 node_modules/
 .next/
+out/
 dist/
 coverage/
-*.pyc
-*.log
 *.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Logs and operating-system metadata
+*.log
+logs/
+.DS_Store
+Thumbs.db
+desktop.ini
 
