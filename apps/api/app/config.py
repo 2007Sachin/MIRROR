@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     skeptic_live_probe_min_confidence: float = Field(default=0.8, ge=0, le=1)
     skeptic_job_max_attempts: int = 3
     skeptic_job_retry_base_seconds: int = 15
+    assessment_job_max_attempts: int = 3
+    assessment_job_retry_base_seconds: int = 30
     assessor_model: str = "llama-3.3-70b-versatile"
     batch_model: str = "llama-3.3-70b-versatile"
     skeptic_mode: str = "shadow"

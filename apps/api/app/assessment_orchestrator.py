@@ -46,6 +46,12 @@ class AssessmentOrchestrator:
     async def _run_one(
         self, session_id: UUID, user_id: UUID, assessor_type: AssessorType
     ) -> StoredSpecialistAssessment | None:
+        # Retried jobs reuse immutable specialist results instead of invoking again.
+        get_latest = getattr(self._repository, "get_latest", None)
+        if get_latest is not None:
+            existing = await get_latest(session_id, user_id, assessor_type)
+            if existing is not None:
+                return existing
         context = await self._repository.load_context(session_id, user_id, assessor_type)
         if context is None:
             return None

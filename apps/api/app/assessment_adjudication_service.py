@@ -29,6 +29,9 @@ class AssessmentAdjudicator:
         self._repository = repository
         self._runner = runner
 
+    def requires_adjudication(self, bundle: SpecialistAssessmentBundle) -> bool:
+        return bool(self._detector.detect(bundle))
+
     async def adjudicate(self, session_id: UUID, user_id: UUID,
                          bundle: SpecialistAssessmentBundle) -> list[StoredAdjudication]:
         disagreements = self._detector.detect(bundle)

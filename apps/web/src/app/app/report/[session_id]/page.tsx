@@ -33,9 +33,37 @@ function Readiness({ title, value }: { title: string; value: ReportResponse["rol
 
 export default function ReportPage() {
   const params = useParams<{ session_id: string }>(); const router = useRouter();
-  const [report, setReport] = useState<ReportResponse | null>(null); const [state, setState] = useState<"loading" | "error">("loading"); const [message, setMessage] = useState("");
-  useEffect(() => { let active = true; mirrorApi.report(params.session_id).then((value) => active && setReport(value)).catch((reason: unknown) => { if (!active) return; setState("error"); if (reason instanceof ApiError && reason.status === 401) { router.replace("/login?reason=session_expired"); return; } setMessage(reason instanceof ApiError && reason.status === 409 ? "Your interview is still being assessed. Check back when the report is ready." : reason instanceof ApiError && reason.status === 404 ? "We could not find that report." : "Mirror could not load this report. Check your connection and try again."); }); return () => { active = false; }; }, [params.session_id, router]);
+  const [report, setReport] = useState<ReportResponse | null>(null); const [state, setState] = useState<"loading" | "processing" | "error">("loading"); const [message, setMessage] = useState("");
+  useEffect(() => {
+    let active = true; let timer: ReturnType<typeof setTimeout> | undefined; let attempts = 0;
+    const fail = (reason: unknown) => {
+      if (!active) return;
+      if (reason instanceof ApiError && reason.status === 401) { router.replace("/login?reason=session_expired"); return; }
+      setState("error");
+      setMessage(reason instanceof ApiError && reason.status === 404 ? "We could not find that report." : "Mirror could not load this report. Check your connection and try again.");
+    };
+    const loadReport = async () => {
+      try {
+        const value = await mirrorApi.report(params.session_id);
+        if (active) { setReport(value); setState("loading"); }
+      } catch (reason) {
+        if (!(reason instanceof ApiError) || reason.status !== 409) { fail(reason); return; }
+        try {
+          const processing = await mirrorApi.assessmentStatus(params.session_id);
+          if (!active) return;
+          if (processing.status === "FAILED") { setState("error"); setMessage("Mirror could not complete this assessment. Please contact support before retrying the interview."); return; }
+          setState("processing");
+          attempts += 1;
+          if (attempts < 24) timer = setTimeout(loadReport, 5000);
+          else { setState("error"); setMessage("Your assessment is taking longer than expected. Please return shortly to check the report."); }
+        } catch (statusReason) { fail(statusReason); }
+      }
+    };
+    void loadReport();
+    return () => { active = false; if (timer) clearTimeout(timer); };
+  }, [params.session_id, router]);
   if (state === "loading" && !report) return <main className="report-page"><div className="report-shell" role="status" aria-label="Loading report"><div className="report-skeleton report-skeleton-wide" /><div className="report-skeleton" /><div className="report-skeleton report-skeleton-tall" /></div></main>;
+  if (state === "processing") return <main className="report-page"><div className="report-shell report-error" role="status"><Clock size={28} aria-hidden="true" /><h1>Assessment in progress</h1><p>Mirror is reviewing the evidence from this interview. This page will refresh when your report is ready.</p><Link className="report-link" href="/app">Return to Mirror</Link></div></main>;
   if (state === "error") return <main className="report-page"><div className="report-shell report-error"><WarningCircle size={28} aria-hidden="true" /><h1>Report unavailable</h1><p>{message}</p><Link className="report-link" href="/app">Return to Mirror</Link></div></main>;
   if (!report) return null;
   const audit = report.claims_audit;

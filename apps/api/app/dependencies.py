@@ -116,6 +116,15 @@ from .specialist_assessment_repository import (
 from .specialist_assessor_models import AssessorType
 from .evidence_service import EvidenceQuoteValidator
 from .report_service import ReportService, SupabaseReportRepository
+from .assessment_pipeline_repository import AssessmentPipelineRepository, AssessmentPipelineUnavailable, MemoryAssessmentPipelineRepository, SupabaseAssessmentPipelineRepository
+from .assessment_worker import AssessmentWorker
+from .assessment_adjudication_repository import SupabaseAssessmentAdjudicationRepository
+from .assessment_adjudication_service import AssessmentAdjudicator
+from .assessment_disagreement import AssessmentDisagreementDetector
+from .agents.adjudicator import create_adjudicator_agent
+from .agents.verdict import create_verdict_agent
+from .verdict_service import VerdictLanguageService
+from .final_assessment_aggregator import FinalAssessmentAggregator
 
 
 @lru_cache
@@ -562,3 +571,37 @@ def get_specialist_assessment_orchestrator() -> AssessmentOrchestrator:
 def get_report_service() -> ReportService:
     return ReportService(SupabaseReportRepository(get_settings()))
 
+
+@lru_cache
+def get_assessment_pipeline_repository() -> AssessmentPipelineRepository:
+    if not get_settings().supabase_enabled:
+        return MemoryAssessmentPipelineRepository()
+    try:
+        return SupabaseAssessmentPipelineRepository(get_settings())
+    except AssessmentPipelineUnavailable as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Assessment processing is not configured") from exc
+
+
+@lru_cache
+def get_adjudicator_runner() -> AgentRunner:
+    settings = get_settings(); registry = AgentRegistry()
+    registry.register(create_adjudicator_agent(settings.assessor_model))
+    return AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader())
+
+
+@lru_cache
+def get_assessment_adjudicator() -> AssessmentAdjudicator:
+    return AssessmentAdjudicator(AssessmentDisagreementDetector(), SupabaseAssessmentAdjudicationRepository(get_settings()), get_adjudicator_runner())
+
+
+@lru_cache
+def get_verdict_language_service() -> VerdictLanguageService:
+    settings = get_settings(); registry = AgentRegistry()
+    registry.register(create_verdict_agent(settings.assessor_model))
+    return VerdictLanguageService(AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader()))
+
+
+@lru_cache
+def get_assessment_worker() -> AssessmentWorker:
+    settings = get_settings()
+    return AssessmentWorker(get_assessment_pipeline_repository(), get_specialist_assessment_orchestrator(), get_assessment_adjudicator(), FinalAssessmentAggregator(), get_verdict_language_service(), get_claims_audit_service(), max_attempts=settings.assessment_job_max_attempts, retry_base_seconds=settings.assessment_job_retry_base_seconds)

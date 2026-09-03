@@ -24,6 +24,16 @@ export type Session = {
   recovery_count: number;
 };
 
+export type AssessmentPipelineState = {
+  session_id: string;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  retry_count: number;
+  failure_code: string | null;
+  queued_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
 export type Profile = {
   id: string;
   full_name: string | null;
@@ -437,6 +447,7 @@ export const mirrorApi = {
       body: JSON.stringify({ text, client_turn_id: clientTurnId }),
     }),
   endInterview: (id: string) => request<Session>(`/api/v1/sessions/${id}/end`, { method: "POST" }),
+  assessmentStatus: (id: string) => request<AssessmentPipelineState>(`/api/v1/sessions/${id}/assessment`),
   retryTurnAudio: (turnId: string) => request<VoiceTurnResult>(`/api/v1/turns/${turnId}/audio/retry`, { method: "POST" }),
   report: (id: string) => request<ReportResponse>(`/api/v1/sessions/${id}/report`),
 };

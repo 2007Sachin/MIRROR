@@ -265,6 +265,21 @@ def test_v1_session_endpoints_and_isolation(engine_client: TestClient) -> None:
     )
     assert ended.status_code == 200
     assert ended.json()["status"] == "COMPLETED"
+    # Repeated end requests are safe: the completed session keeps one job.
+    assert engine_client.post(
+        f"/api/v1/sessions/{session_id}/end",
+        headers={"Authorization": "Bearer engine-a"},
+    ).status_code == 200
+    assessment = engine_client.get(
+        f"/api/v1/sessions/{session_id}/assessment",
+        headers={"Authorization": "Bearer engine-a"},
+    )
+    assert assessment.status_code == 200
+    assert assessment.json()["status"] == "PENDING"
+    assert engine_client.get(
+        f"/api/v1/sessions/{session_id}/assessment",
+        headers={"Authorization": "Bearer engine-b"},
+    ).status_code == 404
     assert (
         engine_client.get(
             f"/api/v1/sessions/{session_id}",

@@ -16,7 +16,8 @@
 | Specialist assessors | COMPLETE | Technical, behaviour, and claims contracts/orchestration | `apps/api/app/assessment_orchestrator.py`, `apps/api/app/agents/specialist_assessors.py` | Legacy V1 retained for compatibility |
 | Adjudication | COMPLETE | Deterministic disagreement detection plus adjudicator service | `apps/api/app/assessment_adjudication_service.py` | No candidate-facing adjudication language |
 | Verdict | COMPLETE | Deterministic aggregation and candidate-safe verdict generation | `apps/api/app/final_assessment_aggregator.py`, `apps/api/app/verdict_service.py` | Ranges, codes, root cause, limitations |
-| Diagnostic report | COMPLETE | Normalized candidate-safe report API/UI | `apps/api/app/report_service.py`, `apps/web/src/app/app/report/[session_id]/page.tsx` | Polished report design may evolve |
+| Post-session assessment | COMPLETE (UNIT TESTED) | Durable Supabase job queue and worker drive specialist assessment through report persistence | `apps/api/app/assessment_worker.py`, `workers/assessor/worker.py` | HTTP completion only queues; worker credentials remain backend-only. Database, provider, and production validation are not yet available in this workspace. |
+| Diagnostic report | COMPLETE | Normalized candidate-safe report API/UI | `apps/api/app/report_service.py`, `apps/web/src/app/app/report/[session_id]/page.tsx` | Waits neutrally for the asynchronous result; polished report design may evolve |
 | Analytics | NOT STARTED | No dedicated product analytics pipeline found | — | Voice metrics are operational, not product analytics |
 | Observability | PARTIAL | Structured agent logs, session events, voice latency metrics | `apps/api/app/agents/logging.py` | Central dashboards/alerts not found |
 | Testing | COMPLETE | Backend pytest suites, synthetic fixtures, frontend TypeScript checks | `apps/api/tests/`, `package.json` | External integrations require configured services |

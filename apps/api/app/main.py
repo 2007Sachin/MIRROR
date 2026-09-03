@@ -35,6 +35,7 @@ from .dependencies import (
     get_text_interview_service,
     get_voice_interview_service,
     get_report_service,
+    get_assessment_pipeline_repository,
 )
 from .interview_engine import (
     ConcurrentSessionChange,
@@ -138,6 +139,8 @@ from .schemas import (
     onboarding_is_complete,
 )
 from .report_models import ReportResponse
+from .assessment_pipeline_models import AssessmentPipelineState
+from .assessment_pipeline_repository import AssessmentPipelineRepository, AssessmentPipelineUnavailable
 from .report_service import ReportAssessmentIncomplete, ReportNotFound, ReportService, ReportUnavailable
 
 settings = get_settings()
@@ -165,6 +168,21 @@ async def read_session_report(
         raise HTTPException(status_code=409, detail="Session assessment is not complete") from exc
     except ReportUnavailable as exc:
         raise HTTPException(status_code=503, detail="Session report is temporarily unavailable") from exc
+
+
+@app.get("/api/v1/sessions/{session_id}/assessment", response_model=AssessmentPipelineState)
+async def read_assessment_status(
+    session_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: AssessmentPipelineRepository = Depends(get_assessment_pipeline_repository),
+) -> AssessmentPipelineState:
+    try:
+        state = await repository.status(session_id, user.id)
+    except AssessmentPipelineUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Assessment processing is temporarily unavailable") from exc
+    if state is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    return state
 
 
 @app.get(
@@ -980,10 +998,17 @@ async def end_session(
     session_id: UUID,
     user_id: UUID = Depends(current_user_id),
     engine: InterviewStateMachine = Depends(get_interview_state_machine),
+    assessment: AssessmentPipelineRepository = Depends(get_assessment_pipeline_repository),
 ) -> SessionRead:
     try:
-        assessing = await engine.request_close(session_id, user_id)
-        return await engine.complete(assessing.id, user_id)
+        current = await engine.get_state(session_id, user_id)
+        if current.status == SessionStatus.ACTIVE:
+            assessing = await engine.request_close(session_id, user_id)
+            current = await engine.complete(assessing.id, user_id)
+        elif current.status != SessionStatus.COMPLETED:
+            raise IllegalSessionTransition
+        await assessment.enqueue(current.id, user_id)
+        return current
     except SessionNotFound as exc:
         raise HTTPException(status_code=404, detail="Session not found") from exc
     except (IllegalSessionTransition, InterviewFlowRejected) as exc:
@@ -994,4 +1019,5 @@ async def end_session(
         raise HTTPException(
             status_code=409, detail="Session changed concurrently"
         ) from exc
-
+    except AssessmentPipelineUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Assessment processing is temporarily unavailable") from exc

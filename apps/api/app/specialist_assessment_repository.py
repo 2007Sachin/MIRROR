@@ -12,6 +12,7 @@ from .skeptic_repository import SkepticPersistenceUnavailable, SupabaseSkepticRe
 
 
 class SpecialistAssessmentRepository(Protocol):
+    async def get_latest(self, session_id: UUID, user_id: UUID, assessor_type: AssessorType) -> StoredSpecialistAssessment | None: ...
     async def load_context(
         self, session_id: UUID, user_id: UUID, assessor_type: AssessorType
     ) -> SpecialistAssessmentContext | None: ...
@@ -46,6 +47,16 @@ class SupabaseSpecialistAssessmentRepository(SupabaseSkepticRepository):
             transcript_turns=[{**row, "speaker": str(row["speaker"]).upper(), "turn_type": str(row["turn_type"]).upper(), "phase": str(row["phase"]).upper()} for row in turns],
             claims=claims, validated_evidence=evidence, skeptic_observations=flags,
         )
+
+    async def get_latest(self, session_id: UUID, user_id: UUID, assessor_type: AssessorType) -> StoredSpecialistAssessment | None:
+        owned = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": "id", "limit": "1"})
+        if not owned:
+            return None
+        rows = await self._get("specialist_assessments", {"session_id": f"eq.{session_id}", "assessor_type": f"eq.{assessor_type.value}", "select": "*", "order": "created_at.desc", "limit": "1"})
+        if not rows:
+            return None
+        row: dict[str, Any] = rows[0]
+        return StoredSpecialistAssessment.model_validate({**row, "assessor_type": str(row["assessor_type"]).upper(), "status": str(row["status"]).upper()})
 
     async def store(self, session_id: UUID, assessor_type: AssessorType, status: SpecialistStatus,
                     result: SpecialistAssessmentOutput, model: str, model_version: str,
