@@ -14,7 +14,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        <header className="shell flex h-16 items-center justify-between border-b hairline">
+        <header className="site-header shell flex h-16 items-center justify-between border-b hairline">
           <Link href="/" className="display text-lg font-semibold tracking-[-0.03em]">Mirror</Link>
           <span className="text-xs text-[var(--silver)]">by Pathwisse</span>
         </header>

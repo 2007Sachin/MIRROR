@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowRight, Check, CircleNotch, FileMagnifyingGlass, Quotes, ShieldCheck } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
-import { MirrorOrb } from "@/components/mirror-orb";
+import { MirrorLens } from "@/components/mirror-lens";
 
 const auditSteps = [
   { label: "Resume claim", detail: "Built the data pipeline" },
@@ -15,19 +15,19 @@ export function LandingStory() {
   const [activeStep, setActiveStep] = useState(0);
   return (
     <main>
-      <section className="shell grid min-h-[calc(100dvh-4rem)] items-center gap-12 py-14 lg:grid-cols-[.94fr_1.06fr] lg:gap-20 lg:py-20">
+      <section className="landing-hero shell grid min-h-[calc(100dvh-4rem)] items-center gap-12 py-14 lg:grid-cols-[.94fr_1.06fr] lg:gap-20 lg:py-20">
         <div className="max-w-2xl">
-          <p className="mb-7 text-sm text-[var(--pulse)]">Interview diagnostic and claims audit</p>
-          <h1 className="display max-w-[13ch] text-5xl leading-[.93] font-semibold tracking-[-0.06em] sm:text-7xl lg:text-[5.35rem]">Your answers deserve more than a thumbs-up.</h1>
-          <p className="mt-8 max-w-[55ch] text-lg leading-8 text-[var(--silver)]">Mirror is the interview that tests whether your resume claims hold when a real person asks one more question.</p>
+          <p className="hero-eyebrow mb-7">Evidence-backed interview diagnostic</p>
+          <h1 className="hero-title display max-w-[11ch] text-5xl leading-[.93] font-semibold tracking-[-0.06em] sm:text-7xl lg:text-[5.35rem]">Know what your resume can defend.</h1>
+          <p className="hero-lede mt-8 max-w-[55ch] text-lg leading-8">Mirror maps your resume against a target role, then uses an adaptive interview to produce an evidence-backed readiness diagnostic.</p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link href="/signup" className="button-primary">Run a diagnostic <ArrowRight size={18} /></Link>
-            <a href="#why" className="button-secondary">Understand the problem <ArrowDown size={18} /></a>
+            <Link href="/signup" className="hero-primary-action">Start your diagnostic <ArrowRight size={18} /></Link>
+            <a href="#why" className="hero-secondary-action">See how it works <ArrowDown size={18} /></a>
           </div>
-          <p className="mono mt-7 text-[10px] uppercase tracking-[0.16em] text-[var(--silver)]">No live score · no coaching · evidence after the session</p>
+          <p className="hero-proof-line mono mt-7">Resume + target role + adaptive interview + evidence audit</p>
         </div>
         <div className="relative flex min-h-[26rem] items-center justify-center border-y hairline py-8 lg:border-y-0 lg:border-l lg:py-0">
-          <MirrorOrb activeStep={activeStep} />
+          <div className="hero-proof" aria-label="Illustrative evidence diagnostic example"><div className="hero-proof-topline"><span>Illustrative diagnostic</span><span>Evidence trace</span></div><div className="hero-proof-section"><p className="hero-proof-label">Claim</p><p className="hero-claim">Improved checkout conversion by 18%.</p></div><div className="hero-proof-arrow" aria-hidden="true">↓</div><div className="hero-proof-section"><p className="hero-proof-label">Follow-up</p><p className="hero-followup">What part of the experiment did you personally own?</p></div><div className="hero-proof-arrow" aria-hidden="true">↓</div><div className="hero-evidence-grid"><p className="hero-proof-label hero-evidence-heading">Evidence</p><dl><div><dt>Ownership</dt><dd>Direct</dd></div><div><dt>Metric support</dt><dd>Partial</dd></div><div><dt>Scope</dt><dd>Verified</dd></div><div><dt>Outcome evidence</dt><dd>Supported</dd></div></dl></div><div className="hero-diagnostic"><p className="hero-proof-label">Diagnostic</p><div><span>Role readiness</span><strong>72–80%</strong></div><div><span>Interview readiness</span><strong>64–73%</strong></div></div><MirrorLens /></div>
         </div>
       </section>
 
