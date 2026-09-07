@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     interview_audio_min_duration_ms: int = 300
     interview_audio_signed_url_seconds: int = 300
     interview_min_transcript_confidence: float = 0.2
-    interviewer_model: str = "llama-3.1-8b-instant"
-    skeptic_model: str = "llama-3.3-70b-versatile"
+    interviewer_model: str = "openai/gpt-oss-20b"
+    skeptic_model: str = "openai/gpt-oss-120b"
     skeptic_shadow_mode: bool = True
     live_skeptic_probes: bool = False
     skeptic_live_probe_min_confidence: float = Field(default=0.8, ge=0, le=1)
@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     skeptic_job_retry_base_seconds: int = 15
     assessment_job_max_attempts: int = 3
     assessment_job_retry_base_seconds: int = 30
-    assessor_model: str = "llama-3.3-70b-versatile"
-    batch_model: str = "llama-3.3-70b-versatile"
+    assessor_model: str = "openai/gpt-oss-120b"
+    batch_model: str = "openai/gpt-oss-120b"
     skeptic_mode: str = "shadow"
     interview_default_duration_seconds: int = 20 * 60
     interview_phase_time_budget_seconds: int = 3 * 60

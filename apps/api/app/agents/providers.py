@@ -8,6 +8,25 @@ from .definitions import ProviderRequest, ProviderResponse, ToolCall
 from .errors import AgentTimeoutError, ProviderFailureError
 
 
+def _strict_json_schema(value: Any) -> Any:
+    """Adapt Pydantic schemas to Groq's strict structured-output subset."""
+    if isinstance(value, list):
+        return [_strict_json_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+
+    result = {
+        key: _strict_json_schema(item)
+        for key, item in value.items()
+        if key != "default"
+    }
+    properties = result.get("properties")
+    if isinstance(properties, dict):
+        result["required"] = list(properties)
+        result["additionalProperties"] = False
+    return result
+
+
 class AgentProvider(Protocol):
     async def complete(
         self, request: ProviderRequest, *, timeout_seconds: float
@@ -43,7 +62,7 @@ class GroqProvider:
                 "json_schema": {
                     "name": request.output_schema_name,
                     "strict": True,
-                    "schema": request.output_json_schema,
+                    "schema": _strict_json_schema(request.output_json_schema),
                 },
             },
         }
@@ -59,6 +78,18 @@ class GroqProvider:
                 json=body,
                 timeout=timeout_seconds,
             )
+            if response.status_code == 400:
+                error_payload = response.json().get("error", {})
+                failed_generation = error_payload.get("failed_generation")
+                if (
+                    error_payload.get("code") == "json_validate_failed"
+                    and isinstance(failed_generation, (str, dict))
+                ):
+                    # Groq can reject an otherwise useful generation when an
+                    # optional Pydantic field is absent. Treat it as untrusted
+                    # provider output; AgentRunner still performs full parsing
+                    # and Pydantic validation before application code sees it.
+                    return ProviderResponse(content=failed_generation)
             response.raise_for_status()
             payload = response.json()
             message = payload["choices"][0]["message"]

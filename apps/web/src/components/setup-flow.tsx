@@ -49,6 +49,19 @@ function friendlyUploadError(reason: unknown) {
   return "Mirror could not upload your resume. Check your connection and try again.";
 }
 
+function friendlyResumeAnalysisError(errorType: string | null) {
+  if (errorType === "document_parsing_failure") {
+    return "Mirror could not extract text from this resume. Try a text-based PDF or DOCX file.";
+  }
+  if (errorType === "provider_failure") {
+    return "Your resume was uploaded and read, but AI analysis is not configured right now. Try again after the provider is connected.";
+  }
+  if (errorType === "timeout") {
+    return "Your resume was uploaded, but analysis took too long. Try again in a moment.";
+  }
+  return "Your resume was uploaded, but Mirror could not complete the analysis. Try again.";
+}
+
 export function SetupFlow({ targetRole }: { targetRole: string }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -221,7 +234,7 @@ export function SetupFlow({ targetRole }: { targetRole: string }) {
       const result = await mirrorApi.analyzeResume(resumeDocumentId);
       setAnalysis(result);
       if (result.status === "FAILED") {
-        setError("Mirror could not read this resume yet. Try a text-based PDF or DOCX file.");
+        setError(friendlyResumeAnalysisError(result.error_type));
       } else if (result.status === "PROCESSING") {
         setError("This resume is already being analyzed. Check again in a moment.");
       } else {

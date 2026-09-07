@@ -212,19 +212,22 @@ begin
     raise exception 'claim child row must belong to the claim owner';
   end if;
 
-  if tg_table_name = 'claim_evidence' and new.document_id is not null and not exists (
-    select 1 from public.documents where id = new.document_id and user_id = new.user_id
-  ) then
-    raise exception 'claim evidence document must belong to the claim owner';
-  end if;
+  if tg_table_name = 'claim_evidence' then
+    if (to_jsonb(new) ->> 'document_id') is not null and not exists (
+      select 1 from public.documents
+      where id = (to_jsonb(new) ->> 'document_id')::uuid and user_id = new.user_id
+    ) then
+      raise exception 'claim evidence document must belong to the claim owner';
+    end if;
 
-  if tg_table_name = 'claim_evidence' and new.turn_id is not null and not exists (
-    select 1
-    from public.turns t
-    join public.sessions s on s.id = t.session_id
-    where t.id = new.turn_id and s.user_id = new.user_id
-  ) then
-    raise exception 'claim evidence turn must belong to the claim owner';
+    if (to_jsonb(new) ->> 'turn_id') is not null and not exists (
+      select 1
+      from public.turns t
+      join public.sessions s on s.id = t.session_id
+      where t.id = (to_jsonb(new) ->> 'turn_id')::uuid and s.user_id = new.user_id
+    ) then
+      raise exception 'claim evidence turn must belong to the claim owner';
+    end if;
   end if;
   return new;
 end;
@@ -247,25 +250,25 @@ set search_path = public
 as $$
 begin
   insert into public.claim_entities (user_id, entity_type, canonical_name, metadata)
-  select distinct user_id, 'SKILL', trim(skill), '{}'::jsonb
+  select distinct user_id, 'SKILL'::public.claim_entity_type, trim(skill), '{}'::jsonb
   from public.claims
   where resume_analysis_id = p_analysis_id and user_id = p_user_id and nullif(trim(skill), '') is not null
   on conflict (user_id, entity_type, canonical_key) do nothing;
 
   insert into public.claim_entities (user_id, entity_type, canonical_name, metadata)
-  select distinct user_id, 'PROJECT', trim(project_name), '{}'::jsonb
+  select distinct user_id, 'PROJECT'::public.claim_entity_type, trim(project_name), '{}'::jsonb
   from public.claims
   where resume_analysis_id = p_analysis_id and user_id = p_user_id and nullif(trim(project_name), '') is not null
   on conflict (user_id, entity_type, canonical_key) do nothing;
 
   insert into public.claim_entities (user_id, entity_type, canonical_name, metadata)
-  select distinct user_id, 'TOOL', trim(tool), '{}'::jsonb
+  select distinct user_id, 'TOOL'::public.claim_entity_type, trim(tool), '{}'::jsonb
   from public.claims
   where resume_analysis_id = p_analysis_id and user_id = p_user_id and nullif(trim(tool), '') is not null
   on conflict (user_id, entity_type, canonical_key) do nothing;
 
   insert into public.claim_entities (user_id, entity_type, canonical_name, metadata)
-  select distinct user_id, 'OUTCOME', trim(outcome), '{}'::jsonb
+  select distinct user_id, 'OUTCOME'::public.claim_entity_type, trim(outcome), '{}'::jsonb
   from public.claims
   where resume_analysis_id = p_analysis_id and user_id = p_user_id and nullif(trim(outcome), '') is not null
   on conflict (user_id, entity_type, canonical_key) do nothing;
@@ -273,7 +276,7 @@ begin
   insert into public.claim_entities (user_id, entity_type, canonical_name, metadata)
   select distinct
     user_id,
-    'METRIC',
+    'METRIC'::public.claim_entity_type,
     trim(metric_value::text || coalesce(' ' || nullif(trim(metric_unit), ''), '')),
     jsonb_strip_nulls(jsonb_build_object('value', metric_value, 'unit', metric_unit))
   from public.claims
@@ -281,7 +284,7 @@ begin
   on conflict (user_id, entity_type, canonical_key) do nothing;
 
   insert into public.claim_entities (user_id, entity_type, canonical_name, metadata)
-  select distinct user_id, 'RESPONSIBILITY', trim(claim_text),
+  select distinct user_id, 'RESPONSIBILITY'::public.claim_entity_type, trim(claim_text),
     jsonb_strip_nulls(jsonb_build_object('ownership_language', ownership_language))
   from public.claims
   where resume_analysis_id = p_analysis_id

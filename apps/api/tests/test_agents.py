@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import deque
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from pydantic import BaseModel, ConfigDict
 
@@ -22,6 +24,7 @@ from app.agents.errors import (
     UnknownAgentError,
 )
 from app.agents.prompts import PromptLoader
+from app.agents.providers import GroqProvider
 from app.agents.registry import AgentRegistry
 from app.agents.runner import AgentRunner
 from app.agents.testing import create_framework_test_agent
@@ -160,6 +163,46 @@ def test_provider_failure_is_classified_without_retry() -> None:
     result = asyncio.run(runner_for(provider).run("framework_test", {"text": "hello"}))
     assert result.error_type == AgentErrorType.PROVIDER_FAILURE
     assert result.retry_count == 0
+
+
+def test_groq_provider_normalizes_strict_schema_and_validates_failed_generation() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        return httpx.Response(
+            400,
+            json={
+                "error": {
+                    "code": "json_validate_failed",
+                    "failed_generation": '{"normalized_text":"recovered"}',
+                }
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GroqProvider("test-key", client=client)
+    request = ProviderRequest(
+        model="test-model",
+        temperature=0,
+        messages=[{"role": "user", "content": "test"}],
+        output_schema_name="test_output",
+        output_json_schema={
+            "type": "object",
+            "properties": {
+                "normalized_text": {"type": "string", "default": ""}
+            },
+        },
+    )
+
+    response = asyncio.run(provider.complete(request, timeout_seconds=1))
+    asyncio.run(client.aclose())
+
+    schema = captured["response_format"]["json_schema"]["schema"]
+    assert schema["required"] == ["normalized_text"]
+    assert schema["additionalProperties"] is False
+    assert "default" not in schema["properties"]["normalized_text"]
+    assert response.content == '{"normalized_text":"recovered"}'
 
 
 def test_runner_enforces_agent_timeout() -> None:
