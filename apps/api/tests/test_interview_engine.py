@@ -9,7 +9,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.auth import AuthenticatedUser, InvalidAccessToken, get_token_verifier
-from app.dependencies import get_interview_planning_service, get_interview_state_machine
+from app.assessment_pipeline_repository import MemoryAssessmentPipelineRepository
+from app.dependencies import (
+    get_assessment_pipeline_repository,
+    get_interview_planning_service,
+    get_interview_state_machine,
+)
 from app.interview_engine import (
     IllegalSessionTransition,
     InterviewFlowRejected,
@@ -207,6 +212,7 @@ class EngineVerifier:
 @pytest.fixture
 def engine_client() -> TestClient:
     engine, _, _ = make_engine()
+    assessment = MemoryAssessmentPipelineRepository()
 
     class CompletedPlanning:
         async def plan(self, session_id, user_id):
@@ -215,10 +221,16 @@ def engine_client() -> TestClient:
     previous_verifier = app.dependency_overrides.get(get_token_verifier)
     previous_engine = app.dependency_overrides.get(get_interview_state_machine)
     previous_planning = app.dependency_overrides.get(get_interview_planning_service)
+    previous_assessment = app.dependency_overrides.get(
+        get_assessment_pipeline_repository
+    )
     app.dependency_overrides[get_token_verifier] = lambda: EngineVerifier()
     app.dependency_overrides[get_interview_state_machine] = lambda: engine
     app.dependency_overrides[get_interview_planning_service] = (
         lambda: CompletedPlanning()
+    )
+    app.dependency_overrides[get_assessment_pipeline_repository] = (
+        lambda: assessment
     )
     with TestClient(app) as client:
         yield client
@@ -234,6 +246,12 @@ def engine_client() -> TestClient:
         app.dependency_overrides.pop(get_interview_planning_service, None)
     else:
         app.dependency_overrides[get_interview_planning_service] = previous_planning
+    if previous_assessment is None:
+        app.dependency_overrides.pop(get_assessment_pipeline_repository, None)
+    else:
+        app.dependency_overrides[get_assessment_pipeline_repository] = (
+            previous_assessment
+        )
 
 
 def test_v1_session_endpoints_and_isolation(engine_client: TestClient) -> None:

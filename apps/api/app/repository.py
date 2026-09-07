@@ -10,6 +10,34 @@ from .config import Settings
 from .schemas import Phase, SessionCreate, SessionEventRead, SessionRead, SessionStatus
 
 
+SESSION_READ_COLUMNS = ",".join(
+    (
+        "id",
+        "user_id",
+        "target_role",
+        "resume_url",
+        "jd_text",
+        "status",
+        "phase",
+        "question_plan",
+        "completion_pct",
+        "synthetic",
+        "started_at",
+        "completed_at",
+        "created_at",
+        "updated_at",
+        "phase_started_at",
+        "phase_time_budget_seconds",
+        "total_time_budget_seconds",
+        "elapsed_seconds",
+        "current_primary_question_id",
+        "current_probe_count",
+        "total_questions",
+        "recovery_count",
+    )
+)
+
+
 class SessionRepository(Protocol):
     async def create(
         self,
@@ -155,6 +183,7 @@ class SupabaseSessionRepository:
             response = await client.post(
                 f"{self.url}/rest/v1/sessions",
                 headers={**self.headers, "Prefer": "return=representation"},
+                params={"select": SESSION_READ_COLUMNS},
                 json=body,
             )
             response.raise_for_status()
@@ -170,7 +199,7 @@ class SupabaseSessionRepository:
                 params={
                     "id": f"eq.{session_id}",
                     "user_id": f"eq.{user_id}",
-                    "select": "*",
+                    "select": SESSION_READ_COLUMNS,
                 },
             )
             response.raise_for_status()
@@ -192,7 +221,11 @@ class SupabaseSessionRepository:
             response = await client.patch(
                 f"{self.url}/rest/v1/sessions",
                 headers={**self.headers, "Prefer": "return=representation"},
-                params={"id": f"eq.{session_id}", "user_id": f"eq.{user_id}"},
+                params={
+                    "id": f"eq.{session_id}",
+                    "user_id": f"eq.{user_id}",
+                    "select": SESSION_READ_COLUMNS,
+                },
                 json=serialised,
             )
             response.raise_for_status()
@@ -218,6 +251,7 @@ class SupabaseSessionRepository:
             response = await client.post(
                 f"{self.url}/rest/v1/rpc/apply_interview_state_change",
                 headers=self.headers,
+                params={"select": SESSION_READ_COLUMNS},
                 json={
                     "p_session_id": str(session.id),
                     "p_user_id": str(session.user_id),

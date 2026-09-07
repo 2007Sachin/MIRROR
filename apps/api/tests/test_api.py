@@ -2,8 +2,10 @@ from fastapi.testclient import TestClient
 
 from app.auth import AuthenticatedUser, get_token_verifier
 from app.main import app
-from app.dependencies import get_interview_planning_service
+from app.dependencies import get_interview_planning_service, get_interview_state_machine
+from app.interview_engine import InterviewStateMachine
 from app.planner_models import PlanningStatus
+from app.repository import MemorySessionRepository
 
 
 class TestVerifier:
@@ -15,7 +17,13 @@ class TestVerifier:
 
 
 client = TestClient(app)
+test_engine = InterviewStateMachine(
+    MemorySessionRepository(),
+    total_time_budget_seconds=1200,
+    phase_time_budget_seconds=180,
+)
 app.dependency_overrides[get_token_verifier] = lambda: TestVerifier()
+app.dependency_overrides[get_interview_state_machine] = lambda: test_engine
 AUTH = {"Authorization": "Bearer test-access-token"}
 
 

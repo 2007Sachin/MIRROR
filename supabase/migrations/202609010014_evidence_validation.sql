@@ -23,6 +23,7 @@ create unique index claim_evidence_validated_dedupe_idx
 
 create or replace function public.evidence_normalize(p_text text)
 returns text language sql immutable strict
+set search_path = pg_catalog
 as $$
   select trim(regexp_replace(translate(p_text, '“”’–—', '""''--'), '\s+', ' ', 'g'));
 $$;
@@ -49,7 +50,7 @@ begin
   elsif p_source_type in ('RESUME','OTHER_DOCUMENT') then
     select d.raw_text into source_text from public.documents d
     where d.id=p_source_id and d.id=p_document_id and d.user_id=p_user_id
-      and (p_source_type<>'RESUME' or d.document_type='resume');
+      and (p_source_type<>'RESUME' or d.document_type='RESUME');
   else
     return false;
   end if;

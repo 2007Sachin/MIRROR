@@ -24,7 +24,7 @@ alter table public.turns
 create table public.voice_turn_requests (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.sessions(id) on delete cascade,
-  user_id uuid not null references public.users(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
   client_turn_id uuid not null,
   status text not null check (status in ('PROCESSING', 'COMPLETED', 'FAILED')),
   candidate_audio_path text,
@@ -45,7 +45,7 @@ create index voice_turn_requests_user_session_idx
 
 create table public.tts_audio_cache (
   cache_key text primary key,
-  user_id uuid not null references public.users(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
   session_id uuid not null references public.sessions(id) on delete cascade,
   normalized_text_hash text not null,
   provider text not null,
@@ -64,7 +64,7 @@ create index tts_audio_cache_session_idx
 create table public.voice_turn_metrics (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.sessions(id) on delete cascade,
-  user_id uuid not null references public.users(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
   turn_index integer check (turn_index is null or turn_index >= 0),
   candidate_turn_id uuid references public.turns(id) on delete set null,
   interviewer_turn_id uuid references public.turns(id) on delete set null,

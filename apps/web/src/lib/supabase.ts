@@ -1,6 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
+import type { Database } from "./database.types";
 
-let browserClient: ReturnType<typeof createBrowserClient> | undefined;
+let browserClient: ReturnType<typeof createBrowserClient<Database>> | undefined;
 
 export function isSupabaseConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -12,7 +13,7 @@ export function getSupabaseBrowserClient() {
   if (!url || !key) {
     throw new Error("Supabase browser configuration is missing");
   }
-  browserClient ??= createBrowserClient(url, key);
+  browserClient ??= createBrowserClient<Database>(url, key);
   return browserClient;
 }
 

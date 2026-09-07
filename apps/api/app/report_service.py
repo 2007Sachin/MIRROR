@@ -18,6 +18,7 @@ from .report_models import (
     TrustAndLimitations,
 )
 from .schemas import SessionEventRead, SessionRead, SessionStatus
+from .repository import SESSION_READ_COLUMNS
 from .specialist_assessor_models import SpecialistAssessmentOutput
 from .verdict_models import VerdictCode
 
@@ -47,7 +48,7 @@ class SupabaseReportRepository(SupabaseClaimsGraphRepository):
     """Read-only report aggregate. Each collection is fetched in one query."""
 
     async def get_session(self, session_id: UUID, user_id: UUID) -> SessionRead | None:
-        rows = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": "*", "limit": "1"})
+        rows = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": SESSION_READ_COLUMNS, "limit": "1"})
         return SessionRead.model_validate(rows[0]) if rows else None
 
     async def get_result(self, session_id: UUID, user_id: UUID) -> dict[str, Any] | None:
