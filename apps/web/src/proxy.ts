@@ -38,15 +38,17 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // getUser performs an authenticated server round-trip and refreshes stale cookies.
-  let user = null;
+  // getClaims refreshes near-expiry tokens and verifies the resulting JWT.
+  // Keep this immediately after client creation so refreshed cookies stay in sync.
+  let isAuthenticated = false;
   try {
-    ({ data: { user } } = await supabase.auth.getUser());
+    const { data } = await supabase.auth.getClaims();
+    isAuthenticated = Boolean(data?.claims.sub);
   } catch {
     return isAuthPage ? response : redirectWithCookies(request, response, "/login", "network");
   }
-  if (!user && !isAuthPage) return redirectWithCookies(request, response, "/login");
-  if (user && isAuthPage) return redirectWithCookies(request, response, "/app");
+  if (!isAuthenticated && !isAuthPage) return redirectWithCookies(request, response, "/login");
+  if (isAuthenticated && isAuthPage) return redirectWithCookies(request, response, "/app");
   return response;
 }
 

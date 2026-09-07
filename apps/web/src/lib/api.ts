@@ -264,9 +264,19 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const client = getSupabaseBrowserClient();
   const { data } = await client.auth.getSession();
-  const headers = new Headers(init?.headers);
-  if (data.session?.access_token) headers.set("Authorization", `Bearer ${data.session.access_token}`);
-  const response = await fetch(`${apiUrl}${path}`, { ...init, headers });
+  const send = (accessToken: string | undefined) => {
+    const headers = new Headers(init?.headers);
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    return fetch(`${apiUrl}${path}`, { ...init, headers });
+  };
+
+  let response = await send(data.session?.access_token);
+  if (response.status === 401 && data.session?.refresh_token) {
+    const refreshed = await client.auth.refreshSession();
+    if (refreshed.data.session?.access_token) {
+      response = await send(refreshed.data.session.access_token);
+    }
+  }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as {
       detail?: string | { code?: string; message?: string };
