@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .schemas import SessionRead
+
 
 class AssessmentPipelineStatus(StrEnum):
     PENDING = "PENDING"
@@ -33,3 +35,7 @@ class AssessmentJob(BaseModel):
     session_id: UUID
     user_id: UUID
     attempts: int = Field(ge=1)
+
+
+class SessionCompletionResponse(SessionRead):
+    assessment: AssessmentPipelineState

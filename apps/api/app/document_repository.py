@@ -8,12 +8,19 @@ from urllib.parse import quote
 import httpx
 
 from .config import Settings
-from .schemas import DocumentRead
+from .schemas import (
+    DocumentRead,
+    DocumentType,
+    EvidenceDiagnosticReference,
+    EvidenceUsage,
+)
 
 
 DOCUMENT_COLUMNS = (
     "id,user_id,document_type,storage_path,original_filename,mime_type,"
-    "raw_text,status,error_message,created_at,processed_at"
+    "raw_text,status,error_message,created_at,processed_at,title,"
+    "evidence_category,context_note,updated_at,archived_at,version_number,"
+    "supersedes_document_id"
 )
 
 
@@ -23,15 +30,25 @@ class DocumentUnavailable(Exception):
 
 class DocumentRepository(Protocol):
     async def create(self, values: dict[str, Any]) -> DocumentRead: ...
-    async def list_for_user(self, user_id: UUID) -> list[DocumentRead]: ...
+    async def list_for_user(
+        self, user_id: UUID, *, include_archived: bool = False
+    ) -> list[DocumentRead]: ...
     async def get_for_user(
         self, document_id: UUID, user_id: UUID
     ) -> DocumentRead | None: ...
     async def linked_to_protected_session(self, document_id: UUID) -> bool: ...
+    async def usage(self, document_id: UUID, user_id: UUID) -> EvidenceUsage: ...
     async def update_owned(
         self, document_id: UUID, user_id: UUID, values: dict[str, Any]
     ) -> DocumentRead: ...
     async def delete(self, document_id: UUID, user_id: UUID) -> bool: ...
+    async def replace_owned(
+        self,
+        document_id: UUID,
+        user_id: UUID,
+        values: dict[str, Any],
+    ) -> DocumentRead: ...
+    async def link_to_session(self, session_id: UUID, document_id: UUID) -> None: ...
 
 
 class DocumentStorage(Protocol):
@@ -53,11 +70,7 @@ class SupabaseDocumentRepository:
 
     async def create(self, values: dict[str, Any]) -> DocumentRead:
         serialised = {
-            key: value.value
-            if hasattr(value, "value")
-            else str(value)
-            if isinstance(value, UUID)
-            else value
+            key: _value(value)
             for key, value in values.items()
         }
         try:
@@ -73,17 +86,22 @@ class SupabaseDocumentRepository:
         except (httpx.HTTPError, IndexError, TypeError, ValueError) as exc:
             raise DocumentUnavailable from exc
 
-    async def list_for_user(self, user_id: UUID) -> list[DocumentRead]:
+    async def list_for_user(
+        self, user_id: UUID, *, include_archived: bool = False
+    ) -> list[DocumentRead]:
+        params = {
+            "user_id": f"eq.{user_id}",
+            "select": DOCUMENT_COLUMNS,
+            "order": "updated_at.desc,created_at.desc",
+        }
+        if not include_archived:
+            params["archived_at"] = "is.null"
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/documents",
                     headers=self._headers,
-                    params={
-                        "user_id": f"eq.{user_id}",
-                        "select": DOCUMENT_COLUMNS,
-                        "order": "created_at.desc",
-                    },
+                    params=params,
                 )
                 response.raise_for_status()
                 return [DocumentRead.model_validate(row) for row in response.json()]
@@ -119,7 +137,7 @@ class SupabaseDocumentRepository:
                     params={
                         "document_id": f"eq.{document_id}",
                         "select": "session:sessions!inner(status)",
-                        "sessions.status": "in.(in_progress,processing,complete)",
+                        "sessions.status": "in.(CREATED,PREPARING,READY,ACTIVE,ASSESSING,COMPLETED)",
                         "limit": "1",
                     },
                 )
@@ -128,11 +146,61 @@ class SupabaseDocumentRepository:
         except (httpx.HTTPError, TypeError, ValueError) as exc:
             raise DocumentUnavailable from exc
 
+    async def usage(self, document_id: UUID, user_id: UUID) -> EvidenceUsage:
+        if await self.get_for_user(document_id, user_id) is None:
+            return EvidenceUsage(
+                active_diagnostic_count=0,
+                completed_diagnostic_count=0,
+            )
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(
+                    f"{self._url}/rest/v1/session_document_links",
+                    headers=self._headers,
+                    params={
+                        "document_id": f"eq.{document_id}",
+                        "select": (
+                            "created_at,session:sessions!inner("
+                            "id,user_id,target_role,status,completed_at)"
+                        ),
+                        "session.user_id": f"eq.{user_id}",
+                        "order": "created_at.desc",
+                    },
+                )
+                response.raise_for_status()
+                diagnostics: list[EvidenceDiagnosticReference] = []
+                for row in response.json():
+                    session = row.get("session")
+                    if not isinstance(session, dict):
+                        continue
+                    diagnostics.append(
+                        EvidenceDiagnosticReference(
+                            session_id=session["id"],
+                            target_role=session["target_role"],
+                            status=session["status"],
+                            linked_at=row["created_at"],
+                            completed_at=session.get("completed_at"),
+                        )
+                    )
+                return EvidenceUsage(
+                    active_diagnostic_count=sum(
+                        item.status
+                        in {"CREATED", "PREPARING", "READY", "ACTIVE", "ASSESSING"}
+                        for item in diagnostics
+                    ),
+                    completed_diagnostic_count=sum(
+                        item.status == "COMPLETED" for item in diagnostics
+                    ),
+                    diagnostics=diagnostics,
+                )
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            raise DocumentUnavailable from exc
+
     async def update_owned(
         self, document_id: UUID, user_id: UUID, values: dict[str, Any]
     ) -> DocumentRead:
         serialised = {
-            key: value.value if hasattr(value, "value") else value
+            key: _value(value)
             for key, value in values.items()
         }
         try:
@@ -166,6 +234,62 @@ class SupabaseDocumentRepository:
                 response.raise_for_status()
                 return bool(response.json())
         except (httpx.HTTPError, TypeError, ValueError) as exc:
+            raise DocumentUnavailable from exc
+
+    async def replace_owned(
+        self,
+        document_id: UUID,
+        user_id: UUID,
+        values: dict[str, Any],
+    ) -> DocumentRead:
+        payload = {
+            "p_original_document_id": str(document_id),
+            "p_user_id": str(user_id),
+            "p_new_document_id": str(values["id"]),
+            "p_document_type": _value(values["document_type"]),
+            "p_storage_path": values.get("storage_path"),
+            "p_original_filename": values.get("original_filename"),
+            "p_mime_type": values.get("mime_type"),
+            "p_raw_text": values.get("raw_text"),
+            "p_status": _value(values["status"]),
+            "p_processed_at": values.get("processed_at"),
+            "p_title": values["title"],
+            "p_evidence_category": _value(values["evidence_category"]),
+            "p_context_note": values.get("context_note"),
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.post(
+                    f"{self._url}/rest/v1/rpc/replace_evidence_document",
+                    headers=self._headers,
+                    params={"select": DOCUMENT_COLUMNS},
+                    json=payload,
+                )
+                response.raise_for_status()
+                rows = response.json()
+                if not rows:
+                    raise DocumentUnavailable("replacement returned no row")
+                return DocumentRead.model_validate(rows[0])
+        except (httpx.HTTPError, IndexError, KeyError, TypeError, ValueError) as exc:
+            raise DocumentUnavailable from exc
+
+    async def link_to_session(self, session_id: UUID, document_id: UUID) -> None:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.post(
+                    f"{self._url}/rest/v1/session_document_links",
+                    headers={
+                        **self._headers,
+                        "Prefer": "resolution=ignore-duplicates",
+                    },
+                    params={"on_conflict": "session_id,document_id"},
+                    json={
+                        "session_id": str(session_id),
+                        "document_id": str(document_id),
+                    },
+                )
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
             raise DocumentUnavailable from exc
 
 
@@ -228,8 +352,28 @@ def job_description_values(user_id: UUID, raw_text: str) -> dict[str, Any]:
     return {
         "user_id": user_id,
         "document_type": "JOB_DESCRIPTION",
+        "title": "Role brief",
+        "evidence_category": "ROLE_BRIEF",
         "raw_text": raw_text,
         "status": "PROCESSED",
         "processed_at": datetime.now(UTC).isoformat(),
     }
+
+
+def document_type_for_category(category: str) -> DocumentType:
+    if category == "RESUME":
+        return DocumentType.RESUME
+    if category == "ROLE_BRIEF":
+        return DocumentType.JOB_DESCRIPTION
+    return DocumentType.PROJECT
+
+
+def _value(value: Any) -> Any:
+    if hasattr(value, "value"):
+        return value.value
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
 

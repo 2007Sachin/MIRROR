@@ -93,6 +93,14 @@ def test_onboarding_progress_persists_between_steps(
         "interview_timeline": "THIS_MONTH",
         "preferred_language": "ENGLISH",
         "college_id": None,
+        "target_company": None,
+        "onboarding_step": 1,
+        "onboarding_resume_document_id": None,
+        "onboarding_role_brief_document_id": None,
+        "onboarding_role_brief_skipped": False,
+        "onboarding_role_profile_id": None,
+        "onboarding_session_id": None,
+        "inquiry_depth": ["COMPLETE_READINESS"],
         "onboarding_completed": False,
     }
 
@@ -119,6 +127,43 @@ def test_completion_requires_all_onboarding_fields(
         response.json()["detail"]
         == "Complete all required onboarding fields before continuing"
     )
+
+
+def test_diagnostic_onboarding_context_can_complete_without_legacy_preferences(
+    onboarding_client: tuple[TestClient, MemoryOnboardingRepository],
+) -> None:
+    client, _ = onboarding_client
+    values = {
+        "target_role": "Product Manager",
+        "target_company": "Northstar Labs",
+        "onboarding_step": 5,
+        "onboarding_resume_document_id": "30000000-0000-4000-8000-000000000011",
+        "onboarding_role_brief_skipped": True,
+        "onboarding_role_profile_id": "30000000-0000-4000-8000-000000000012",
+        "onboarding_session_id": "30000000-0000-4000-8000-000000000013",
+        "inquiry_depth": ["DECISION_QUALITY", "OWNERSHIP_IMPACT"],
+    }
+    response = client.put("/api/v1/onboarding", headers=AUTH, json=values)
+    assert response.status_code == 200
+    completed = client.put(
+        "/api/v1/onboarding", headers=AUTH, json={"onboarding_completed": True}
+    )
+    assert completed.status_code == 200
+    assert completed.json()["onboarding_completed"] is True
+
+
+def test_complete_readiness_cannot_be_combined_with_specific_inquiry_depth(
+    onboarding_client: tuple[TestClient, MemoryOnboardingRepository],
+) -> None:
+    client, _ = onboarding_client
+    response = client.put(
+        "/api/v1/onboarding",
+        headers=AUTH,
+        json={
+            "inquiry_depth": ["COMPLETE_READINESS", "DECISION_QUALITY"],
+        },
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.parametrize(

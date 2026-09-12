@@ -11,7 +11,10 @@ from .schemas import OnboardingRead
 
 ONBOARDING_COLUMNS = (
     "career_stage,career_intent,target_role,interview_timeline,"
-    "preferred_language,college_id,onboarding_completed"
+    "preferred_language,college_id,target_company,onboarding_step,"
+    "onboarding_resume_document_id,onboarding_role_brief_document_id,"
+    "onboarding_role_brief_skipped,onboarding_role_profile_id,"
+    "onboarding_session_id,inquiry_depth,onboarding_completed"
 )
 
 

@@ -32,6 +32,7 @@ from app.planner_models import (
     PlanningStatus,
 )
 from app.planner_service import InterviewPlanningService, PlanNotFound
+from app.planner_repository import SupabaseInterviewPlanRepository
 from app.repository import MemorySessionRepository
 from app.schemas import SessionCreate
 
@@ -145,10 +146,6 @@ def plan_output(session_id: UUID, *, max_probes: int = 4) -> dict[str, Any]:
         }
 
     return {
-        "session_id": str(session_id),
-        "target_role": "Data Analyst",
-        "total_time_budget_seconds": 1200,
-        "planning_version": PLANNING_VERSION,
         "objectives": [
             objective("intro", "INTRO", budget=120),
             objective(
@@ -175,13 +172,6 @@ def plan_output(session_id: UUID, *, max_probes: int = 4) -> dict[str, Any]:
             ),
             objective("close", "CLOSING", budget=120),
         ],
-        "coverage_summary": {
-            "role_competency_coverage": [str(COMPETENCY_HIGH)],
-            "claims_targeted": [str(CLAIM_HIGH)],
-            "projects_targeted": [str(PROJECT_ID)],
-            "uncovered_high_priority_items": [],
-            "estimated_duration_seconds": 1320,
-        },
     }
 
 
@@ -336,6 +326,27 @@ def test_plan_covers_priority_normalizes_budget_probe_and_beginner() -> None:
         )
         >= 60
     )
+
+
+def test_planner_contract_excludes_all_deterministic_plan_metadata() -> None:
+    service, plans, provider, engine = make_service()
+    session_id = asyncio.run(preparing(engine, plans))
+    provider.responses.append(ProviderResponse(content=plan_output(session_id)))
+
+    result = asyncio.run(service.plan(session_id, USER_A))
+
+    assert result.status == PlanningStatus.COMPLETED
+    assert result.plan is not None
+    assert set(provider.requests[0].output_json_schema["properties"]) == {"objectives"}
+    assert result.plan.session_id == session_id
+    assert result.plan.target_role == "Data Analyst"
+    assert result.plan.total_time_budget_seconds == 1200
+    assert result.plan.planning_version == PLANNING_VERSION
+    assert result.plan.coverage_summary.claims_targeted == [CLAIM_HIGH, CLAIM_LOW]
+    assert result.plan.coverage_summary.role_competency_coverage == [
+        COMPETENCY_HIGH,
+        COMPETENCY_LOW,
+    ]
     assert (
         next(
             item.time_budget_seconds
@@ -343,6 +354,52 @@ def test_plan_covers_priority_normalizes_budget_probe_and_beginner() -> None:
             if item.phase == "CLOSING"
         )
         >= 60
+    )
+
+
+def test_missing_boundary_phases_are_added_deterministically() -> None:
+    service, plans, provider, engine = make_service()
+    session_id = asyncio.run(preparing(engine, plans))
+    output = plan_output(session_id)
+    output["objectives"] = [
+        item
+        for item in output["objectives"]
+        if item["phase"] not in {"INTRO", "CLOSING"}
+    ]
+    provider.responses.append(ProviderResponse(content=output))
+
+    result = asyncio.run(service.plan(session_id, USER_A))
+
+    assert result.status == PlanningStatus.COMPLETED
+    assert result.plan is not None
+    assert result.plan.objectives[0].phase == "INTRO"
+    assert result.plan.objectives[-1].phase == "CLOSING"
+    assert result.plan.objectives[0].max_probes == 0
+    assert result.plan.objectives[-1].max_probes == 0
+
+
+def test_unknown_targets_are_removed_and_minimum_priority_coverage_is_added() -> None:
+    service, plans, provider, engine = make_service()
+    session_id = asyncio.run(preparing(engine, plans))
+    output = plan_output(session_id)
+    unknown_id = uuid4()
+    for objective in output["objectives"]:
+        objective["target_claim_ids"] = []
+        objective["target_competency_ids"] = []
+    output["objectives"][1]["target_claim_ids"] = [str(unknown_id)]
+    output["objectives"][1]["target_competency_ids"] = [str(unknown_id)]
+    provider.responses.append(ProviderResponse(content=output))
+
+    result = asyncio.run(service.plan(session_id, USER_A))
+
+    assert result.status == PlanningStatus.COMPLETED
+    assert result.plan is not None
+    assert unknown_id not in result.plan.coverage_summary.claims_targeted
+    assert unknown_id not in result.plan.coverage_summary.role_competency_coverage
+    assert CLAIM_HIGH in result.plan.coverage_summary.claims_targeted
+    assert COMPETENCY_HIGH in result.plan.coverage_summary.role_competency_coverage
+    assert any(
+        item.objective_id == "priority-evidence" for item in result.plan.objectives
     )
 
 
@@ -430,6 +487,71 @@ def test_planner_migration_is_versioned_owner_scoped_and_concurrency_safe() -> N
     assert "interview_plans_one_active_idx" in migration
     assert "interview_plans_select_own" in migration
     assert "validate_interview_plan_owner" in migration
+
+
+def test_supabase_planner_context_normalizes_claim_fields_without_duplicates() -> None:
+    role_profile_id = uuid4()
+    role_analysis_id = uuid4()
+    resume_analysis_id = uuid4()
+    document_id = uuid4()
+
+    class StubSupabasePlans(SupabaseInterviewPlanRepository):
+        def __init__(self) -> None:
+            pass
+
+        async def _get(self, resource: str, params: dict[str, str]):
+            rows = {
+                "profiles": [{
+                    "career_stage": "FRESHER",
+                    "career_intent": None,
+                    "interview_timeline": None,
+                    "preferred_language": "English",
+                    "inquiry_depth": ["COMPLETE_READINESS"],
+                    "current_role_profile_id": str(role_profile_id),
+                }],
+                "role_profiles": [{
+                    "id": str(role_profile_id),
+                    "current_analysis_version_id": str(role_analysis_id),
+                    "target_role": "Product Manager",
+                }],
+                "role_competencies": [{
+                    "id": str(COMPETENCY_HIGH),
+                    "name": "Product judgment",
+                    "category": "PRODUCT",
+                    "importance_weight": 0.9,
+                    "expected_level": "INTERMEDIATE",
+                }],
+                "session_document_links": [{"document_id": str(document_id)}],
+                "documents": [{"id": str(document_id)}],
+                "resume_analyses": [{
+                    "id": str(resume_analysis_id),
+                    "document_id": str(document_id),
+                }],
+                "claims": [{
+                    "id": str(CLAIM_HIGH),
+                    "claim_text": "Improved activation by 23 percent",
+                    "claim_type": "outcome",
+                    "source": "resume",
+                    "confidence": 0.9,
+                    "verification_priority": "HIGH",
+                }],
+                "claim_relations": [],
+                "claim_evidence": [],
+            }
+            return rows[resource]
+
+    loaded = asyncio.run(
+        StubSupabasePlans().load_context(
+            uuid4(),
+            USER_A,
+            target_role="Product Manager",
+            duration_seconds=1200,
+        )
+    )
+
+    claim = loaded.planner_input.claims_summary[0]
+    assert claim.claim_type == "OUTCOME"
+    assert claim.source == "RESUME"
 
 
 @pytest.mark.parametrize(

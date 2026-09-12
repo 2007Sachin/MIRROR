@@ -17,6 +17,7 @@ class AssessmentPipelineUnavailable(Exception):
 class AssessmentPipelineRepository(Protocol):
     async def enqueue(self, session_id: UUID, user_id: UUID) -> AssessmentPipelineState: ...
     async def status(self, session_id: UUID, user_id: UUID) -> AssessmentPipelineState | None: ...
+    async def retry(self, session_id: UUID, user_id: UUID) -> AssessmentPipelineState: ...
     async def claim(self, worker_id: str, max_attempts: int) -> AssessmentJob | None: ...
     async def has_result(self, session_id: UUID, user_id: UUID) -> bool: ...
     async def complete(self, job_id: UUID) -> None: ...
@@ -43,6 +44,58 @@ class SupabaseAssessmentPipelineRepository(SupabaseSkepticRepository):
             return None
         rows = await self._get("jobs", {"job_type": f"eq.{self.JOB_TYPE}", "dedupe_key": f"eq.{session_id}:v1", "select": "*", "limit": "1"})
         return self._state(rows[0], session_id) if rows else None
+
+    async def retry(self, session_id: UUID, user_id: UUID) -> AssessmentPipelineState:
+        owned = await self._get(
+            "sessions",
+            {
+                "id": f"eq.{session_id}",
+                "user_id": f"eq.{user_id}",
+                "status": "eq.COMPLETED",
+                "select": "id",
+                "limit": "1",
+            },
+        )
+        if not owned:
+            raise AssessmentPipelineUnavailable(
+                "completed owned session not found for assessment retry"
+            )
+        rows = await self._get(
+            "jobs",
+            {
+                "job_type": f"eq.{self.JOB_TYPE}",
+                "dedupe_key": f"eq.{session_id}:v1",
+                "select": "*",
+                "limit": "1",
+            },
+        )
+        if not rows:
+            return await self.enqueue(session_id, user_id)
+        row = rows[0]
+        if str(row.get("status", "")).casefold() == "failed":
+            await self._patch(
+                "jobs",
+                {"id": f"eq.{row['id']}"},
+                {
+                    "status": "pending",
+                    "attempts": 0,
+                    "run_after": datetime.now(UTC).isoformat(),
+                    "locked_at": None,
+                    "locked_by": None,
+                    "completed_at": None,
+                    "error": None,
+                },
+            )
+            refreshed = await self._get(
+                "jobs",
+                {"id": f"eq.{row['id']}", "select": "*", "limit": "1"},
+            )
+            if not refreshed:
+                raise AssessmentPipelineUnavailable(
+                    "assessment retry did not return a job"
+                )
+            row = refreshed[0]
+        return self._state(row, session_id)
 
     async def claim(self, worker_id: str, max_attempts: int) -> AssessmentJob | None:
         rows = await self._post("rpc/claim_post_session_assessment", {"p_worker_id": worker_id, "p_max_attempts": max_attempts})
@@ -119,6 +172,27 @@ class MemoryAssessmentPipelineRepository:
     async def status(self, session_id: UUID, user_id: UUID) -> AssessmentPipelineState | None:
         job_id = self._keys.get((session_id, user_id))
         return self._jobs[job_id][1] if job_id else None
+
+    async def retry(self, session_id: UUID, user_id: UUID) -> AssessmentPipelineState:
+        key = (session_id, user_id)
+        job_id = self._keys.get(key)
+        if job_id is None:
+            return await self.enqueue(session_id, user_id)
+        job, state = self._jobs[job_id]
+        if state.status == AssessmentPipelineStatus.FAILED:
+            job = job.model_copy(update={"attempts": 1})
+            state = state.model_copy(
+                update={
+                    "status": AssessmentPipelineStatus.PENDING,
+                    "retry_count": 0,
+                    "failure_code": None,
+                    "started_at": None,
+                    "completed_at": None,
+                    "queued_at": datetime.now(UTC),
+                }
+            )
+            self._jobs[job_id] = (job, state)
+        return state
 
     async def claim(self, worker_id: str, max_attempts: int) -> AssessmentJob | None:
         for job_id, (job, state) in list(self._jobs.items()):

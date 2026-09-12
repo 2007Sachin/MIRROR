@@ -3,8 +3,8 @@ from ..planner_models import InterviewPlannerInput, InterviewPlanDraft
 
 
 PLANNER_AGENT_NAME = "planner"
-PLANNER_PROMPT_VERSION = "v1"
-PLANNING_VERSION = "planner-v1"
+PLANNER_PROMPT_VERSION = "v3"
+PLANNING_VERSION = "planner-v2"
 
 
 def create_planner_agent(

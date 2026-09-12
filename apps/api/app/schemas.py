@@ -63,10 +63,32 @@ class PreferredLanguage(StrEnum):
     TELUGU = "TELUGU"
 
 
+class InquiryDepth(StrEnum):
+    EVIDENCE_BEHIND_CLAIMS = "EVIDENCE_BEHIND_CLAIMS"
+    ROLE_KNOWLEDGE = "ROLE_KNOWLEDGE"
+    DECISION_QUALITY = "DECISION_QUALITY"
+    OWNERSHIP_IMPACT = "OWNERSHIP_IMPACT"
+    COMMUNICATION_UNDER_SCRUTINY = "COMMUNICATION_UNDER_SCRUTINY"
+    COMPLETE_READINESS = "COMPLETE_READINESS"
+
+
 class DocumentType(StrEnum):
     RESUME = "RESUME"
     JOB_DESCRIPTION = "JOB_DESCRIPTION"
     PROJECT = "PROJECT"
+
+
+class EvidenceCategory(StrEnum):
+    RESUME = "RESUME"
+    PROJECT = "PROJECT"
+    CASE_STUDY = "CASE_STUDY"
+    CERTIFICATE = "CERTIFICATE"
+    PORTFOLIO = "PORTFOLIO"
+    COVER_LETTER = "COVER_LETTER"
+    ACHIEVEMENT = "ACHIEVEMENT"
+    WORK_SAMPLE = "WORK_SAMPLE"
+    ROLE_BRIEF = "ROLE_BRIEF"
+    OTHER = "OTHER"
 
 
 class DocumentStatus(StrEnum):
@@ -88,6 +110,74 @@ class DocumentRead(ApiModel):
     error_message: str | None = None
     created_at: datetime
     processed_at: datetime | None = None
+    title: str | None = None
+    evidence_category: EvidenceCategory | None = None
+    context_note: str | None = None
+    updated_at: datetime | None = None
+    archived_at: datetime | None = None
+    version_number: int = Field(default=1, ge=1)
+    supersedes_document_id: UUID | None = None
+
+
+class EvidenceMetadataUpdate(ApiModel):
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    evidence_category: EvidenceCategory | None = None
+    context_note: str | None = Field(default=None, max_length=4_000)
+    acknowledge_active_use: bool = False
+
+    @field_validator("title")
+    @classmethod
+    def normalise_evidence_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = " ".join(value.split())
+        if not cleaned:
+            raise ValueError("evidence title must not be blank")
+        return cleaned
+
+    @field_validator("context_note")
+    @classmethod
+    def normalise_evidence_context(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @model_validator(mode="after")
+    def require_evidence_change(self) -> EvidenceMetadataUpdate:
+        if not ({"title", "evidence_category", "context_note"} & self.model_fields_set):
+            raise ValueError("at least one evidence field is required")
+        return self
+
+
+class EvidenceArchiveRequest(ApiModel):
+    acknowledge_active_use: bool = False
+
+
+class EvidenceDiagnosticReference(ApiModel):
+    session_id: UUID
+    target_role: str
+    status: Literal[
+        "CREATED",
+        "PREPARING",
+        "READY",
+        "ACTIVE",
+        "ASSESSING",
+        "COMPLETED",
+        "FAILED",
+    ]
+    linked_at: datetime
+    completed_at: datetime | None = None
+
+
+class EvidenceUsage(ApiModel):
+    active_diagnostic_count: int = Field(ge=0)
+    completed_diagnostic_count: int = Field(ge=0)
+    diagnostics: list[EvidenceDiagnosticReference] = Field(default_factory=list)
+
+
+class EvidenceDetail(ApiModel):
+    document: DocumentRead
+    usage: EvidenceUsage
 
 
 class JobDescriptionCreate(ApiModel):
@@ -102,6 +192,17 @@ class JobDescriptionCreate(ApiModel):
         return cleaned
 
 
+class SessionDocumentsLink(ApiModel):
+    document_ids: list[UUID] = Field(min_length=1, max_length=5)
+
+    @field_validator("document_ids")
+    @classmethod
+    def unique_document_ids(cls, value: list[UUID]) -> list[UUID]:
+        if len(value) != len(set(value)):
+            raise ValueError("document_ids must be unique")
+        return value
+
+
 class OnboardingRead(ApiModel):
     career_stage: CareerStage | None = None
     career_intent: CareerIntent | None = None
@@ -109,6 +210,18 @@ class OnboardingRead(ApiModel):
     interview_timeline: InterviewTimeline | None = None
     preferred_language: PreferredLanguage | None = None
     college_id: UUID | None = None
+    target_company: str | None = None
+    onboarding_step: int = Field(default=1, ge=1, le=5)
+    onboarding_resume_document_id: UUID | None = None
+    onboarding_role_brief_document_id: UUID | None = None
+    onboarding_role_brief_skipped: bool = False
+    onboarding_role_profile_id: UUID | None = None
+    onboarding_session_id: UUID | None = None
+    inquiry_depth: list[InquiryDepth] = Field(
+        default_factory=lambda: [InquiryDepth.COMPLETE_READINESS],
+        min_length=1,
+        max_length=5,
+    )
     onboarding_completed: bool = False
 
 
@@ -119,6 +232,16 @@ class OnboardingUpdate(ApiModel):
     interview_timeline: InterviewTimeline | None = None
     preferred_language: PreferredLanguage | None = None
     college_id: UUID | None = None
+    target_company: str | None = Field(default=None, max_length=160)
+    onboarding_step: int | None = Field(default=None, ge=1, le=5)
+    onboarding_resume_document_id: UUID | None = None
+    onboarding_role_brief_document_id: UUID | None = None
+    onboarding_role_brief_skipped: bool | None = None
+    onboarding_role_profile_id: UUID | None = None
+    onboarding_session_id: UUID | None = None
+    inquiry_depth: list[InquiryDepth] | None = Field(
+        default=None, min_length=1, max_length=5
+    )
     onboarding_completed: bool | None = None
 
     @field_validator("target_role")
@@ -131,6 +254,27 @@ class OnboardingUpdate(ApiModel):
             raise ValueError("target_role must contain at least two characters")
         return cleaned
 
+    @field_validator("target_company")
+    @classmethod
+    def normalise_target_company(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = " ".join(value.split())
+        return cleaned or None
+
+    @field_validator("inquiry_depth")
+    @classmethod
+    def validate_inquiry_depth(
+        cls, value: list[InquiryDepth] | None
+    ) -> list[InquiryDepth] | None:
+        if value is None:
+            return None
+        if len(value) != len(set(value)):
+            raise ValueError("inquiry_depth values must be unique")
+        if InquiryDepth.COMPLETE_READINESS in value and len(value) != 1:
+            raise ValueError("complete readiness cannot be combined with another depth")
+        return value
+
     @model_validator(mode="after")
     def require_at_least_one_change(self) -> OnboardingUpdate:
         if not self.model_fields_set:
@@ -139,7 +283,7 @@ class OnboardingUpdate(ApiModel):
 
 
 def onboarding_is_complete(onboarding: OnboardingRead) -> bool:
-    return all(
+    legacy_complete = all(
         (
             onboarding.career_stage,
             onboarding.career_intent,
@@ -148,6 +292,17 @@ def onboarding_is_complete(onboarding: OnboardingRead) -> bool:
             onboarding.preferred_language,
         )
     )
+    diagnostic_complete = all(
+        (
+            onboarding.target_role,
+            onboarding.onboarding_step == 5,
+            onboarding.onboarding_resume_document_id,
+            onboarding.onboarding_role_profile_id,
+            onboarding.onboarding_session_id,
+            onboarding.inquiry_depth,
+        )
+    )
+    return bool(legacy_complete or diagnostic_complete)
 
 
 class Phase(StrEnum):

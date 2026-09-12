@@ -22,7 +22,15 @@ class PromptLoader:
         ):
             raise PromptNotFoundError("invalid prompt identifier")
 
-        path = (self._root / agent_name / f"{version}.md").resolve()
+        # Specialist prompts are grouped by bounded assessor type on disk while
+        # agent registry names remain flat and provider-safe.
+        if agent_name.startswith("assessor_"):
+            assessor_type = agent_name.removeprefix("assessor_")
+            prompt_directory = self._root / "assessor" / assessor_type
+        else:
+            prompt_directory = self._root / agent_name
+
+        path = (prompt_directory / f"{version}.md").resolve()
         if self._root not in path.parents or not path.is_file():
             raise PromptNotFoundError(
                 f"prompt not found for agent '{agent_name}' at version '{version}'"

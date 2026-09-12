@@ -24,8 +24,10 @@ def detect_resume_mime_type(content: bytes) -> str | None:
     return None
 
 
-def safe_original_filename(filename: str | None, mime_type: str) -> str:
-    fallback = "resume.pdf" if mime_type == PDF_MIME else "resume.docx"
+def safe_original_filename(
+    filename: str | None, mime_type: str, *, fallback_stem: str = "resume"
+) -> str:
+    fallback = f"{fallback_stem}.pdf" if mime_type == PDF_MIME else f"{fallback_stem}.docx"
     if not filename:
         return fallback
     basename = filename.replace("\\", "/").rsplit("/", 1)[-1]

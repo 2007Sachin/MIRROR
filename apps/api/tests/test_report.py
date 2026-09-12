@@ -4,7 +4,12 @@ from uuid import uuid4
 import pytest
 
 from app.claims_models import ClaimRead, ClaimSource, ClaimStatus, ClaimType, VerificationPriority
-from app.report_service import ReportAssessmentIncomplete, ReportNotFound, ReportService
+from app.report_service import (
+    ReportAssessmentIncomplete,
+    ReportNotFound,
+    ReportService,
+    SupabaseReportRepository,
+)
 from app.schemas import Phase, SessionRead, SessionStatus
 from app.specialist_assessor_models import (
     AssessorType,
@@ -123,4 +128,42 @@ async def test_skill_assessment_and_schema_are_candidate_safe():
     report = await ReportService(FakeReportRepository(result=RESULT, specialists=[{"assessor_type": "TECHNICAL", "result_json": output.model_dump(mode="json")}])).get_report(SESSION, USER)
     assert report.skill_assessments[0].skill == "SQL"
     assert set(report.model_dump()) == {"session", "verdict", "role_readiness", "interview_readiness", "claims_audit", "skill_assessments", "session_moments", "root_cause", "trust_and_limitations", "prescription"}
+
+
+@pytest.mark.asyncio
+async def test_report_reads_only_document_claims_linked_to_that_diagnostic():
+    linked_document = uuid4()
+    newer_unlinked_document = uuid4()
+    linked_claim = claim(ClaimStatus.CORROBORATED).model_copy(
+        update={"session_id": None, "source_document_id": linked_document}
+    )
+    newer_claim = claim(ClaimStatus.UNVERIFIED).model_copy(
+        update={"session_id": None, "source_document_id": newer_unlinked_document}
+    )
+
+    class RecordingRepository(SupabaseReportRepository):
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def _get(self, table, params):
+            self.calls.append((table, params))
+            if table == "session_document_links":
+                return [{"document_id": str(linked_document)}]
+            if table == "claims" and params.get("session_id"):
+                return []
+            if table == "claims" and params.get("source_document_id") == f"in.({linked_document})":
+                return [linked_claim.model_dump(mode="json")]
+            if table == "claims":
+                return [newer_claim.model_dump(mode="json")]
+            return []
+
+    repository = RecordingRepository()
+    claims = await repository.list_claims(SESSION, USER)
+    assert [item.id for item in claims] == [linked_claim.id]
+    source_filters = [
+        params["source_document_id"]
+        for table, params in repository.calls
+        if table == "claims" and "source_document_id" in params
+    ]
+    assert source_filters == [f"in.({linked_document})"]
 

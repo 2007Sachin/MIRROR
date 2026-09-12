@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from uuid import UUID
 
 from .agents import AgentRunner
@@ -15,6 +16,9 @@ from .specialist_assessor_models import (
 
 class SpecialistAssessmentRejected(Exception):
     pass
+
+
+logger = logging.getLogger("mirror.assessment")
 
 
 class AssessmentOrchestrator:
@@ -62,6 +66,18 @@ class AssessmentOrchestrator:
             context=AgentExecutionContext(session_id=session_id, user_id=user_id),
         )
         if not execution.success or execution.output is None:
+            logger.error(
+                "specialist assessment execution failed",
+                extra={
+                    "execution_id": str(execution.execution_id),
+                    "session_id": str(session_id),
+                    "user_id": str(user_id),
+                    "assessor_type": assessor_type.value,
+                    "error_type": (
+                        execution.error_type.value if execution.error_type else "unknown"
+                    ),
+                },
+            )
             raise SpecialistAssessmentRejected(f"{assessor_type.value} assessor failed")
         output = SpecialistAssessmentOutput.model_validate(execution.output)
         if output.assessor_type != assessor_type:

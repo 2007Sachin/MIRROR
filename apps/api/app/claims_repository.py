@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -333,17 +334,22 @@ class SupabaseClaimsGraphRepository:
         return [_claim(row) for row in rows]
 
     async def _get(self, resource: str, params: dict[str, str]) -> list[dict[str, Any]]:
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                response = await client.get(
-                    f"{self._url}/rest/v1/{resource}",
-                    headers=self._headers,
-                    params=params,
-                )
-                response.raise_for_status()
-                return response.json()
-        except (httpx.HTTPError, TypeError, ValueError) as exc:
-            raise ClaimsGraphUnavailable from exc
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    response = await client.get(
+                        f"{self._url}/rest/v1/{resource}",
+                        headers=self._headers,
+                        params=params,
+                    )
+                    response.raise_for_status()
+                    return response.json()
+            except (httpx.HTTPError, TypeError, ValueError) as exc:
+                last_error = exc
+                if attempt < 2:
+                    await asyncio.sleep(0.15 * (2**attempt))
+        raise ClaimsGraphUnavailable from last_error
 
     async def _post(
         self,

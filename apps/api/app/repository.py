@@ -248,24 +248,52 @@ class SupabaseSessionRepository:
             for key, value in values.items()
         }
         async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.post(
-                f"{self.url}/rest/v1/rpc/apply_interview_state_change",
-                headers=self.headers,
-                params={"select": SESSION_READ_COLUMNS},
-                json={
-                    "p_session_id": str(session.id),
-                    "p_user_id": str(session.user_id),
-                    "p_expected_updated_at": session.updated_at.isoformat(),
-                    "p_values": serialised,
-                    "p_event_type": event_type,
-                    "p_event_payload": payload,
-                },
-            )
+            try:
+                response = await client.post(
+                    f"{self.url}/rest/v1/rpc/apply_interview_state_change",
+                    headers=self.headers,
+                    params={"select": SESSION_READ_COLUMNS},
+                    json={
+                        "p_session_id": str(session.id),
+                        "p_user_id": str(session.user_id),
+                        "p_expected_updated_at": session.updated_at.isoformat(),
+                        "p_values": serialised,
+                        "p_event_type": event_type,
+                        "p_event_payload": payload,
+                    },
+                )
+            except httpx.TimeoutException:
+                current = await self.get(session.id, session.user_id)
+                if current is not None and self._matches_state_change(
+                    current, serialised
+                ):
+                    return current
+                raise
             if response.status_code == 400:
                 return None
             response.raise_for_status()
             rows = response.json()
             return SessionRead.model_validate(rows[0]) if rows else None
+
+    @staticmethod
+    def _matches_state_change(session: SessionRead, values: dict) -> bool:
+        for key, expected in values.items():
+            actual = getattr(session, key, None)
+            if hasattr(actual, "value"):
+                actual = actual.value
+            elif isinstance(actual, datetime):
+                actual = actual.isoformat()
+            elif isinstance(actual, UUID):
+                actual = str(actual)
+            if hasattr(expected, "value"):
+                expected = expected.value
+            elif isinstance(expected, datetime):
+                expected = expected.isoformat()
+            elif isinstance(expected, UUID):
+                expected = str(expected)
+            if actual != expected:
+                return False
+        return True
 
     async def record_event(
         self, session_id: UUID, user_id: UUID, event_type: str, payload: dict

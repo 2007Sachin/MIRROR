@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+from datetime import UTC, datetime
 from time import perf_counter
 from uuid import UUID, uuid4
 
@@ -26,6 +28,7 @@ from .dependencies import (
     get_onboarding_repository,
     get_profile_repository,
     get_repository,
+    get_resume_document_parser,
     get_resume_analysis_service,
     get_role_analysis_service,
     get_claims_graph_service,
@@ -36,6 +39,7 @@ from .dependencies import (
     get_voice_interview_service,
     get_report_service,
     get_assessment_pipeline_repository,
+    get_dashboard_service,
 )
 from .interview_engine import (
     ConcurrentSessionChange,
@@ -94,11 +98,19 @@ from .document_ingestion import (
     detect_resume_mime_type,
     safe_original_filename,
 )
+from .document_parsing import DocumentParsingError, ResumeDocumentParser
 from .document_repository import (
     DocumentRepository,
     DocumentStorage,
     DocumentUnavailable,
+    document_type_for_category,
     job_description_values,
+)
+from .document_library_service import (
+    DocumentLibraryService,
+    EvidenceActiveUse,
+    EvidenceArchived,
+    EvidenceNotFound,
 )
 from .onboarding_repository import OnboardingRepository, OnboardingUnavailable
 from .profile_repository import ProfileRepository, ProfileUnavailable
@@ -126,6 +138,10 @@ from .schemas import (
     DocumentRead,
     DocumentStatus,
     DocumentType,
+    EvidenceArchiveRequest,
+    EvidenceCategory,
+    EvidenceDetail,
+    EvidenceMetadataUpdate,
     JobDescriptionCreate,
     OnboardingRead,
     OnboardingUpdate,
@@ -133,6 +149,7 @@ from .schemas import (
     ProfileRead,
     ProfileUpdate,
     SessionCreate,
+    SessionDocumentsLink,
     SessionPatch,
     SessionRead,
     SessionStatus,
@@ -140,16 +157,48 @@ from .schemas import (
 )
 from .report_models import ReportResponse
 from .assessment_pipeline_models import AssessmentPipelineState
+from .assessment_pipeline_models import SessionCompletionResponse
 from .assessment_pipeline_repository import AssessmentPipelineRepository, AssessmentPipelineUnavailable
 from .report_service import ReportAssessmentIncomplete, ReportNotFound, ReportService, ReportUnavailable
+from .dashboard_models import DashboardResponse
+from .dashboard_repository import DashboardUnavailable
+from .dashboard_service import DashboardService
 
 settings = get_settings()
+logger = logging.getLogger("mirror.lifecycle")
+
+
+def _evidence_category(value: str) -> EvidenceCategory:
+    try:
+        return EvidenceCategory(value.strip().upper())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Choose a supported evidence category") from exc
+
+
+def _evidence_title(value: str | None, fallback: str) -> str:
+    cleaned = " ".join((value or fallback).split())
+    if not cleaned or len(cleaned) > 160:
+        raise HTTPException(status_code=422, detail="Evidence title must be between 1 and 160 characters")
+    return cleaned
+
+
+def _active_evidence_conflict(exc: EvidenceActiveUse) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "code": "EVIDENCE_ACTIVE_USE",
+            "message": "This evidence is part of an active diagnostic. Confirm that the change should apply only to future diagnostics.",
+            "usage": exc.usage.model_dump(mode="json"),
+        },
+    )
+
+
 app = FastAPI(title="Mirror API", version="0.1.0", docs_url="/api/docs")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.app_url],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -183,6 +232,43 @@ async def read_assessment_status(
     if state is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
     return state
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/assessment/retry",
+    response_model=AssessmentPipelineState,
+)
+async def retry_assessment(
+    session_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: AssessmentPipelineRepository = Depends(get_assessment_pipeline_repository),
+) -> AssessmentPipelineState:
+    try:
+        state = await repository.retry(session_id, user.id)
+        logger.info(
+            "assessment retry requested",
+            extra={"session_id": str(session_id), "user_id": str(user.id)},
+        )
+        return state
+    except AssessmentPipelineUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Assessment retry is temporarily unavailable",
+        ) from exc
+
+
+@app.get("/api/v1/dashboard", response_model=DashboardResponse)
+async def read_dashboard(
+    user: AuthenticatedUser = Depends(get_current_user),
+    dashboard: DashboardService = Depends(get_dashboard_service),
+) -> DashboardResponse:
+    try:
+        return await dashboard.workspace(user.id)
+    except DashboardUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Evidence workspace is temporarily unavailable",
+        ) from exc
 
 
 @app.get(
@@ -373,6 +459,8 @@ async def create_resume_document(
                     "original_filename": safe_original_filename(
                         resume.filename, detected_mime
                     ),
+                    "title": _evidence_title(resume.filename, "Resume"),
+                    "evidence_category": EvidenceCategory.RESUME,
                     "mime_type": detected_mime,
                     "status": DocumentStatus.UPLOADED,
                 }
@@ -411,13 +499,192 @@ async def create_job_description_document(
         ) from exc
 
 
+@app.post(
+    "/api/v1/documents/job-description/upload",
+    response_model=DocumentRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_job_description_document(
+    role_brief: UploadFile = File(...),
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: DocumentRepository = Depends(get_document_repository),
+    storage: DocumentStorage = Depends(get_document_storage),
+    parser: ResumeDocumentParser = Depends(get_resume_document_parser),
+) -> DocumentRead:
+    declared_mime = role_brief.content_type or ""
+    if declared_mime not in ALLOWED_RESUME_MIME_TYPES:
+        raise HTTPException(status_code=415, detail="Role brief must be a PDF or DOCX file")
+
+    maximum_size = settings.resume_max_file_size_bytes
+    if maximum_size <= 0:
+        raise HTTPException(
+            status_code=503, detail="Role brief upload is temporarily unavailable"
+        )
+    content = await role_brief.read(maximum_size + 1)
+    if len(content) > maximum_size:
+        raise HTTPException(
+            status_code=413, detail="Role brief exceeds the configured file-size limit"
+        )
+    detected_mime = detect_resume_mime_type(content)
+    if detected_mime is None or detected_mime != declared_mime:
+        raise HTTPException(
+            status_code=415,
+            detail="Role brief content does not match an allowed PDF or DOCX file",
+        )
+    try:
+        raw_text = parser.extract(content, detected_mime)
+    except DocumentParsingError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Mirror could not extract text from this role brief",
+        ) from exc
+
+    document_id = uuid4()
+    extension = "docx" if detected_mime == DOCX_MIME else "pdf"
+    storage_path = f"{user.id}/documents/{document_id}/role-brief.{extension}"
+    try:
+        await storage.upload(storage_path, content, detected_mime)
+        try:
+            return await repository.create(
+                {
+                    "id": document_id,
+                    "user_id": user.id,
+                    "document_type": DocumentType.JOB_DESCRIPTION,
+                    "storage_path": storage_path,
+                    "original_filename": safe_original_filename(
+                        role_brief.filename,
+                        detected_mime,
+                        fallback_stem="role-brief",
+                    ),
+                    "title": _evidence_title(role_brief.filename, "Role brief"),
+                    "evidence_category": EvidenceCategory.ROLE_BRIEF,
+                    "mime_type": detected_mime,
+                    "raw_text": raw_text,
+                    "status": DocumentStatus.PROCESSED,
+                    "processed_at": datetime.now(UTC).isoformat(),
+                }
+            )
+        except DocumentUnavailable:
+            try:
+                await storage.delete(storage_path)
+            except DocumentUnavailable:
+                pass
+            raise
+    except DocumentUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Role brief upload is temporarily unavailable",
+        ) from exc
+
+
+@app.get("/api/v1/evidence", response_model=list[EvidenceDetail])
+async def list_evidence_library(
+    include_archived: bool = Query(default=False),
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: DocumentRepository = Depends(get_document_repository),
+    storage: DocumentStorage = Depends(get_document_storage),
+) -> list[EvidenceDetail]:
+    try:
+        return await DocumentLibraryService(repository, storage).list(
+            user.id,
+            include_archived=include_archived,
+        )
+    except DocumentUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Evidence library is temporarily unavailable") from exc
+
+
+@app.post(
+    "/api/v1/evidence",
+    response_model=EvidenceDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_evidence(
+    evidence_file: UploadFile = File(...),
+    title: str | None = Form(default=None),
+    evidence_category: str = Form(default=EvidenceCategory.OTHER.value),
+    context_note: str | None = Form(default=None),
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: DocumentRepository = Depends(get_document_repository),
+    storage: DocumentStorage = Depends(get_document_storage),
+    parser: ResumeDocumentParser = Depends(get_resume_document_parser),
+) -> EvidenceDetail:
+    if settings.resume_max_file_size_bytes <= 0:
+        raise HTTPException(status_code=503, detail="Evidence uploads are not configured")
+    declared_mime = evidence_file.content_type or ""
+    if declared_mime not in ALLOWED_RESUME_MIME_TYPES:
+        raise HTTPException(status_code=415, detail="Evidence must be a PDF or DOCX file")
+    content = await evidence_file.read(settings.resume_max_file_size_bytes + 1)
+    if len(content) > settings.resume_max_file_size_bytes:
+        raise HTTPException(status_code=413, detail="Evidence exceeds the configured file-size limit")
+    detected_mime = detect_resume_mime_type(content)
+    if detected_mime is None or detected_mime != declared_mime:
+        raise HTTPException(status_code=415, detail="Evidence content does not match an allowed PDF or DOCX file")
+
+    category = _evidence_category(evidence_category)
+    context = (context_note or "").strip() or None
+    if context and len(context) > 4_000:
+        raise HTTPException(status_code=422, detail="Evidence context cannot exceed 4000 characters")
+    document_type = document_type_for_category(category.value)
+    raw_text = None
+    document_status = DocumentStatus.UPLOADED
+    processed_at = None
+    if document_type != DocumentType.RESUME:
+        try:
+            raw_text = parser.extract(content, detected_mime)
+        except DocumentParsingError as exc:
+            raise HTTPException(status_code=422, detail="Mirror could not read this evidence file") from exc
+        document_status = DocumentStatus.PROCESSED
+        processed_at = datetime.now(UTC).isoformat()
+
+    document_id = uuid4()
+    extension = "docx" if detected_mime == DOCX_MIME else "pdf"
+    storage_path = f"{user.id}/documents/{document_id}/evidence.{extension}"
+    original_filename = safe_original_filename(
+        evidence_file.filename,
+        detected_mime,
+        fallback_stem="evidence",
+    )
+    try:
+        await storage.upload(storage_path, content, detected_mime)
+        try:
+            document = await repository.create(
+                {
+                    "id": document_id,
+                    "user_id": user.id,
+                    "document_type": document_type,
+                    "storage_path": storage_path,
+                    "original_filename": original_filename,
+                    "mime_type": detected_mime,
+                    "raw_text": raw_text,
+                    "status": document_status,
+                    "processed_at": processed_at,
+                    "title": _evidence_title(title, original_filename),
+                    "evidence_category": category,
+                    "context_note": context,
+                }
+            )
+        except DocumentUnavailable:
+            try:
+                await storage.delete(storage_path)
+            except DocumentUnavailable:
+                pass
+            raise
+        return EvidenceDetail(
+            document=document,
+            usage={"active_diagnostic_count": 0, "completed_diagnostic_count": 0},
+        )
+    except DocumentUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Evidence upload is temporarily unavailable") from exc
+
+
 @app.get("/api/v1/documents", response_model=list[DocumentRead])
 async def list_documents(
+    include_archived: bool = Query(default=False),
     user: AuthenticatedUser = Depends(get_current_user),
     repository: DocumentRepository = Depends(get_document_repository),
 ) -> list[DocumentRead]:
     try:
-        return await repository.list_for_user(user.id)
+        return await repository.list_for_user(user.id, include_archived=include_archived)
     except DocumentUnavailable as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -443,8 +710,91 @@ async def read_document(
     return document
 
 
-@app.delete("/api/v1/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_document(
+@app.get("/api/v1/documents/{document_id}/detail", response_model=EvidenceDetail)
+async def read_evidence_detail(
+    document_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: DocumentRepository = Depends(get_document_repository),
+    storage: DocumentStorage = Depends(get_document_storage),
+) -> EvidenceDetail:
+    try:
+        return await DocumentLibraryService(repository, storage).detail(document_id, user.id)
+    except EvidenceNotFound as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except DocumentUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Evidence details are temporarily unavailable") from exc
+
+
+@app.patch("/api/v1/documents/{document_id}", response_model=EvidenceDetail)
+async def update_evidence_metadata(
+    document_id: UUID,
+    payload: EvidenceMetadataUpdate,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: DocumentRepository = Depends(get_document_repository),
+    storage: DocumentStorage = Depends(get_document_storage),
+) -> EvidenceDetail:
+    values = payload.model_dump(
+        exclude={"acknowledge_active_use"},
+        exclude_unset=True,
+    )
+    try:
+        return await DocumentLibraryService(repository, storage).update_metadata(
+            document_id,
+            user.id,
+            values,
+            acknowledge_active_use=payload.acknowledge_active_use,
+        )
+    except EvidenceActiveUse as exc:
+        raise _active_evidence_conflict(exc)
+    except EvidenceNotFound as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except EvidenceArchived as exc:
+        raise HTTPException(status_code=409, detail="Restore this evidence before editing it") from exc
+    except DocumentUnavailable as exc:
+        raise HTTPException(status_code=503, detail="We couldn't update this evidence. Your original details are unchanged.") from exc
+
+
+@app.post("/api/v1/documents/{document_id}/archive", response_model=EvidenceDetail)
+async def archive_evidence(
+    document_id: UUID,
+    payload: EvidenceArchiveRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: DocumentRepository = Depends(get_document_repository),
+    storage: DocumentStorage = Depends(get_document_storage),
+) -> EvidenceDetail:
+    try:
+        return await DocumentLibraryService(repository, storage).archive(
+            document_id,
+            user.id,
+            acknowledge_active_use=payload.acknowledge_active_use,
+        )
+    except EvidenceActiveUse as exc:
+        raise _active_evidence_conflict(exc)
+    except EvidenceNotFound as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except EvidenceArchived as exc:
+        raise HTTPException(status_code=409, detail="Evidence is already removed from the library") from exc
+    except DocumentUnavailable as exc:
+        raise HTTPException(status_code=503, detail="We couldn't remove this evidence. It remains in your library.") from exc
+
+
+@app.post("/api/v1/documents/{document_id}/restore", response_model=EvidenceDetail)
+async def restore_evidence(
+    document_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: DocumentRepository = Depends(get_document_repository),
+    storage: DocumentStorage = Depends(get_document_storage),
+) -> EvidenceDetail:
+    try:
+        return await DocumentLibraryService(repository, storage).restore(document_id, user.id)
+    except EvidenceNotFound as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except DocumentUnavailable as exc:
+        raise HTTPException(status_code=503, detail="We couldn't restore this evidence. Try again.") from exc
+
+
+@app.get("/api/v1/documents/{document_id}/download")
+async def download_evidence(
     document_id: UUID,
     user: AuthenticatedUser = Depends(get_current_user),
     repository: DocumentRepository = Depends(get_document_repository),
@@ -452,24 +802,139 @@ async def delete_document(
 ) -> Response:
     try:
         document = await repository.get_for_user(document_id, user.id)
-        if document is None:
-            raise HTTPException(status_code=404, detail="Document not found")
-        if await repository.linked_to_protected_session(document.id):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Documents linked to an active or completed session cannot be deleted",
-            )
-        if document.storage_path:
-            await storage.delete(document.storage_path)
-        if not await repository.delete(document.id, user.id):
-            raise HTTPException(status_code=404, detail="Document not found")
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        if document is None or not document.storage_path:
+            raise HTTPException(status_code=404, detail="Original file not found")
+        content = await storage.download(document.storage_path)
+        filename = (document.original_filename or "evidence").replace('"', "")
+        return Response(
+            content=content,
+            media_type=document.mime_type or "application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
     except HTTPException:
         raise
     except DocumentUnavailable as exc:
+        raise HTTPException(status_code=503, detail="The original file is temporarily unavailable") from exc
+
+
+@app.post("/api/v1/documents/{document_id}/replace", response_model=EvidenceDetail)
+async def replace_evidence_file(
+    document_id: UUID,
+    evidence_file: UploadFile = File(...),
+    title: str | None = Form(default=None),
+    evidence_category: str | None = Form(default=None),
+    context_note: str | None = Form(default=None),
+    acknowledge_active_use: bool = Form(default=False),
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: DocumentRepository = Depends(get_document_repository),
+    storage: DocumentStorage = Depends(get_document_storage),
+    parser: ResumeDocumentParser = Depends(get_resume_document_parser),
+) -> EvidenceDetail:
+    service = DocumentLibraryService(repository, storage)
+    try:
+        current = await service.detail(document_id, user.id)
+    except EvidenceNotFound as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except DocumentUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Evidence details are temporarily unavailable") from exc
+
+    if settings.resume_max_file_size_bytes <= 0:
+        raise HTTPException(status_code=503, detail="Evidence uploads are not configured")
+    declared_mime = evidence_file.content_type or ""
+    if declared_mime not in ALLOWED_RESUME_MIME_TYPES:
+        raise HTTPException(status_code=415, detail="Evidence must be a PDF or DOCX file")
+    content = await evidence_file.read(settings.resume_max_file_size_bytes + 1)
+    if len(content) > settings.resume_max_file_size_bytes:
+        raise HTTPException(status_code=413, detail="Evidence exceeds the configured file-size limit")
+    detected_mime = detect_resume_mime_type(content)
+    if detected_mime is None or detected_mime != declared_mime:
+        raise HTTPException(status_code=415, detail="Evidence content does not match an allowed PDF or DOCX file")
+
+    current_document = current.document
+    category = (
+        _evidence_category(evidence_category)
+        if evidence_category
+        else current_document.evidence_category
+        or EvidenceCategory.OTHER
+    )
+    next_context = current_document.context_note if context_note is None else context_note.strip() or None
+    if next_context and len(next_context) > 4_000:
+        raise HTTPException(status_code=422, detail="Evidence context cannot exceed 4000 characters")
+    document_type = document_type_for_category(category.value)
+    raw_text = None
+    document_status = DocumentStatus.UPLOADED
+    processed_at = None
+    if document_type != DocumentType.RESUME:
+        try:
+            raw_text = parser.extract(content, detected_mime)
+        except DocumentParsingError as exc:
+            raise HTTPException(status_code=422, detail="Mirror could not read the replacement file. Your original file is unchanged.") from exc
+        document_status = DocumentStatus.PROCESSED
+        processed_at = datetime.now(UTC).isoformat()
+
+    replacement_id = uuid4()
+    extension = "docx" if detected_mime == DOCX_MIME else "pdf"
+    storage_path = f"{user.id}/documents/{replacement_id}/evidence.{extension}"
+    original_filename = safe_original_filename(
+        evidence_file.filename,
+        detected_mime,
+        fallback_stem="evidence",
+    )
+    try:
+        return await service.replace(
+            document_id,
+            user.id,
+            {
+                "id": replacement_id,
+                "document_type": document_type,
+                "storage_path": storage_path,
+                "original_filename": original_filename,
+                "mime_type": detected_mime,
+                "raw_text": raw_text,
+                "status": document_status,
+                "processed_at": processed_at,
+                "title": _evidence_title(title, current_document.title or original_filename),
+                "evidence_category": category,
+                "context_note": next_context,
+            },
+            content,
+            acknowledge_active_use=acknowledge_active_use,
+        )
+    except EvidenceActiveUse as exc:
+        raise _active_evidence_conflict(exc)
+    except EvidenceArchived as exc:
+        raise HTTPException(status_code=409, detail="Restore this evidence before replacing its file") from exc
+    except EvidenceNotFound as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except DocumentUnavailable as exc:
+        raise HTTPException(status_code=503, detail="We couldn't replace this evidence. Your original file is unchanged.") from exc
+
+
+@app.delete("/api/v1/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    document_id: UUID,
+    acknowledge_active_use: bool = Query(default=False),
+    user: AuthenticatedUser = Depends(get_current_user),
+    repository: DocumentRepository = Depends(get_document_repository),
+    storage: DocumentStorage = Depends(get_document_storage),
+) -> Response:
+    try:
+        await DocumentLibraryService(repository, storage).archive(
+            document_id,
+            user.id,
+            acknowledge_active_use=acknowledge_active_use,
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except EvidenceActiveUse as exc:
+        raise _active_evidence_conflict(exc)
+    except EvidenceNotFound as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except EvidenceArchived:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except DocumentUnavailable as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Document service is temporarily unavailable",
+            detail="We couldn't remove this evidence. It remains in your library.",
         ) from exc
 
 
@@ -617,6 +1082,48 @@ async def create_session(
     return await engine.create_session_state(user_id, payload)
 
 
+@app.post(
+    "/api/v1/sessions/{session_id}/documents",
+    response_model=SessionRead,
+)
+async def link_session_documents(
+    session_id: UUID,
+    payload: SessionDocumentsLink,
+    user_id: UUID = Depends(current_user_id),
+    engine: InterviewStateMachine = Depends(get_interview_state_machine),
+    documents: DocumentRepository = Depends(get_document_repository),
+) -> SessionRead:
+    try:
+        session = await engine.get_state(session_id, user_id)
+        for document_id in payload.document_ids:
+            document = await documents.get_for_user(document_id, user_id)
+            if document is None:
+                raise HTTPException(status_code=404, detail="Document not found")
+            if document.archived_at is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Restore this evidence before using it in a diagnostic",
+                )
+            if document.document_type not in (
+                DocumentType.RESUME,
+                DocumentType.JOB_DESCRIPTION,
+            ):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Only resume and role-brief documents can be linked",
+                )
+            await documents.link_to_session(session_id, document_id)
+        return session
+    except HTTPException:
+        raise
+    except SessionNotFound as exc:
+        raise HTTPException(status_code=404, detail="Session not found") from exc
+    except DocumentUnavailable as exc:
+        raise HTTPException(
+            status_code=503, detail="Document linking is temporarily unavailable"
+        ) from exc
+
+
 @app.get("/api/v1/sessions/{session_id}", response_model=SessionRead)
 @app.get("/api/sessions/{session_id}", response_model=SessionRead)
 async def read_session(
@@ -704,6 +1211,10 @@ async def prepare_session(
         session = await engine.get_state(session_id, user_id)
         if session.status == SessionStatus.CREATED:
             session = await engine.begin_preparation(session_id, user_id)
+        elif session.status == SessionStatus.READY:
+            return PrepareResponse(
+                session=session, claims_extracted=0, competencies_derived=0
+            )
         elif session.status != SessionStatus.PREPARING:
             raise IllegalSessionTransition
         plan = await planning.plan(session_id, user_id)
@@ -992,23 +1503,43 @@ async def list_text_turns(
         ) from exc
 
 
-@app.post("/api/v1/sessions/{session_id}/end", response_model=SessionRead)
-@app.post("/api/sessions/{session_id}/end", response_model=SessionRead)
+@app.post("/api/v1/sessions/{session_id}/end", response_model=SessionCompletionResponse)
+@app.post("/api/sessions/{session_id}/end", response_model=SessionCompletionResponse)
 async def end_session(
     session_id: UUID,
     user_id: UUID = Depends(current_user_id),
     engine: InterviewStateMachine = Depends(get_interview_state_machine),
     assessment: AssessmentPipelineRepository = Depends(get_assessment_pipeline_repository),
-) -> SessionRead:
+) -> SessionCompletionResponse:
     try:
-        current = await engine.get_state(session_id, user_id)
-        if current.status == SessionStatus.ACTIVE:
-            assessing = await engine.request_close(session_id, user_id)
-            current = await engine.complete(assessing.id, user_id)
-        elif current.status != SessionStatus.COMPLETED:
+        current = None
+        for attempt in range(3):
+            current = await engine.get_state(session_id, user_id)
+            try:
+                if current.status == SessionStatus.ACTIVE:
+                    current = await engine.request_close(session_id, user_id)
+                if current.status == SessionStatus.ASSESSING:
+                    current = await engine.complete(current.id, user_id)
+                elif current.status != SessionStatus.COMPLETED:
+                    raise IllegalSessionTransition
+                break
+            except ConcurrentSessionChange:
+                if attempt == 2:
+                    raise
+        if current is None or current.status != SessionStatus.COMPLETED:
             raise IllegalSessionTransition
-        await assessment.enqueue(current.id, user_id)
-        return current
+        assessment_state = await assessment.enqueue(current.id, user_id)
+        logger.info(
+            "interview completion persisted",
+            extra={
+                "session_id": str(current.id),
+                "user_id": str(user_id),
+                "assessment_status": assessment_state.status.value,
+            },
+        )
+        return SessionCompletionResponse(
+            **current.model_dump(), assessment=assessment_state
+        )
     except SessionNotFound as exc:
         raise HTTPException(status_code=404, detail="Session not found") from exc
     except (IllegalSessionTransition, InterviewFlowRejected) as exc:

@@ -17,6 +17,7 @@ from .planner_models import (
     PlannerClaimSummary,
     PlannerCompetencySummary,
     PlannerProjectSummary,
+    PlannerDocumentContext,
     PlanningContext,
     PlanningStatus,
 )
@@ -114,7 +115,7 @@ class SupabaseInterviewPlanRepository:
                 "id": f"eq.{user_id}",
                 "select": (
                     "career_stage,career_intent,interview_timeline,preferred_language,"
-                    "current_role_profile_id"
+                    "inquiry_depth,current_role_profile_id"
                 ),
             },
         )
@@ -156,17 +157,20 @@ class SupabaseInterviewPlanRepository:
         )
         linked_document_ids = [row["document_id"] for row in link_rows]
         resume_document_ids: list[str] = []
+        document_rows: list[dict[str, Any]] = []
         if linked_document_ids:
             document_rows = await self._get(
                 "documents",
                 {
                     "id": f"in.({','.join(linked_document_ids)})",
                     "user_id": f"eq.{user_id}",
-                    "document_type": "eq.RESUME",
-                    "select": "id",
+                    "select": "id,document_type,title,evidence_category,context_note",
                 },
             )
-            resume_document_ids = [row["id"] for row in document_rows]
+            resume_document_ids = [
+                row["id"] for row in document_rows
+                if row.get("document_type") == "RESUME"
+            ]
         resume_params = {
             "user_id": f"eq.{user_id}",
             "status": "eq.COMPLETED",
@@ -241,11 +245,13 @@ class SupabaseInterviewPlanRepository:
             ] += 1
 
         claims = [
-            PlannerClaimSummary(
-                **row,
-                claim_type=row["claim_type"].upper(),
-                source=row["source"].upper(),
-                entity_names=claim_entities.get(row["id"], []),
+            PlannerClaimSummary.model_validate(
+                {
+                    **row,
+                    "claim_type": row["claim_type"].upper(),
+                    "source": row["source"].upper(),
+                    "entity_names": claim_entities.get(row["id"], []),
+                }
             )
             for row in claim_rows
         ]
@@ -277,6 +283,7 @@ class SupabaseInterviewPlanRepository:
                 career_intent=profile.get("career_intent"),
                 interview_timeline=profile.get("interview_timeline"),
                 preferred_language=profile.get("preferred_language"),
+                inquiry_depth=profile.get("inquiry_depth") or ["COMPLETE_READINESS"],
             ),
             target_role=target_role,
             career_stage=profile.get("career_stage"),
@@ -291,6 +298,16 @@ class SupabaseInterviewPlanRepository:
                 claim.id for claim in claims if claim.verification_priority == "HIGH"
             ],
             existing_evidence_summary=evidence,
+            document_context=[
+                PlannerDocumentContext(
+                    document_id=row["id"],
+                    title=str(row.get("title") or "Professional evidence"),
+                    evidence_category=str(row.get("evidence_category") or row.get("document_type") or "OTHER"),
+                    context_note=str(row["context_note"]).strip(),
+                )
+                for row in document_rows
+                if str(row.get("context_note") or "").strip()
+            ],
         )
         return PlanningContext(
             resume_analysis_id=resume_analysis_id,

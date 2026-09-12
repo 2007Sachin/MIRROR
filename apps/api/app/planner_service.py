@@ -20,6 +20,7 @@ from .planner_models import (
     InterviewPlanDraft,
     InterviewPlanRecord,
     InterviewPlanResponse,
+    ObjectivePriority,
     PlanCoverageSummary,
     PlanningResponse,
     PlanningStatus,
@@ -182,31 +183,29 @@ class InterviewPlanningService:
         )
 
     def _normalize(self, draft: InterviewPlanDraft, source) -> InterviewPlan:
-        if draft.session_id != source.session_id:
-            raise InvalidInterviewPlan("plan session does not match input")
-        if draft.target_role.casefold() != source.target_role.casefold():
-            raise InvalidInterviewPlan("plan target role does not match input")
-        if draft.total_time_budget_seconds != source.interview_duration_seconds:
-            raise InvalidInterviewPlan(
-                "plan duration does not match configured duration"
-            )
-        if draft.planning_version != PLANNING_VERSION:
-            raise InvalidInterviewPlan("planning version mismatch")
-        if not any(item.phase == Phase.INTRO for item in draft.objectives):
-            raise InvalidInterviewPlan("an INTRO objective is required")
-        if not any(item.phase == Phase.CLOSING for item in draft.objectives):
-            raise InvalidInterviewPlan("a CLOSING objective is required")
+        boundary_safe_objectives = self._ensure_boundary_objectives(draft.objectives)
 
         claim_ids = {item.id for item in source.claims_summary}
         competency_ids = {item.id for item in source.role_competencies}
         project_ids = {item.id for item in source.projects}
-        for objective in draft.objectives:
-            if not set(objective.target_claim_ids) <= claim_ids:
-                raise InvalidInterviewPlan("plan references an unknown claim")
-            if not set(objective.target_competency_ids) <= competency_ids:
-                raise InvalidInterviewPlan("plan references an unknown competency")
-            if not set(objective.target_project_ids) <= project_ids:
-                raise InvalidInterviewPlan("plan references an unknown project")
+        boundary_safe_objectives = [
+            objective.model_copy(
+                update={
+                    "target_claim_ids": [
+                        item for item in objective.target_claim_ids if item in claim_ids
+                    ],
+                    "target_competency_ids": [
+                        item
+                        for item in objective.target_competency_ids
+                        if item in competency_ids
+                    ],
+                    "target_project_ids": [
+                        item for item in objective.target_project_ids if item in project_ids
+                    ],
+                }
+            )
+            for objective in boundary_safe_objectives
+        ]
 
         beginner = source.career_stage in {
             "STUDENT",
@@ -226,9 +225,21 @@ class InterviewPlanningService:
                     ),
                 }
             )
-            for objective in draft.objectives
+            for objective in boundary_safe_objectives
         ]
         objectives = self._limit_project_dominance(objectives)
+        high_claims = set(source.high_verification_priority_claims)
+        critical = {
+            item.id
+            for item in source.role_competencies
+            if item.importance_weight >= 0.8
+        }
+        objectives = self._ensure_priority_coverage(
+            objectives,
+            high_claims=high_claims,
+            critical_competencies=critical,
+            beginner=beginner,
+        )
         objectives = self._normalize_time(objectives, source.interview_duration_seconds)
 
         targeted_claims = {
@@ -242,17 +253,6 @@ class InterviewPlanningService:
         targeted_projects = {
             project_id for item in objectives for project_id in item.target_project_ids
         }
-        high_claims = set(source.high_verification_priority_claims)
-        if high_claims and not targeted_claims.intersection(high_claims):
-            raise InvalidInterviewPlan("no high-priority claim receives coverage")
-        critical = {
-            item.id
-            for item in source.role_competencies
-            if item.importance_weight >= 0.8
-        }
-        if critical and not targeted_competencies.intersection(critical):
-            raise InvalidInterviewPlan("no role-critical competency receives coverage")
-
         uncovered = [f"claim:{item}" for item in sorted(high_claims - targeted_claims)]
         uncovered.extend(
             f"competency:{item}" for item in sorted(critical - targeted_competencies)
@@ -262,7 +262,10 @@ class InterviewPlanningService:
             + self._transition_reserve
         )
         return InterviewPlan(
-            **draft.model_dump(exclude={"objectives", "coverage_summary"}),
+            session_id=source.session_id,
+            target_role=source.target_role,
+            total_time_budget_seconds=source.interview_duration_seconds,
+            planning_version=PLANNING_VERSION,
             objectives=objectives,
             coverage_summary=PlanCoverageSummary(
                 role_competency_coverage=sorted(targeted_competencies),
@@ -273,6 +276,120 @@ class InterviewPlanningService:
             ),
             created_at=datetime.now(UTC),
         )
+
+    def _ensure_boundary_objectives(
+        self, objectives: list[InterviewObjective]
+    ) -> list[InterviewObjective]:
+        normalized = list(objectives)
+        used_ids = {item.objective_id for item in normalized}
+
+        def objective_id(preferred: str) -> str:
+            if preferred not in used_ids:
+                used_ids.add(preferred)
+                return preferred
+            suffix = 2
+            while f"{preferred}-{suffix}" in used_ids:
+                suffix += 1
+            value = f"{preferred}-{suffix}"
+            used_ids.add(value)
+            return value
+
+        if not any(item.phase == Phase.INTRO for item in normalized):
+            normalized.insert(
+                0,
+                InterviewObjective(
+                    objective_id=objective_id("mirror-intro"),
+                    phase=Phase.INTRO,
+                    objective="Establish the candidate's current context and interview goals.",
+                    priority=ObjectivePriority.MEDIUM,
+                    initial_question="To begin, could you briefly describe your recent experience and what you hope to demonstrate today?",
+                    question_intent="Establish context before collecting role-specific evidence.",
+                    expected_signal=["clear professional context"],
+                    time_budget_seconds=max(30, self._intro_reserve),
+                    max_probes=0,
+                    difficulty_start=DifficultyStart.FOUNDATIONAL,
+                    completion_conditions=["Candidate provides concise opening context"],
+                ),
+            )
+        if not any(item.phase == Phase.CLOSING for item in normalized):
+            normalized.append(
+                InterviewObjective(
+                    objective_id=objective_id("mirror-closing"),
+                    phase=Phase.CLOSING,
+                    objective="Give the candidate a final opportunity to add relevant evidence.",
+                    priority=ObjectivePriority.MEDIUM,
+                    initial_question="Before we finish, is there any relevant experience or context you would like to add?",
+                    question_intent="Capture relevant evidence not reached by earlier objectives.",
+                    expected_signal=["additional relevant context"],
+                    time_budget_seconds=max(30, self._closing_reserve),
+                    max_probes=0,
+                    difficulty_start=DifficultyStart.FOUNDATIONAL,
+                    completion_conditions=["Candidate confirms whether they have anything to add"],
+                )
+            )
+        return normalized
+
+    @staticmethod
+    def _ensure_priority_coverage(
+        objectives: list[InterviewObjective],
+        *,
+        high_claims: set[UUID],
+        critical_competencies: set[UUID],
+        beginner: bool,
+    ) -> list[InterviewObjective]:
+        targeted_claims = {
+            item for objective in objectives for item in objective.target_claim_ids
+        }
+        targeted_competencies = {
+            item for objective in objectives for item in objective.target_competency_ids
+        }
+        missing_claim_coverage = bool(high_claims) and not bool(
+            targeted_claims.intersection(high_claims)
+        )
+        missing_competency_coverage = bool(critical_competencies) and not bool(
+            targeted_competencies.intersection(critical_competencies)
+        )
+        if not missing_claim_coverage and not missing_competency_coverage:
+            return objectives
+
+        used_ids = {item.objective_id for item in objectives}
+        objective_id = "priority-evidence"
+        suffix = 2
+        while objective_id in used_ids:
+            objective_id = f"priority-evidence-{suffix}"
+            suffix += 1
+        fallback = InterviewObjective(
+            objective_id=objective_id,
+            phase=Phase.ROLE_CORE,
+            objective="Collect evidence for an uncovered role-critical area.",
+            priority=ObjectivePriority.HIGH,
+            target_claim_ids=(
+                [sorted(high_claims)[0]] if missing_claim_coverage else []
+            ),
+            target_competency_ids=(
+                [sorted(critical_competencies)[0]]
+                if missing_competency_coverage
+                else []
+            ),
+            initial_question="Choose a relevant example and explain your decisions, personal contribution, and outcome.",
+            question_intent="Ensure the interview collects evidence for a role-critical area.",
+            expected_signal=["specific decisions", "personal ownership", "outcome"],
+            time_budget_seconds=180,
+            max_probes=2,
+            difficulty_start=(
+                DifficultyStart.BASIC if beginner else DifficultyStart.INTERMEDIATE
+            ),
+            completion_conditions=["Candidate provides one concrete example"],
+        )
+        closing_index = next(
+            (
+                index
+                for index, item in enumerate(objectives)
+                if item.phase == Phase.CLOSING
+            ),
+            len(objectives),
+        )
+        return [*objectives[:closing_index], fallback, *objectives[closing_index:]]
 
     def _normalize_time(
         self, objectives: list[InterviewObjective], duration: int

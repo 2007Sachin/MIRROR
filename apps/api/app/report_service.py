@@ -59,14 +59,32 @@ class SupabaseReportRepository(SupabaseClaimsGraphRepository):
         return dict(rows[0]) if rows else None
 
     async def list_claims(self, session_id: UUID, user_id: UUID) -> list[ClaimRead]:
-        # Include resume claims (session_id null) and spoken claims for this session.
-        rows = await self._get("claims", {
+        # A completed report may only read document claims from the immutable
+        # document versions linked to that session. New resume versions must
+        # never appear retroactively in an older diagnostic.
+        spoken_rows = await self._get("claims", {
             "user_id": f"eq.{user_id}",
-            "or": f"(session_id.eq.{session_id},session_id.is.null)",
+            "session_id": f"eq.{session_id}",
             "select": CLAIM_COLUMNS,
             "order": "created_at.asc",
             "limit": "1000",
         })
+        link_rows = await self._get(
+            "session_document_links",
+            {"session_id": f"eq.{session_id}", "select": "document_id"},
+        )
+        document_ids = [str(row["document_id"]) for row in link_rows if row.get("document_id")]
+        document_rows: list[dict[str, Any]] = []
+        if document_ids:
+            document_rows = await self._get("claims", {
+                "user_id": f"eq.{user_id}",
+                "source_document_id": f"in.({','.join(document_ids)})",
+                "select": CLAIM_COLUMNS,
+                "order": "created_at.asc",
+                "limit": "1000",
+            })
+        rows_by_id = {str(row["id"]): row for row in [*document_rows, *spoken_rows]}
+        rows = sorted(rows_by_id.values(), key=lambda row: str(row.get("created_at") or ""))
         return [_claim(row) for row in rows]
 
     async def list_evidence(self, claim_ids: list[UUID], user_id: UUID) -> list[dict[str, Any]]:

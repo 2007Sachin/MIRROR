@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from uuid import UUID
@@ -578,22 +579,28 @@ class SupabaseSkepticRepository:
         headers = dict(self._headers)
         if prefer:
             headers["Prefer"] = prefer
-        try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                response = await client.request(
-                    method,
-                    f"{self._url}/rest/v1/{resource}",
-                    headers=headers,
-                    params=params,
-                    json=payload,
-                )
-                if ignore_conflict and response.status_code == 409:
-                    return []
-                response.raise_for_status()
-                if response.status_code == 204 or not response.content:
-                    return []
-                body = response.json()
-                return body if isinstance(body, list) else [body]
-        except (httpx.HTTPError, TypeError, ValueError) as exc:
-            raise SkepticPersistenceUnavailable from exc
+        attempts = 3 if method == "GET" else 1
+        last_error: Exception | None = None
+        for attempt in range(attempts):
+            try:
+                async with httpx.AsyncClient(timeout=20) as client:
+                    response = await client.request(
+                        method,
+                        f"{self._url}/rest/v1/{resource}",
+                        headers=headers,
+                        params=params,
+                        json=payload,
+                    )
+                    if ignore_conflict and response.status_code == 409:
+                        return []
+                    response.raise_for_status()
+                    if response.status_code == 204 or not response.content:
+                        return []
+                    body = response.json()
+                    return body if isinstance(body, list) else [body]
+            except (httpx.HTTPError, TypeError, ValueError) as exc:
+                last_error = exc
+                if attempt + 1 < attempts:
+                    await asyncio.sleep(0.15 * (2**attempt))
+        raise SkepticPersistenceUnavailable from last_error
 

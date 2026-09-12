@@ -73,6 +73,18 @@ class FailingPersistenceRepository(MemoryAssessmentPipelineRepository):
         raise RuntimeError("database_write_failed")
 
 
+class TransientClaimRepository(MemoryAssessmentPipelineRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self.claim_attempts = 0
+
+    async def claim(self, worker_id: str, max_attempts: int):
+        self.claim_attempts += 1
+        if self.claim_attempts == 1:
+            raise RuntimeError("temporary_database_disconnect")
+        raise asyncio.CancelledError
+
+
 def worker(repository, orchestrator, *, max_attempts=2):
     return AssessmentWorker(repository, orchestrator, NoopAdjudicator(), FinalAssessmentAggregator(), FakeVerdict(), FakeAudit(), max_attempts=max_attempts, retry_base_seconds=1)
 
@@ -113,3 +125,31 @@ def test_existing_result_is_acknowledged_without_reexecution() -> None:
     result = asyncio.run(worker(repository, FailingOrchestrator()).run_once("test"))
     assert result.success
     assert asyncio.run(repository.status(SESSION_ID, USER_ID)).status == AssessmentPipelineStatus.COMPLETED
+
+
+def test_failed_assessment_can_be_requeued_without_duplicate_job() -> None:
+    repository = MemoryAssessmentPipelineRepository()
+    asyncio.run(repository.enqueue(SESSION_ID, USER_ID))
+    asyncio.run(worker(repository, FailingOrchestrator(), max_attempts=1).run_once("test"))
+
+    retried = asyncio.run(repository.retry(SESSION_ID, USER_ID))
+    repeated = asyncio.run(repository.retry(SESSION_ID, USER_ID))
+
+    assert retried.status == AssessmentPipelineStatus.PENDING
+    assert repeated.status == AssessmentPipelineStatus.PENDING
+    assert len(repository._jobs) == 1
+
+
+def test_forever_worker_survives_transient_claim_failure() -> None:
+    repository = TransientClaimRepository()
+
+    async def exercise() -> None:
+        try:
+            await worker(repository, SuccessfulOrchestrator()).run_forever(
+                "test", poll_seconds=0.001
+            )
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(exercise())
+    assert repository.claim_attempts == 2

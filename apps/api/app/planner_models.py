@@ -37,6 +37,7 @@ class PlannerCandidateProfile(PlannerModel):
     career_intent: str | None = None
     interview_timeline: str | None = None
     preferred_language: str | None = None
+    inquiry_depth: list[str] = Field(default_factory=list, max_length=5)
 
 
 class PlannerClaimSummary(PlannerModel):
@@ -69,6 +70,13 @@ class ExistingEvidenceSummary(PlannerModel):
     context_only_count: int = Field(default=0, ge=0)
 
 
+class PlannerDocumentContext(PlannerModel):
+    document_id: UUID
+    title: str = Field(min_length=1, max_length=160)
+    evidence_category: str = Field(min_length=2, max_length=40)
+    context_note: str = Field(min_length=1, max_length=4_000)
+
+
 class InterviewPlannerInput(PlannerModel):
     session_id: UUID
     candidate_profile: PlannerCandidateProfile
@@ -86,6 +94,9 @@ class InterviewPlannerInput(PlannerModel):
     )
     existing_evidence_summary: list[ExistingEvidenceSummary] = Field(
         default_factory=list, max_length=1000
+    )
+    document_context: list[PlannerDocumentContext] = Field(
+        default_factory=list, max_length=20
     )
 
 
@@ -124,12 +135,7 @@ class PlanCoverageSummary(PlannerModel):
 
 
 class InterviewPlanDraft(PlannerModel):
-    session_id: UUID
-    target_role: str = Field(min_length=2, max_length=160)
-    total_time_budget_seconds: int = Field(gt=0, le=14_400)
-    planning_version: str = Field(min_length=1, max_length=100)
     objectives: list[InterviewObjective] = Field(min_length=2, max_length=50)
-    coverage_summary: PlanCoverageSummary
 
     @model_validator(mode="after")
     def unique_objectives(self) -> InterviewPlanDraft:
@@ -140,6 +146,11 @@ class InterviewPlanDraft(PlannerModel):
 
 
 class InterviewPlan(InterviewPlanDraft):
+    session_id: UUID
+    target_role: str = Field(min_length=2, max_length=160)
+    total_time_budget_seconds: int = Field(gt=0, le=14_400)
+    planning_version: str = Field(min_length=1, max_length=100)
+    coverage_summary: PlanCoverageSummary
     created_at: datetime
 
 

@@ -8,6 +8,8 @@ from uuid import uuid4
 import pytest
 
 from app.agents.definitions import AgentExecutionResult
+from app.agents.prompts import PromptLoader
+from app.agents.specialist_assessors import create_specialist_assessor
 from app.assessment_orchestrator import AssessmentOrchestrator, SpecialistAssessmentRejected
 from app.specialist_assessor_models import (
     AssessmentTranscriptTurn, AssessorType, SignalStrength,
@@ -92,6 +94,13 @@ def test_persona_boundaries_are_explicit_in_prompts():
     assert "indian-english" in behaviour and "technical competence" in behaviour
     assert "dishonest" in claims and "low skill" in claims
     assert "untrusted" in technical and "untrusted" in behaviour and "untrusted" in claims
+
+
+def test_every_registered_specialist_resolves_its_versioned_prompt():
+    loader = PromptLoader()
+    for assessor_type in AssessorType:
+        agent = create_specialist_assessor(assessor_type, "test-model")
+        assert loader.load(agent.name, agent.prompt_version)
 
 
 def test_p2_p4_p5_p6_p7_expectations_are_representable_without_verdicts():

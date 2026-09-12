@@ -125,6 +125,12 @@ from .agents.adjudicator import create_adjudicator_agent
 from .agents.verdict import create_verdict_agent
 from .verdict_service import VerdictLanguageService
 from .final_assessment_aggregator import FinalAssessmentAggregator
+from .dashboard_repository import (
+    DashboardUnavailable,
+    MemoryDashboardRepository,
+    SupabaseDashboardRepository,
+)
+from .dashboard_service import DashboardService
 
 
 @lru_cache
@@ -570,6 +576,19 @@ def get_specialist_assessment_orchestrator() -> AssessmentOrchestrator:
 @lru_cache
 def get_report_service() -> ReportService:
     return ReportService(SupabaseReportRepository(get_settings()))
+
+
+@lru_cache
+def get_dashboard_service() -> DashboardService:
+    if not get_settings().supabase_enabled:
+        return DashboardService(MemoryDashboardRepository())
+    try:
+        return DashboardService(SupabaseDashboardRepository(get_settings()))
+    except DashboardUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Evidence workspace is not configured",
+        ) from exc
 
 
 @lru_cache

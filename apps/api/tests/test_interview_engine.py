@@ -210,7 +210,9 @@ class EngineVerifier:
 
 
 @pytest.fixture
-def engine_client() -> TestClient:
+def engine_client() -> tuple[
+    TestClient, InterviewStateMachine, MemoryAssessmentPipelineRepository
+]:
     engine, _, _ = make_engine()
     assessment = MemoryAssessmentPipelineRepository()
 
@@ -233,7 +235,7 @@ def engine_client() -> TestClient:
         lambda: assessment
     )
     with TestClient(app) as client:
-        yield client
+        yield client, engine, assessment
     if previous_verifier is None:
         app.dependency_overrides.pop(get_token_verifier, None)
     else:
@@ -254,8 +256,13 @@ def engine_client() -> TestClient:
         )
 
 
-def test_v1_session_endpoints_and_isolation(engine_client: TestClient) -> None:
-    created = engine_client.post(
+def test_v1_session_endpoints_and_isolation(
+    engine_client: tuple[
+        TestClient, InterviewStateMachine, MemoryAssessmentPipelineRepository
+    ],
+) -> None:
+    client, engine, assessment_repository = engine_client
+    created = client.post(
         "/api/v1/sessions",
         headers={"Authorization": "Bearer engine-a"},
         json={"target_role": "Data Analyst"},
@@ -264,45 +271,84 @@ def test_v1_session_endpoints_and_isolation(engine_client: TestClient) -> None:
     session_id = created.json()["id"]
     assert created.json()["status"] == "CREATED"
     assert (
-        engine_client.post(
+        client.post(
             f"/api/v1/sessions/{session_id}/prepare",
             headers={"Authorization": "Bearer engine-a"},
         ).json()["session"]["status"]
         == "READY"
     )
+    repeated_prepare = client.post(
+        f"/api/v1/sessions/{session_id}/prepare",
+        headers={"Authorization": "Bearer engine-a"},
+    )
+    assert repeated_prepare.status_code == 200
+    assert repeated_prepare.json()["session"]["status"] == "READY"
     assert (
-        engine_client.post(
+        client.post(
             f"/api/sessions/{session_id}/start",
             headers={"Authorization": "Bearer engine-a"},
         ).json()["status"]
         == "ACTIVE"
     )
-    ended = engine_client.post(
+    ended = client.post(
         f"/api/v1/sessions/{session_id}/end",
         headers={"Authorization": "Bearer engine-a"},
     )
     assert ended.status_code == 200
     assert ended.json()["status"] == "COMPLETED"
+    assert ended.json()["assessment"]["status"] == "PENDING"
     # Repeated end requests are safe: the completed session keeps one job.
-    assert engine_client.post(
+    assert client.post(
         f"/api/v1/sessions/{session_id}/end",
         headers={"Authorization": "Bearer engine-a"},
     ).status_code == 200
-    assessment = engine_client.get(
+    assert len(assessment_repository._jobs) == 1
+    assessment = client.get(
         f"/api/v1/sessions/{session_id}/assessment",
         headers={"Authorization": "Bearer engine-a"},
     )
     assert assessment.status_code == 200
     assert assessment.json()["status"] == "PENDING"
-    assert engine_client.get(
+    assert client.get(
         f"/api/v1/sessions/{session_id}/assessment",
         headers={"Authorization": "Bearer engine-b"},
     ).status_code == 404
     assert (
-        engine_client.get(
+        client.get(
             f"/api/v1/sessions/{session_id}",
             headers={"Authorization": "Bearer engine-b"},
         ).status_code
         == 404
     )
+    assert client.get(
+        f"/api/v1/sessions/{session_id}",
+        headers={"Authorization": "Bearer engine-a"},
+    ).status_code == 200
+
+    # Automatic closing transitions the interview to ASSESSING before the UI
+    # asks the completion endpoint to persist completion and enqueue the job.
+    closing = client.post(
+        "/api/v1/sessions",
+        headers={"Authorization": "Bearer engine-a"},
+        json={"target_role": "Product Manager"},
+    )
+    closing_id = closing.json()["id"]
+    client.post(
+        f"/api/v1/sessions/{closing_id}/prepare",
+        headers={"Authorization": "Bearer engine-a"},
+    )
+    client.post(
+        f"/api/sessions/{closing_id}/start",
+        headers={"Authorization": "Bearer engine-a"},
+    )
+    asyncio.run(engine.request_close(UUID(closing_id), USER_A))
+
+    closed_from_assessing = client.post(
+        f"/api/v1/sessions/{closing_id}/end",
+        headers={"Authorization": "Bearer engine-a"},
+    )
+    assert closed_from_assessing.status_code == 200
+    assert closed_from_assessing.json()["status"] == "COMPLETED"
+    assert closed_from_assessing.json()["assessment"]["status"] == "PENDING"
+    assert len(assessment_repository._jobs) == 2
 
