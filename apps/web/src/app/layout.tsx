@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Mirror by Pathwisse",
   description: "An evidence-backed interview diagnostic and claims audit.",
   manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg" },
 };
 
 export const viewport: Viewport = { themeColor: "#10120F", width: "device-width", initialScale: 1 };

@@ -2,13 +2,19 @@
 
 import { ArrowRight, FileText, LockKey } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { mirrorApi } from "@/lib/api";
 
 export default function NewSessionPage() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [targetRole, setTargetRole] = useState("");
+
+  useEffect(() => {
+    const role = new URLSearchParams(window.location.search).get("role");
+    if (role) setTargetRole(role);
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,7 +50,7 @@ export default function NewSessionPage() {
         <form onSubmit={submit} className="space-y-7 border-t hairline pt-7" aria-busy={busy}>
           <label className="block">
             <span className="mb-2 block text-sm font-semibold">Target role</span>
-            <input className="field" name="target_role" required minLength={2} maxLength={160} placeholder="Data Analyst" />
+            <input className="field" name="target_role" value={targetRole} onChange={(event) => setTargetRole(event.target.value)} required minLength={2} maxLength={160} placeholder="Data Analyst" />
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-semibold">Resume</span>

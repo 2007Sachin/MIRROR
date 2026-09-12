@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { AppHome } from "@/components/app-home";
 import { getServerOnboarding } from "@/lib/server-api";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +14,7 @@ export default async function AppPage() {
     );
   }
 
-  const { onboarding } = result;
-  if (!onboarding.onboarding_completed) redirect("/onboarding");
-  return <AppHome />;
+  if (!result.onboarding.onboarding_completed) redirect("/onboarding");
+  redirect("/dashboard");
 }
 

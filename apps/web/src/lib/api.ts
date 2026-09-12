@@ -34,6 +34,28 @@ export type AssessmentPipelineState = {
   completed_at: string | null;
 };
 
+export type SessionCompletion = Session & {
+  assessment: AssessmentPipelineState;
+};
+
+export type DashboardDiagnostic = {
+  id: string;
+  target_role: string;
+  company: string | null;
+  interview_status: Session["status"];
+  phase: string;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  assessment: AssessmentPipelineState | null;
+  diagnostic_available: boolean;
+};
+
+export type DashboardResponse = {
+  current: DashboardDiagnostic | null;
+  previous: DashboardDiagnostic[];
+};
+
 export type Profile = {
   id: string;
   full_name: string | null;
@@ -44,6 +66,13 @@ export type CareerStage = "STUDENT" | "FINAL_YEAR_STUDENT" | "FRESHER" | "EARLY_
 export type CareerIntent = "CAMPUS_PLACEMENT" | "INTERNSHIP" | "FIRST_JOB" | "JOB_SWITCH" | "SPECIFIC_COMPANY" | "EXPLORING";
 export type InterviewTimeline = "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "LATER" | "EXPLORING";
 export type PreferredLanguage = "ENGLISH" | "HINDI" | "KANNADA" | "TAMIL" | "TELUGU";
+export type InquiryDepth =
+  | "EVIDENCE_BEHIND_CLAIMS"
+  | "ROLE_KNOWLEDGE"
+  | "DECISION_QUALITY"
+  | "OWNERSHIP_IMPACT"
+  | "COMMUNICATION_UNDER_SCRUTINY"
+  | "COMPLETE_READINESS";
 
 export type Onboarding = {
   career_stage: CareerStage | null;
@@ -52,6 +81,14 @@ export type Onboarding = {
   interview_timeline: InterviewTimeline | null;
   preferred_language: PreferredLanguage | null;
   college_id: string | null;
+  target_company: string | null;
+  onboarding_step: number;
+  onboarding_resume_document_id: string | null;
+  onboarding_role_brief_document_id: string | null;
+  onboarding_role_brief_skipped: boolean;
+  onboarding_role_profile_id: string | null;
+  onboarding_session_id: string | null;
+  inquiry_depth: InquiryDepth[];
   onboarding_completed: boolean;
 };
 
@@ -59,6 +96,17 @@ export type OnboardingUpdate = Partial<Onboarding>;
 
 export type DocumentType = "RESUME" | "JOB_DESCRIPTION" | "PROJECT";
 export type DocumentStatus = "UPLOADED" | "PROCESSING" | "PROCESSED" | "FAILED";
+export type EvidenceCategory =
+  | "RESUME"
+  | "PROJECT"
+  | "CASE_STUDY"
+  | "CERTIFICATE"
+  | "PORTFOLIO"
+  | "COVER_LETTER"
+  | "ACHIEVEMENT"
+  | "WORK_SAMPLE"
+  | "ROLE_BRIEF"
+  | "OTHER";
 
 export type MirrorDocument = {
   id: string;
@@ -72,6 +120,32 @@ export type MirrorDocument = {
   error_message: string | null;
   created_at: string;
   processed_at: string | null;
+  title: string | null;
+  evidence_category: EvidenceCategory | null;
+  context_note: string | null;
+  updated_at: string | null;
+  archived_at: string | null;
+  version_number: number;
+  supersedes_document_id: string | null;
+};
+
+export type EvidenceDiagnosticReference = {
+  session_id: string;
+  target_role: string;
+  status: Session["status"];
+  linked_at: string;
+  completed_at: string | null;
+};
+
+export type EvidenceUsage = {
+  active_diagnostic_count: number;
+  completed_diagnostic_count: number;
+  diagnostics: EvidenceDiagnosticReference[];
+};
+
+export type EvidenceDetail = {
+  document: MirrorDocument;
+  usage: EvidenceUsage;
 };
 
 export type ClaimReviewStatus = "CORRECT" | "NEEDS_CORRECTION";
@@ -167,6 +241,38 @@ export type RoleAnalysis = {
     };
   };
   competencies: RoleCompetency[];
+};
+
+export type InterviewPlanObjective = {
+  objective_id: string;
+  phase: string;
+  objective: string;
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  target_claim_ids: string[];
+  target_competency_ids: string[];
+  target_project_ids: string[];
+  initial_question: string;
+  question_intent: string;
+  expected_signal: string[];
+  time_budget_seconds: number;
+  max_probes: number;
+  difficulty_start: "FOUNDATIONAL" | "BASIC" | "INTERMEDIATE" | "ADVANCED";
+  completion_conditions: string[];
+};
+
+export type InterviewPlanResponse = {
+  id: string;
+  session_id: string;
+  version: number;
+  status: "PROCESSING" | "COMPLETED" | "FAILED";
+  plan: null | {
+    session_id: string;
+    target_role: string;
+    total_time_budget_seconds: number;
+    planning_version: string;
+    objectives: InterviewPlanObjective[];
+    created_at: string;
+  };
 };
 
 export type InterviewTurnType =
@@ -386,6 +492,118 @@ export async function uploadResumeDocument(
   });
 }
 
+export async function uploadRoleBriefDocument(
+  file: File,
+  onProgress: (percentage: number) => void,
+): Promise<MirrorDocument> {
+  const { data } = await getSupabaseBrowserClient().auth.getSession();
+  if (!data.session?.access_token) throw new ApiError(401, "Authentication required");
+
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", `${apiUrl}/api/v1/documents/job-description/upload`);
+    request.setRequestHeader("Authorization", `Bearer ${data.session.access_token}`);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onerror = () => reject(new ApiError(0, "Mirror could not reach the document service."));
+    request.onload = () => {
+      let body: MirrorDocument | { detail?: string } | null = null;
+      try { body = JSON.parse(request.responseText) as MirrorDocument | { detail?: string }; } catch { /* Use safe fallback. */ }
+      if (request.status >= 200 && request.status < 300 && body) {
+        onProgress(100);
+        resolve(body as MirrorDocument);
+        return;
+      }
+      const detail = body && "detail" in body ? body.detail : undefined;
+      reject(new ApiError(request.status, detail ?? "Mirror could not upload that role brief."));
+    };
+    const form = new FormData();
+    form.set("role_brief", file);
+    request.send(form);
+  });
+}
+
+export async function uploadEvidenceDocument(
+  file: File,
+  values: {
+    title: string;
+    evidence_category: EvidenceCategory;
+    context_note: string;
+    acknowledge_active_use?: boolean;
+  },
+  onProgress: (percentage: number) => void,
+  replaceDocumentId?: string,
+): Promise<EvidenceDetail> {
+  const { data } = await getSupabaseBrowserClient().auth.getSession();
+  if (!data.session?.access_token) throw new ApiError(401, "Authentication required");
+
+  return new Promise((resolve, reject) => {
+    const upload = new XMLHttpRequest();
+    upload.open(
+      "POST",
+      `${apiUrl}${replaceDocumentId ? `/api/v1/documents/${replaceDocumentId}/replace` : "/api/v1/evidence"}`,
+    );
+    upload.setRequestHeader("Authorization", `Bearer ${data.session?.access_token}`);
+    upload.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    upload.onerror = () => reject(new ApiError(0, "Mirror could not reach the evidence service."));
+    upload.onload = () => {
+      let body: EvidenceDetail | { detail?: string | { message?: string; code?: string } } | null = null;
+      try { body = JSON.parse(upload.responseText) as typeof body; } catch { /* Safe fallback below. */ }
+      if (upload.status >= 200 && upload.status < 300 && body) {
+        onProgress(100);
+        resolve(body as EvidenceDetail);
+        return;
+      }
+      const detail = (body as { detail?: string | { message?: string; code?: string } } | null)?.detail;
+      const message = typeof detail === "string"
+        ? detail
+        : detail && typeof detail === "object"
+          ? detail.message
+          : undefined;
+      const code = detail && typeof detail === "object" ? detail.code : undefined;
+      reject(new ApiError(
+        upload.status,
+        message ?? "Mirror could not update that evidence.",
+        code,
+      ));
+    };
+    const form = new FormData();
+    form.set("evidence_file", file);
+    form.set("title", values.title);
+    form.set("evidence_category", values.evidence_category);
+    form.set("context_note", values.context_note);
+    if (values.acknowledge_active_use) form.set("acknowledge_active_use", "true");
+    upload.send(form);
+  });
+}
+
+export async function downloadEvidenceDocument(
+  id: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const client = getSupabaseBrowserClient();
+  let { data } = await client.auth.getSession();
+  if (!data.session?.access_token) throw new ApiError(401, "Authentication required");
+  let response = await fetch(`${apiUrl}/api/v1/documents/${id}/download`, {
+    headers: { Authorization: `Bearer ${data.session.access_token}` },
+  });
+  if (response.status === 401 && data.session.refresh_token) {
+    const refreshed = await client.auth.refreshSession();
+    data = refreshed.data;
+    if (data.session?.access_token) {
+      response = await fetch(`${apiUrl}/api/v1/documents/${id}/download`, {
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+    }
+  }
+  if (!response.ok) throw new ApiError(response.status, "Mirror could not download the original file.");
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? "evidence";
+  return { blob: await response.blob(), filename };
+}
+
 export const mirrorApi = {
   me: () => request<Profile>("/api/v1/me"),
   updateMe: (full_name: string) => request<Profile>("/api/v1/me", {
@@ -399,8 +617,36 @@ export const mirrorApi = {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(values),
   }),
-  documents: () => request<MirrorDocument[]>("/api/v1/documents"),
+  documents: (includeArchived = false) => request<MirrorDocument[]>(
+    `/api/v1/documents${includeArchived ? "?include_archived=true" : ""}`,
+  ),
+  evidence: (includeArchived = false) => request<EvidenceDetail[]>(
+    `/api/v1/evidence${includeArchived ? "?include_archived=true" : ""}`,
+  ),
   document: (id: string) => request<MirrorDocument>(`/api/v1/documents/${id}`),
+  evidenceDetail: (id: string) => request<EvidenceDetail>(`/api/v1/documents/${id}/detail`),
+  updateEvidence: (
+    id: string,
+    values: {
+      title?: string;
+      evidence_category?: EvidenceCategory;
+      context_note?: string | null;
+      acknowledge_active_use?: boolean;
+    },
+  ) => request<EvidenceDetail>(`/api/v1/documents/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  }),
+  archiveEvidence: (id: string, acknowledge_active_use = false) => request<EvidenceDetail>(
+    `/api/v1/documents/${id}/archive`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acknowledge_active_use }),
+    },
+  ),
+  restoreEvidence: (id: string) => request<EvidenceDetail>(`/api/v1/documents/${id}/restore`, { method: "POST" }),
   createJobDescription: (raw_text: string) => request<MirrorDocument>("/api/v1/documents/job-description", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -440,6 +686,11 @@ export const mirrorApi = {
   roleCompetencies: (id: string) => request<RoleCompetency[]>(`/api/v1/roles/${id}/competencies`),
   createSession: (target_role: string, jd_text: string) =>
     request<Session>("/api/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target_role, jd_text }) }),
+  linkSessionDocuments: (id: string, document_ids: string[]) => request<Session>(`/api/v1/sessions/${id}/documents`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document_ids }),
+  }),
   uploadResume: (id: string, resume: File) => {
     const form = new FormData();
     form.set("resume", resume);
@@ -447,6 +698,7 @@ export const mirrorApi = {
   },
   prepare: (id: string) => request<{ session: Session }>(`/api/sessions/${id}/prepare`, { method: "POST" }),
   session: (id: string) => request<Session>(`/api/v1/sessions/${id}`),
+  interviewPlan: (id: string) => request<InterviewPlanResponse>(`/api/v1/sessions/${id}/plan`),
   startInterview: (id: string) => request<InterviewStart>(`/api/v1/sessions/${id}/start`, { method: "POST" }),
   startVoiceInterview: (id: string) => request<VoiceTurnResult>(`/api/v1/sessions/${id}/voice/start`, { method: "POST" }),
   interviewTurns: (id: string) => request<PublicInterviewTurn[]>(`/api/v1/sessions/${id}/turns`),
@@ -456,8 +708,10 @@ export const mirrorApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, client_turn_id: clientTurnId }),
     }),
-  endInterview: (id: string) => request<Session>(`/api/v1/sessions/${id}/end`, { method: "POST" }),
+  endInterview: (id: string) => request<SessionCompletion>(`/api/v1/sessions/${id}/end`, { method: "POST" }),
   assessmentStatus: (id: string) => request<AssessmentPipelineState>(`/api/v1/sessions/${id}/assessment`),
+  retryAssessment: (id: string) => request<AssessmentPipelineState>(`/api/v1/sessions/${id}/assessment/retry`, { method: "POST" }),
+  dashboard: () => request<DashboardResponse>("/api/v1/dashboard"),
   retryTurnAudio: (turnId: string) => request<VoiceTurnResult>(`/api/v1/turns/${turnId}/audio/retry`, { method: "POST" }),
   report: (id: string) => request<ReportResponse>(`/api/v1/sessions/${id}/report`),
 };

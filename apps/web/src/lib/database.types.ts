@@ -621,8 +621,11 @@ export type Database = {
       }
       documents: {
         Row: {
+          archived_at: string | null
+          context_note: string | null
           created_at: string
           document_type: Database["public"]["Enums"]["document_type"]
+          evidence_category: Database["public"]["Enums"]["evidence_category"]
           error_message: string | null
           id: string
           mime_type: string | null
@@ -631,12 +634,18 @@ export type Database = {
           raw_text: string | null
           status: Database["public"]["Enums"]["document_status"]
           storage_path: string | null
+          supersedes_document_id: string | null
+          title: string
           updated_at: string
           user_id: string
+          version_number: number
         }
         Insert: {
+          archived_at?: string | null
+          context_note?: string | null
           created_at?: string
           document_type: Database["public"]["Enums"]["document_type"]
+          evidence_category: Database["public"]["Enums"]["evidence_category"]
           error_message?: string | null
           id?: string
           mime_type?: string | null
@@ -645,12 +654,18 @@ export type Database = {
           raw_text?: string | null
           status: Database["public"]["Enums"]["document_status"]
           storage_path?: string | null
+          supersedes_document_id?: string | null
+          title: string
           updated_at?: string
           user_id: string
+          version_number?: number
         }
         Update: {
+          archived_at?: string | null
+          context_note?: string | null
           created_at?: string
           document_type?: Database["public"]["Enums"]["document_type"]
+          evidence_category?: Database["public"]["Enums"]["evidence_category"]
           error_message?: string | null
           id?: string
           mime_type?: string | null
@@ -659,10 +674,20 @@ export type Database = {
           raw_text?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           storage_path?: string | null
+          supersedes_document_id?: string | null
+          title?: string
           updated_at?: string
           user_id?: string
+          version_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_supersedes_document_id_fkey"
+            columns: ["supersedes_document_id"]
+            isOneToOne: true
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documents_user_id_fkey"
             columns: ["user_id"]
@@ -1086,11 +1111,19 @@ export type Database = {
           interview_timeline:
             | Database["public"]["Enums"]["interview_timeline"]
             | null
+          inquiry_depth: Database["public"]["Enums"]["inquiry_depth"][]
           onboarding_completed: boolean
+          onboarding_resume_document_id: string | null
+          onboarding_role_brief_document_id: string | null
+          onboarding_role_brief_skipped: boolean
+          onboarding_role_profile_id: string | null
+          onboarding_session_id: string | null
+          onboarding_step: number
           preferred_language:
             | Database["public"]["Enums"]["preferred_language"]
             | null
           role: string
+          target_company: string | null
           target_role: string | null
           updated_at: string
         }
@@ -1106,11 +1139,19 @@ export type Database = {
           interview_timeline?:
             | Database["public"]["Enums"]["interview_timeline"]
             | null
+          inquiry_depth?: Database["public"]["Enums"]["inquiry_depth"][]
           onboarding_completed?: boolean
+          onboarding_resume_document_id?: string | null
+          onboarding_role_brief_document_id?: string | null
+          onboarding_role_brief_skipped?: boolean
+          onboarding_role_profile_id?: string | null
+          onboarding_session_id?: string | null
+          onboarding_step?: number
           preferred_language?:
             | Database["public"]["Enums"]["preferred_language"]
             | null
           role?: string
+          target_company?: string | null
           target_role?: string | null
           updated_at?: string
         }
@@ -1126,15 +1167,51 @@ export type Database = {
           interview_timeline?:
             | Database["public"]["Enums"]["interview_timeline"]
             | null
+          inquiry_depth?: Database["public"]["Enums"]["inquiry_depth"][]
           onboarding_completed?: boolean
+          onboarding_resume_document_id?: string | null
+          onboarding_role_brief_document_id?: string | null
+          onboarding_role_brief_skipped?: boolean
+          onboarding_role_profile_id?: string | null
+          onboarding_session_id?: string | null
+          onboarding_step?: number
           preferred_language?:
             | Database["public"]["Enums"]["preferred_language"]
             | null
           role?: string
+          target_company?: string | null
           target_role?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_onboarding_resume_document_id_fkey"
+            columns: ["onboarding_resume_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_onboarding_role_brief_document_id_fkey"
+            columns: ["onboarding_role_brief_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_onboarding_role_profile_id_fkey"
+            columns: ["onboarding_role_profile_id"]
+            isOneToOne: false
+            referencedRelation: "role_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_onboarding_session_id_fkey"
+            columns: ["onboarding_session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_current_role_profile_id_fkey"
             columns: ["current_role_profile_id"]
@@ -3372,6 +3449,17 @@ export type Database = {
         | "SYNTHETIC_CANONICAL"
       document_status: "UPLOADED" | "PROCESSING" | "PROCESSED" | "FAILED"
       document_type: "RESUME" | "JOB_DESCRIPTION" | "PROJECT"
+      evidence_category:
+        | "RESUME"
+        | "PROJECT"
+        | "CASE_STUDY"
+        | "CERTIFICATE"
+        | "PORTFOLIO"
+        | "COVER_LETTER"
+        | "ACHIEVEMENT"
+        | "WORK_SAMPLE"
+        | "ROLE_BRIEF"
+        | "OTHER"
       evidence_direction: "SUPPORTS" | "WEAKENS" | "CONTEXT_ONLY"
       expected_competency_level:
         | "FOUNDATIONAL"
@@ -3405,6 +3493,13 @@ export type Database = {
         | "THIS_MONTH"
         | "LATER"
         | "EXPLORING"
+      inquiry_depth:
+        | "EVIDENCE_BEHIND_CLAIMS"
+        | "ROLE_KNOWLEDGE"
+        | "DECISION_QUALITY"
+        | "OWNERSHIP_IMPACT"
+        | "COMMUNICATION_UNDER_SCRUTINY"
+        | "COMPLETE_READINESS"
       job_status: "pending" | "running" | "complete" | "failed"
       preferred_language: "ENGLISH" | "HINDI" | "KANNADA" | "TAMIL" | "TELUGU"
       resume_analysis_status: "PROCESSING" | "COMPLETED" | "FAILED"
@@ -3667,6 +3762,18 @@ export const Constants = {
       ],
       document_status: ["UPLOADED", "PROCESSING", "PROCESSED", "FAILED"],
       document_type: ["RESUME", "JOB_DESCRIPTION", "PROJECT"],
+      evidence_category: [
+        "RESUME",
+        "PROJECT",
+        "CASE_STUDY",
+        "CERTIFICATE",
+        "PORTFOLIO",
+        "COVER_LETTER",
+        "ACHIEVEMENT",
+        "WORK_SAMPLE",
+        "ROLE_BRIEF",
+        "OTHER",
+      ],
       evidence_direction: ["SUPPORTS", "WEAKENS", "CONTEXT_ONLY"],
       expected_competency_level: [
         "FOUNDATIONAL",
@@ -3703,6 +3810,14 @@ export const Constants = {
         "THIS_MONTH",
         "LATER",
         "EXPLORING",
+      ],
+      inquiry_depth: [
+        "EVIDENCE_BEHIND_CLAIMS",
+        "ROLE_KNOWLEDGE",
+        "DECISION_QUALITY",
+        "OWNERSHIP_IMPACT",
+        "COMMUNICATION_UNDER_SCRUTINY",
+        "COMPLETE_READINESS",
       ],
       job_status: ["pending", "running", "complete", "failed"],
       preferred_language: ["ENGLISH", "HINDI", "KANNADA", "TAMIL", "TELUGU"],

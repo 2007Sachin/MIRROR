@@ -14,7 +14,7 @@ export async function getServerOnboarding(): Promise<ServerOnboardingResult> {
   if (!session?.access_token) return { status: "unauthenticated" };
 
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
     const response = await fetch(`${apiUrl}/api/v1/onboarding`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
       cache: "no-store",

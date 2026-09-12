@@ -1,10 +1,16 @@
 "use client";
 
 import { ArrowRight, GoogleLogo } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
+
+const AnimatedEnergyMesh = dynamic(
+  () => import("@/components/auth/animated-energy-mesh").then((module) => module.AnimatedEnergyMesh),
+  { ssr: false, loading: () => <div className="energy-mesh-loading" aria-hidden="true" /> },
+);
 
 type Mode = "login" | "signup";
 
@@ -43,6 +49,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         : "",
   );
   const [notice, setNotice] = useState("");
+  const [formFocused, setFormFocused] = useState(false);
   const configured = isSupabaseConfigured();
   const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === "true";
 
@@ -77,7 +84,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         setNotice("Check your email to confirm your account, then return here to sign in.");
         return;
       }
-      router.replace("/app");
+      router.replace("/dashboard");
       router.refresh();
     } catch {
       setError("Mirror could not reach the authentication service. Check your connection and try again.");
@@ -93,7 +100,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
     try {
       const { error: oauthError } = await getSupabaseBrowserClient().auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=/app` },
+        options: { redirectTo: `${window.location.origin}/auth/callback?next=/dashboard` },
       });
       if (oauthError) setError(friendlyAuthError(oauthError.code));
     } catch {
@@ -105,25 +112,50 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   const isLogin = mode === "login";
   return (
-    <main className="shell py-14 sm:py-20">
-      <div className="mx-auto max-w-md">
-        <p className="text-sm text-[var(--silver)]">Private candidate access</p>
-        <h1 className="display mt-4 text-4xl font-semibold tracking-[-0.05em]">
-          {isLogin ? "Sign in to Mirror" : "Create your account"}
-        </h1>
-        <form onSubmit={submit} className="mt-10 space-y-6 border-t hairline pt-7">
+    <main className="auth-page">
+      <section className="auth-visual" aria-label="Mirror energy field">
+        <div className="auth-signal-map" aria-hidden="true">
+          <span className="auth-signal auth-signal-claim">01 / Claim source</span>
+          <span className="auth-signal auth-signal-role">02 / Target role</span>
+          <span className="auth-signal auth-signal-evidence">03 / Interview evidence</span>
+        </div>
+        <AnimatedEnergyMesh energized={formFocused || busy} />
+        <div className="auth-visual-copy" aria-hidden="true">
+          <span className="mono">MIRROR / SIGNAL 01</span>
+          <p>Find the evidence behind your experience.</p>
+        </div>
+      </section>
+      <section className="auth-form-panel">
+        <div className="auth-form-inner">
+          <p className="auth-eyebrow">Private candidate access</p>
+          <h1 className="display auth-title">
+            {isLogin ? "Sign in to Mirror" : "Create your account"}
+          </h1>
+          <p className="auth-intro">
+            {isLogin
+              ? "Continue your evidence-backed interview preparation."
+              : "Start a private, evidence-backed interview diagnostic."}
+          </p>
+          <form
+            onSubmit={submit}
+            className="auth-form"
+            onFocusCapture={() => setFormFocused(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFormFocused(false);
+            }}
+          >
           {!isLogin && (
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold">Full name</span>
+            <label className="auth-label">
+              <span>Full name</span>
               <input className="field" name="full_name" required maxLength={120} autoComplete="name" disabled={busy} />
             </label>
           )}
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold">Email</span>
+          <label className="auth-label">
+            <span>Email</span>
             <input className="field" name="email" type="email" required autoComplete="email" disabled={busy} />
           </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold">Password</span>
+          <label className="auth-label">
+            <span>Password</span>
             <input className="field" name="password" type="password" required minLength={8} autoComplete={isLogin ? "current-password" : "new-password"} disabled={busy} />
           </label>
           {error && <p role="alert" className="border-l-2 border-red-400 pl-3 text-sm text-red-200">{error}</p>}
@@ -131,20 +163,21 @@ export function AuthForm({ mode }: { mode: Mode }) {
           <button type="submit" className="button-primary w-full" disabled={busy || !configured}>
             {busy ? "Please wait…" : isLogin ? "Sign in" : "Create account"} {!busy && <ArrowRight size={18} />}
           </button>
-        </form>
-        {googleEnabled && (
-          <button type="button" className="button-secondary mt-3 w-full" onClick={signInWithGoogle} disabled={busy || !configured}>
-            <GoogleLogo size={18} /> Continue with Google
-          </button>
-        )}
-        <p className="mt-6 text-sm text-[var(--silver)]">
-          {isLogin ? "New to Mirror? " : "Already have an account? "}
-          <Link className="text-[var(--paper)] underline underline-offset-4" href={isLogin ? "/signup" : "/login"}>
-            {isLogin ? "Create an account" : "Sign in"}
-          </Link>
-        </p>
-        {!configured && <p className="mt-6 text-xs leading-5 text-[var(--silver)]">Set the public Supabase URL and publishable/anonymous key to enable authentication.</p>}
-      </div>
+          </form>
+          {googleEnabled && (
+            <button type="button" className="button-secondary mt-3 w-full" onClick={signInWithGoogle} disabled={busy || !configured}>
+              <GoogleLogo size={18} /> Continue with Google
+            </button>
+          )}
+          <p className="auth-switch">
+            {isLogin ? "New to Mirror? " : "Already have an account? "}
+            <Link href={isLogin ? "/signup" : "/login"}>
+              {isLogin ? "Create an account" : "Sign in"}
+            </Link>
+          </p>
+          {!configured && <p className="auth-config-note">Set the public Supabase URL and publishable/anonymous key to enable authentication.</p>}
+        </div>
+      </section>
     </main>
   );
 }

@@ -48,11 +48,22 @@ export async function proxy(request: NextRequest) {
     return isAuthPage ? response : redirectWithCookies(request, response, "/login", "network");
   }
   if (!isAuthenticated && !isAuthPage) return redirectWithCookies(request, response, "/login");
-  if (isAuthenticated && isAuthPage) return redirectWithCookies(request, response, "/app");
+  if (isAuthenticated && isAuthPage) return redirectWithCookies(request, response, "/dashboard");
   return response;
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/onboarding", "/sessions/:path*", "/login", "/signup"],
+  matcher: [
+    "/app/:path*",
+    "/dashboard/:path*",
+    "/diagnostics/:path*",
+    "/evidence/:path*",
+    "/roles/:path*",
+    "/settings/:path*",
+    "/onboarding",
+    "/sessions/:path*",
+    "/login",
+    "/signup",
+  ],
 };
 
