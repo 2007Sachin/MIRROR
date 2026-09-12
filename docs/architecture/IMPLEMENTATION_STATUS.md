@@ -3,9 +3,10 @@
 | Area | Status | Current implementation | Important files | Notes |
 |---|---|---|---|---|
 | Authentication | COMPLETE | Supabase token verification and owner-scoped profile API | `apps/api/app/auth.py`, `apps/web/src/lib/supabase.ts` | Browser uses public keys only |
-| Onboarding | COMPLETE | Persisted candidate setup flow | `apps/api/app/onboarding_repository.py`, `apps/web/src/components/onboarding-flow.tsx` | No resume intelligence in onboarding |
+| Onboarding | COMPLETE | Persisted five-stage diagnostic construction flow with role/resume intelligence, evidence-map review, inquiry depth, and prepared interview thesis | `apps/api/app/onboarding_repository.py`, `apps/web/src/components/onboarding-flow.tsx` | Legacy completed profiles remain compatible |
 | Resume ingestion | COMPLETE | PDF/DOCX validation, Storage upload, document records | `apps/api/app/document_ingestion.py` | Size/type limits configurable |
-| JD ingestion | COMPLETE | Pasted job-description document | `apps/api/app/document_repository.py` | File upload is not implemented |
+| JD ingestion | COMPLETE | Pasted or validated PDF/DOCX role-brief documents | `apps/api/app/document_repository.py`, `apps/api/app/main.py` | Private source files and extracted text are persisted |
+| Evidence library | COMPLETE | Owner-scoped search, taxonomy, context, versioned replacement, recoverable archive/restore, download, and diagnostic-usage visibility | `apps/api/app/document_library_service.py`, `apps/web/src/components/workspace/evidence-library.tsx` | Referenced versions are retained so later edits cannot rewrite completed diagnostics |
 | Interview planning | COMPLETE | Role/resume-aware plan service and contracts | `apps/api/app/planner_service.py` | Provider-backed behavior depends on configuration |
 | Interview orchestration | COMPLETE | Deterministic lifecycle, phases, probes, recovery, events | `apps/api/app/interview_engine.py` | State machine owns transitions |
 | Voice/audio | COMPLETE | Validated audio, STT/TTS adapters, storage, retries, metrics | `apps/api/app/voice_service.py` | External provider credentials required |

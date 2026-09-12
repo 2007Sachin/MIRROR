@@ -1,22 +1,71 @@
-# Candidate onboarding
+# Diagnostic onboarding
 
-Candidate onboarding is stored on the authenticated `public.profiles` row. It is preference and preparation context only; it does not trigger resume processing, multilingual interview behavior, or AI-agent work.
+Mirror onboarding begins the readiness diagnostic. It is not a profile-preference questionnaire. The five-stage flow establishes a role benchmark, ingests starting evidence, lets the candidate review Mirror's interpretation, records the requested depth of inquiry, and prepares a real interview plan before the candidate begins.
 
-## Domain
+## Route and lifecycle
 
-The profile stores `career_stage`, `career_intent`, `target_role`, `interview_timeline`, `preferred_language`, optional `college_id`, and `onboarding_completed`. PostgreSQL enums and matching Pydantic enums reject unsupported values. The database allows partial rows while onboarding is in progress but prevents `onboarding_completed = true` until every required field except optional `college_id` is present.
+Authentication still lands on `/app`. The server reads `/api/v1/onboarding`; incomplete profiles redirect to `/onboarding`, and completed profiles continue to the authenticated workspace. `/app/setup` remains as a compatibility route and redirects to the appropriate destination instead of rendering the retired setup flow.
 
-## API boundary
+The onboarding route contains these persisted stages:
 
-`GET /api/v1/onboarding` reads the verified user's progress. `PUT /api/v1/onboarding` applies a partial update, allowing one completed frontend step to be persisted at a time. Both routes obtain the profile ID exclusively from `get_current_user()` and reject extra payload fields such as `user_id`.
+1. **Role benchmark** — target role, optional company, and an optional uploaded or pasted role brief.
+2. **Starting evidence** — PDF/DOCX resume ingestion followed by Resume Intelligence.
+3. **Evidence map** — real capability signals, claims, role expectations, candidate claim review, and an explicit account of what documents alone cannot establish.
+4. **Depth of inquiry** — one complete-readiness default or one or more specific areas for greater scrutiny.
+5. **Interview thesis** — a prepared session and versioned interview plan grounded in the selected documents and role profile.
 
-The backend service-role repository always filters by the verified subject UUID. RLS remains the database backstop, while browser clients have no direct update grant for onboarding columns.
+The final action marks onboarding complete and opens the existing evidence interview. The deterministic interview state machine continues to own preparation, readiness, start, phases, probes, timing, and termination.
 
-## Frontend routing and resume behavior
+## Persistence
 
-After authentication, `/app` performs a server-side onboarding lookup. Incomplete profiles redirect to `/onboarding`; completed profiles render the minimal app page. `/onboarding` performs the inverse redirect when setup is already complete.
+Candidate onboarding remains on the owner-scoped `public.profiles` row and retains the legacy career-preference columns for backward compatibility. The diagnostic flow adds:
 
-The six screens are welcome, career intent and career stage, target role, interview timeline, preferred language, and confirmation. Each data-bearing step calls the partial `PUT` endpoint. On refresh, the server returns saved state and the client resumes at the first incomplete step. The role input uses a small suggestion list but accepts free text.
+- `target_company`
+- `onboarding_step`
+- `onboarding_resume_document_id`
+- `onboarding_role_brief_document_id`
+- `onboarding_role_brief_skipped`
+- `onboarding_role_profile_id`
+- `onboarding_session_id`
+- `inquiry_depth`
 
-Preferred language is metadata only in this milestone. Interview prompts, transcription, speech, and assessment remain unchanged.
+Selected IDs are foreign-keyed to existing document, role-profile, and session tables. A database trigger verifies that each referenced record belongs to the profile owner. No required diagnostic state is stored only in localStorage.
 
+Existing profiles completed under the original career-preference flow remain valid. New diagnostic onboarding can complete without collecting unrelated career stage, intent, timeline, or language fields.
+
+## Existing intelligence reused
+
+- Resume uploads use the private `private-resumes` storage bucket and `documents` rows.
+- Resume Intelligence performs deterministic PDF/DOCX parsing, validated provider analysis, claim extraction, and Claims Graph construction.
+- Role Intelligence uses either the supplied job-description document or the synthetic canonical role fallback and updates `current_role_profile_id`.
+- Candidate claim corrections use versioned `resume_claim_corrections`; they are not cosmetic client state.
+- The Interview Planner loads the selected session documents, current role profile, claims, projects, competencies, existing evidence counts, and the persisted inquiry-depth preference.
+- Session preparation uses `InterviewStateMachine` and changes the session to `READY` only after a validated plan completes. The final thesis reads the public, owner-scoped plan so its unresolved objectives are planner output rather than client-side readiness scoring.
+
+## Role-brief upload
+
+`POST /api/v1/documents/job-description/upload` accepts genuine PDF or DOCX files under the configured document-size limit. The API validates the declared type against the file signature, extracts text with the existing deterministic parser, stores the private source file, and creates a processed `JOB_DESCRIPTION` document. Empty or unparseable documents return a candidate-safe 422 response.
+
+Pasted role briefs continue to use `POST /api/v1/documents/job-description`. Proceeding without a role brief remains supported; Role Intelligence explicitly records the synthetic canonical source.
+
+## Session document linking
+
+`POST /api/v1/sessions/{session_id}/documents` attaches owner-verified resume and role-brief documents through the existing `session_document_links` table. The operation is idempotent. Interview planning uses these links to select the intended resume analysis instead of relying on a browser-only selection.
+
+## Inquiry depth
+
+`inquiry_depth` is a constrained enum array. `COMPLETE_READINESS` is exclusive; specific areas may be combined. Planner prompt `v2` receives the values in its typed candidate profile and may increase relative objective depth in those areas. It must retain broad coverage, cannot lower the evaluation standard, and cannot override the deterministic two-probe cap.
+
+## Candidate-facing interpretation
+
+The evidence map renders only real Resume and Role Intelligence output. "What documents cannot establish" lists the role's most important competencies as areas whose demonstrated depth still requires conversational evidence; it does not infer failure from a missing keyword. The final thesis then uses high-priority objectives from the validated interview plan. Before the interview, no claim is labelled supported by interview evidence because that evidence does not exist yet.
+
+## Recovery and errors
+
+Every material step writes through `PUT /api/v1/onboarding`. Refreshing restores the selected documents, analyses, role profile, inquiry depth, prepared session, and current stage. Unsupported files, parsing failures, provider failures, timeouts, empty extraction, session-planning failures, authentication expiry, and restore failures use candidate-safe messages and preserve completed work.
+
+## Explicit limitations
+
+- The onboarding UI does not claim backend percentages or granular provider progress. Its changing analysis labels describe the active operation while the blocking analysis request runs; completion is shown only after the API confirms it.
+- Voice is not added to onboarding. Existing voice infrastructure remains scoped to the evidence interview.
+- A role brief is optional, but the UI explains that the resulting role benchmark is inferred rather than employer-specific.

@@ -8,17 +8,17 @@ It plans evidence targets. It does not conduct or score the interview.
 
 ## Input
 
-The typed input contains the trusted session ID, target role, career stage, configured duration, neutral claim summaries, high-verification-priority IDs, role competencies, canonical projects and skills, and counts of existing evidence. It excludes names, email addresses, raw identity data, and complete resume text.
+The typed input contains the trusted session ID, target role, career stage, configured duration, persisted inquiry-depth preference, neutral claim summaries, high-verification-priority IDs, role competencies, canonical projects and skills, and counts of existing evidence. It excludes names, email addresses, raw identity data, and complete resume text.
 
 Candidate-derived text remains untrusted. Instructions embedded in claims, resumes, or job descriptions are data and are never followed.
 
 ## Output
 
-Each versioned plan contains objectives and a deterministic coverage summary. Objectives identify their phase, neutral evidence goal, priority, target claim/competency/project IDs, starting question, question intent, expected signals, time budget, suggested probe allowance, starting difficulty, and completion conditions.
+The agent draft contains objectives only. After validation, application code adds the trusted session ID, target role, duration, planning version, and deterministic coverage summary. Objectives identify their phase, neutral evidence goal, priority, target claim/competency/project IDs, starting question, question intent, expected signals, time budget, suggested probe allowance, starting difficulty, and completion conditions.
 
 Coverage diagnostics remain in backend persistence and logs. The candidate-facing GET response omits that internal quality summary and exposes only the structured plan and objectives.
 
-The initial question is a starting point for a future Interviewer, not a fixed script.
+The initial question is a starting point for a future Interviewer, not a fixed script. Inquiry depth changes relative emphasis only: it cannot lower the evidence standard, remove broad coverage, or override deterministic probe limits.
 
 Example sanitized objective:
 
@@ -43,7 +43,7 @@ Example sanitized objective:
 
 ## Deterministic validation
 
-Agent output is advisory until `InterviewPlanningService` validates it. Application code rejects unknown IDs, requires introduction and closing objectives, checks coverage of useful claims and role-critical competencies, caps probes at two, lowers inappropriate beginner difficulty, limits single-project dominance, reserves configured time, normalizes excess objective budgets, and recomputes coverage.
+Agent output is advisory until `InterviewPlanningService` validates it. Application code discards unknown IDs, supplies safe introduction or closing objectives when omitted, adds a bounded neutral objective when minimum priority coverage is absent, caps probes at two, lowers inappropriate beginner difficulty, limits single-project dominance, reserves configured time, normalizes excess objective budgets, and recomputes coverage.
 
 Scores, readiness judgments, marks, and hiring recommendations are forbidden by the schema and prompt.
 
