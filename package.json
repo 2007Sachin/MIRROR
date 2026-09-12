@@ -5,10 +5,11 @@
   "workspaces": ["apps/web", "packages/*"],
   "scripts": {
     "predev": "node scripts/free-ports.js",
-    "dev": "concurrently -n web,api -c green,cyan \"npm run dev:web\" \"npm run dev:api\"",
-    "dev:web": "npm --workspace @mirror/web run dev",
-    "dev:api": "node scripts/run-python.js -m uvicorn app.main:app --reload --app-dir apps/api",
-    "build": "npm --workspace @mirror/web run build",
+    "dev": "concurrently -n web,api,assessor -c green,cyan,yellow \"npm run dev:web\" \"npm run dev:api\" \"npm run dev:worker\"",
+    "dev:web": "node scripts/run-web.js dev",
+    "dev:api": "node scripts/run-python.js -m uvicorn app.main:app --reload --app-dir apps/api --host 127.0.0.1 --port 8001",
+    "dev:worker": "node scripts/run-assessor.js --worker-id assessor-local",
+    "build": "node scripts/run-web.js build",
     "test": "node scripts/run-python.js -m pytest && npm --workspace @mirror/web run typecheck",
     "lint": "npm --workspace @mirror/web run lint"
   },

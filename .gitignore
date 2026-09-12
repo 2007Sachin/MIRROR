@@ -33,3 +33,11 @@ logs/
 Thumbs.db
 desktop.ini
 
+# Local browser/design QA artifacts
+.playwright-mcp/
+/*.png
+
+# Local runtime and Supabase CLI state
+.runtime/
+supabase/.temp/
+
