@@ -9,12 +9,13 @@ export const metadata: Metadata = {
   icons: { icon: "/icon.svg" },
 };
 
-export const viewport: Viewport = { themeColor: "#10120F", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#F7F5EE", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body>
+        <a href="#main-content" className="skip-link">Skip to content</a>
         <header className="site-header shell flex h-16 items-center justify-between border-b hairline">
           <Link href="/" className="display text-lg font-semibold tracking-[-0.03em]">Mirror</Link>
           <span className="text-xs text-[var(--silver)]">by Pathwisse</span>
@@ -24,5 +25,3 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
-
-

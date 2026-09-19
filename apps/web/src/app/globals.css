@@ -4,31 +4,93 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #10120f;
-  --slate: #2a2e28;
-  --paper: #edeeea;
-  --silver: #9ba29a;
-  --brass: #c9922f;
-  --pulse: #4fd1a5;
-  --line: rgba(237, 238, 234, 0.16);
+  /* Warm-editorial surface: cream paper, near-black ink, one evidence-green
+     accent, one amber diagnostic accent used sparingly. Token NAMES are kept
+     stable from the previous palette on purpose -- every page in the app
+     already styles itself through these variables, so redefining the values
+     here re-themes the whole product without touching files this pass does
+     not reach. The interview room defines its own --room-* variables and is
+     intentionally unaffected. */
+  --paper: #f7f5ee;
+  --paper-raised: #ffffff;
+  --paper-sunken: #edeae0;
+  --ink: #17160f;
+  --slate: #4c493c;
+  --silver: #86816e;
+  --line: rgba(23, 22, 15, 0.12);
+  --line-strong: rgba(23, 22, 15, 0.26);
+
+  --pulse: #1f7a5c;
+  --pulse-hover: #17624a;
+  --pulse-soft: rgba(31, 122, 92, 0.1);
+  --pulse-ink: #f4faf7;
+  --brass: #b8842c;
+  --brass-soft: rgba(184, 132, 44, 0.12);
+  --danger: #a83f37;
+  --danger-soft: #fbebe9;
+
   --font-display: "Bricolage Grotesque Variable", "Arial Narrow", sans-serif;
   --font-body: "Public Sans Variable", Arial, sans-serif;
   --font-mono: "Geist Mono Variable", "SFMono-Regular", Consolas, monospace;
+
+  /* Type scale: few sizes, deliberate jumps -- pick from this, do not invent
+     one-off font-sizes. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: clamp(2rem, 3.4vw, 2.75rem);
+  --text-3xl: clamp(2.75rem, 5vw, 4rem);
+  --text-display: clamp(3rem, 6.4vw, 5.75rem);
+
+  /* Spacing scale: 4px rhythm. Prefer these over arbitrary values so vertical
+     rhythm stays consistent across sections and pages. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-14: 3.5rem;
+  --space-18: 4.5rem;
+  --space-24: 6rem;
+
+  /* Motion: state-driven, not decorative. See the .reveal / .hover-lift /
+     .skeleton utilities below. */
+  --ease-out: cubic-bezier(0.16, 0.8, 0.24, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
 }
 
 * { box-sizing: border-box; }
-html { background: var(--ink); color-scheme: dark; }
+html { background: var(--paper); color-scheme: light; scroll-behavior: smooth; }
 body {
   margin: 0;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 button, input, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
-::selection { background: var(--pulse); color: var(--ink); }
-:focus-visible { outline: 2px solid var(--pulse); outline-offset: 4px; }
+::selection { background: var(--pulse); color: var(--pulse-ink); }
+:focus-visible { outline: 2px solid var(--pulse); outline-offset: 3px; border-radius: 3px; }
+
+.skip-link {
+  position: absolute; left: 1rem; top: -3rem; z-index: 100; background: var(--ink); color: var(--paper);
+  padding: .6rem 1rem; border-radius: .4rem; font-size: var(--text-sm); font-weight: 600;
+  transition: top var(--dur-fast) var(--ease-out);
+}
+.skip-link:focus { top: 1rem; }
 
 .display { font-family: var(--font-display); }
 .mono { font-family: var(--font-mono); }
@@ -38,27 +100,85 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .orb-voice { display: block; width: min(78vw, 25rem); height: min(78vw, 25rem); }
 .shell { width: min(100% - 2rem, 74rem); margin-inline: auto; }
 .hairline { border-color: var(--line); }
+
+/* Shared primitives. Feature areas may extend these; keep the accent on
+   primary actions only (rule from mirror-visual-design: one accent, used
+   with intent, never spread across the page). */
 .button-primary {
-  display: inline-flex; min-height: 3rem; align-items: center; justify-content: center; gap: .6rem;
-  border: 1px solid var(--paper); border-radius: .5rem; background: var(--paper); color: var(--ink);
-  padding: .75rem 1rem; font-weight: 650; transition: transform 120ms ease, background 120ms ease;
+  display: inline-flex; min-height: 2.9rem; align-items: center; justify-content: center; gap: .55rem;
+  border: 1px solid var(--pulse); border-radius: .55rem; background: var(--pulse); color: var(--pulse-ink);
+  padding: .7rem 1.2rem; font-weight: 600; font-size: var(--text-base);
+  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
-.button-primary:hover { background: #dfe1dc; }
+.button-primary:hover { background: var(--pulse-hover); border-color: var(--pulse-hover); }
 .button-primary:active { transform: translateY(1px); }
+.button-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.button-primary:focus-visible { box-shadow: 0 0 0 4px var(--pulse-soft); }
 .button-secondary {
-  display: inline-flex; min-height: 3rem; align-items: center; justify-content: center; gap: .6rem;
-  border: 1px solid var(--line); border-radius: .5rem; color: var(--paper); padding: .75rem 1rem;
+  display: inline-flex; min-height: 2.9rem; align-items: center; justify-content: center; gap: .55rem;
+  border: 1px solid var(--line-strong); border-radius: .55rem; color: var(--ink); background: transparent;
+  padding: .7rem 1.2rem; font-weight: 560; font-size: var(--text-base);
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
-.button-secondary:hover { border-color: rgba(237, 238, 234, .42); }
+.button-secondary:hover { border-color: var(--ink); background: var(--paper-sunken); }
+.button-secondary:disabled { opacity: .5; cursor: not-allowed; }
 .field {
-  width: 100%; border: 1px solid var(--line); border-radius: .5rem; background: rgba(42, 46, 40, .28);
-  color: var(--paper); padding: .85rem 1rem;
+  width: 100%; border: 1px solid var(--line-strong); border-radius: .5rem; background: var(--paper-raised);
+  color: var(--ink); padding: .8rem 1rem; font-size: var(--text-base);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 .field::placeholder { color: var(--silver); }
+.field:hover { border-color: var(--line-strong); }
+.field:focus { outline: none; border-color: var(--pulse); box-shadow: 0 0 0 3px var(--pulse-soft); }
+
+/* ---- Motion: purposeful, state-driven (mirror-visual-design: motion must
+   explain state change; no continuous decorative loops). Scroll-reveal is
+   entrance-only (fires once), never a looping animation. ---- */
+@keyframes fade-up-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scale-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes soft-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+.reveal { opacity: 0; transform: translateY(14px); }
+.reveal.is-visible { animation: fade-up-in var(--dur-slow) var(--ease-out) forwards; }
+.reveal-stagger > * { opacity: 0; transform: translateY(14px); }
+.reveal-stagger.is-visible > * { animation: fade-up-in var(--dur-slow) var(--ease-out) forwards; }
+.reveal-stagger.is-visible > *:nth-child(1) { animation-delay: 0ms; }
+.reveal-stagger.is-visible > *:nth-child(2) { animation-delay: 60ms; }
+.reveal-stagger.is-visible > *:nth-child(3) { animation-delay: 120ms; }
+.reveal-stagger.is-visible > *:nth-child(4) { animation-delay: 180ms; }
+.reveal-stagger.is-visible > *:nth-child(5) { animation-delay: 240ms; }
+.reveal-stagger.is-visible > *:nth-child(6) { animation-delay: 300ms; }
+.reveal-stagger.is-visible > *:nth-child(n+7) { animation-delay: 360ms; }
+
+.hover-lift { transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out); }
+.hover-lift:hover { transform: translateY(-3px); }
+
+.fade-in-once { animation: fade-in var(--dur-slow) var(--ease-out) both; }
+.scale-in-once { animation: scale-in var(--dur-base) var(--ease-out) both; }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--paper-sunken) 25%, var(--line) 37%, var(--paper-sunken) 63%);
+  background-size: 400% 100%; animation: shimmer 1.6s ease-in-out infinite; border-radius: .4rem;
+}
+.live-dot { animation: soft-pulse 1.8s var(--ease-in-out) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal-stagger > * { opacity: 1 !important; transform: none !important; }
+  .hover-lift:hover { transform: none; }
+  .skeleton, .live-dot { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
+}
 
 /* Interview room: a calm, meeting-style conversation surface. */
 body:has(.interview-room) { overflow: hidden; }
 body:has(.interview-room) .site-header { display: none; }
+body:has(.app-shell) .site-header { display: none; }
 .interview-room {
   --room-surface: #0d120f;
   --room-panel: #141a16;
