@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Keyboard,
   Microphone,
   MicrophoneSlash,
   SpeakerHigh,
+  SpeakerSlash,
   SpinnerGap,
   X,
 } from "@phosphor-icons/react";
@@ -140,6 +141,16 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const [remaining, setRemaining] = useState(0);
   const [question, setQuestion] = useState("");
   const [turnId, setTurnId] = useState<string | null>(null);
+  // The opening turn is stored as "<spoken welcome>\n\n<first question>" so the
+  // welcome is voiced and recorded with the turn. Split it for display only.
+  const { greeting, questionBody } = useMemo(() => {
+    const break_ = question.indexOf("\n\n");
+    if (break_ === -1) return { greeting: "", questionBody: question };
+    return {
+      greeting: question.slice(0, break_).trim(),
+      questionBody: question.slice(break_ + 2).trim(),
+    };
+  }, [question]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioFailed, setAudioFailed] = useState(false);
   const [roomState, setRoomState] = useState<RoomState>("PREPARING");
@@ -826,9 +837,17 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                   <span>M</span>
                   <i /><i /><i />
                 </div>
-                <div className="interview-question" aria-live="polite">
-                  <span>{roomState === "INTERVIEWER_SPEAKING" ? "Mirror is speaking" : "Current question"}</span>
-                  <h1 className="display">{question || "Preparing the next question…"}</h1>
+                <div
+                  className={`interview-question${greeting ? " interview-question--opening" : ""}`}
+                  aria-live="polite"
+                >
+                  <span>
+                    {roomState === "INTERVIEWER_SPEAKING"
+                      ? "Mirror is speaking"
+                      : greeting ? "Welcome" : "Current question"}
+                  </span>
+                  {greeting ? <p className="interview-greeting">{greeting}</p> : null}
+                  <h1 className="display">{questionBody || "Preparing the next question…"}</h1>
                 </div>
               </article>
 
@@ -961,11 +980,15 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
               {(audioUrl || audioFailed) ? (
                 <button
                   type="button"
+                  className={audioFailed ? "is-degraded" : ""}
                   onClick={() => audioFailed ? void retryAudio() : void playQuestion()}
                   disabled={processing}
+                  title={audioFailed
+                    ? "Mirror could not speak this question. You can read it above and answer normally."
+                    : "Hear the question again"}
                 >
-                  <SpeakerHigh size={21} />
-                  <span>Replay</span>
+                  {audioFailed ? <SpeakerSlash size={21} /> : <SpeakerHigh size={21} />}
+                  <span>{audioFailed ? "Retry voice" : "Replay"}</span>
                 </button>
               ) : null}
             </div>

@@ -80,7 +80,15 @@ class InterviewTurnRepository(Protocol):
 
 
 def _turn(row: dict[str, Any]) -> StoredInterviewTurn:
-    normalized = dict(row)
+    # The insert RPCs return whole `turns` rows, which also carry the voice
+    # columns this text-mode contract does not model, and the model forbids
+    # extras. Project onto the declared fields so added columns cannot break
+    # text interviews.
+    normalized = {
+        key: value
+        for key, value in row.items()
+        if key in StoredInterviewTurn.model_fields
+    }
     normalized["speaker"] = normalized["speaker"].upper()
     normalized["turn_type"] = normalized["turn_type"].upper()
     return StoredInterviewTurn.model_validate(normalized)

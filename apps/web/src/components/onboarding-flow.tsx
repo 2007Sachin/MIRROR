@@ -29,11 +29,12 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { DiagnosticPanel } from "@/components/onboarding/diagnostic-panel";
 
-const PDF_MIME = "application/pdf";
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const allowedMimeTypes = new Set([PDF_MIME, DOCX_MIME]);
-const configuredMaximum = Number(process.env.NEXT_PUBLIC_RESUME_MAX_FILE_SIZE_BYTES ?? 8 * 1024 * 1024);
-const maximumFileSize = Number.isFinite(configuredMaximum) && configuredMaximum > 0 ? configuredMaximum : 8 * 1024 * 1024;
+import {
+  describeFileRejection,
+  friendlyAnalysisError,
+  friendlyDocumentError,
+  maximumFileSize,
+} from "@/lib/documents";
 
 type RoleBriefMode = "upload" | "paste" | "none" | null;
 type BusyOperation = "role" | "resume" | "plan" | "complete" | null;
@@ -90,25 +91,6 @@ const depthOptions: Array<{
     recommended: true,
   },
 ];
-
-function friendlyDocumentError(reason: unknown, kind: "resume" | "role brief") {
-  if (reason instanceof ApiError) {
-    if (reason.status === 413) return `The ${kind} is larger than the ${Math.round(maximumFileSize / 1024 / 1024)} MB limit.`;
-    if (reason.status === 415) return `Choose a genuine PDF or DOCX ${kind} file.`;
-    if (reason.status === 422 && kind === "role brief") return "Mirror could not extract text from that role brief. Try a text-based PDF or DOCX file.";
-    if (reason.status === 401) return "Your session expired. Please sign in again.";
-  }
-  return `Mirror could not upload your ${kind}. Check your connection and try again.`;
-}
-
-function friendlyAnalysisError(reason: unknown, kind: "resume" | "role") {
-  if (reason instanceof ApiError) {
-    if (reason.status === 409) return `Mirror could not use the selected ${kind} context. Review it and try again.`;
-    if (reason.status === 422) return `Mirror could not read enough usable ${kind} information. Review the source and try again.`;
-    if (reason.status === 503) return `${kind === "resume" ? "Evidence mapping" : "Role analysis"} is temporarily unavailable. Your saved information is safe.`;
-  }
-  return `Mirror could not complete the ${kind} analysis. Check your connection and try again.`;
-}
 
 function WhyMirror({ children }: { children: ReactNode }) {
   return (
@@ -172,6 +154,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
   const [busy, setBusy] = useState<BusyOperation>(null);
   const [uploadKind, setUploadKind] = useState<"resume" | "role" | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<{ kind: "resume" | "role"; message: string } | null>(null);
   const [stageIndex, setStageIndex] = useState(0);
   const [reviewingClaim, setReviewingClaim] = useState<string | null>(null);
   const [correctionDrafts, setCorrectionDrafts] = useState<Record<string, string>>({});
@@ -309,12 +292,9 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
   }
 
   function validateFile(file: File, kind: "resume" | "role brief") {
-    if (!allowedMimeTypes.has(file.type)) {
-      setError(`Choose a PDF or DOCX ${kind} file.`);
-      return false;
-    }
-    if (file.size > maximumFileSize) {
-      setError(`The ${kind} is larger than the ${Math.round(maximumFileSize / 1024 / 1024)} MB limit.`);
+    const rejection = describeFileRejection(file, kind);
+    if (rejection) {
+      setError(rejection);
       return false;
     }
     return true;
@@ -325,6 +305,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
     event.target.value = "";
     if (!file || !validateFile(file, "role brief")) return;
     setError("");
+    setUploadNotice(null);
     setUploadKind("role");
     setUploadProgress(0);
     try {
@@ -413,6 +394,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
     event.target.value = "";
     if (!file || !validateFile(file, "resume")) return;
     setError("");
+    setUploadNotice(null);
     setUploadKind("resume");
     setUploadProgress(0);
     try {
@@ -426,6 +408,10 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       setResumeAnalysis(null);
       setSession(null);
       setInterviewPlan(null);
+      setUploadNotice({
+        kind: "resume",
+        message: `Resume uploaded — ${document.original_filename ?? file.name}. Continue to build your evidence map.`,
+      });
     } catch (reason) {
       setError(friendlyDocumentError(reason, "resume"));
       if (reason instanceof ApiError && reason.status === 401) await signOutExpiredSession();
@@ -626,9 +612,14 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
               <p className="onboarding-file"><Check size={16} /> {roleBrief.original_filename ?? "Role brief uploaded"}</p>
             )}
             {uploadKind === "role" && uploadProgress !== null && (
-              <div className="onboarding-upload-progress" role="progressbar" aria-label="Role brief upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
-                <span style={{ width: `${uploadProgress}%` }} />
-              </div>
+              <>
+                <p className="onboarding-upload-status" role="status" aria-live="polite">
+                  {uploadProgress < 100 ? `Uploading your role brief — ${uploadProgress}%` : "Upload complete. Extracting the role text…"}
+                </p>
+                <div className="onboarding-upload-progress" role="progressbar" aria-label="Role brief upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
+                  <span style={{ width: `${uploadProgress}%` }} />
+                </div>
+              </>
             )}
             <WhyMirror>The role brief tells Mirror which expectations matter for this specific opportunity. Without one, Mirror uses a role-level benchmark and labels that limitation.</WhyMirror>
           </section>
@@ -662,9 +653,19 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
             <input ref={resumeInput} className="sr-only" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleResumeUpload} />
           </div>
           {uploadKind === "resume" && uploadProgress !== null && (
-            <div className="onboarding-upload-progress" role="progressbar" aria-label="Resume upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
-              <span style={{ width: `${uploadProgress}%` }} />
-            </div>
+            <>
+              <p className="onboarding-upload-status" role="status" aria-live="polite">
+                {uploadProgress < 100 ? `Uploading your resume — ${uploadProgress}%` : "Upload complete. Saving to your evidence library…"}
+              </p>
+              <div className="onboarding-upload-progress" role="progressbar" aria-label="Resume upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
+                <span style={{ width: `${uploadProgress}%` }} />
+              </div>
+            </>
+          )}
+          {uploadKind === null && uploadNotice?.kind === "resume" && (
+            <p className="onboarding-upload-notice" role="status" aria-live="polite">
+              <Check size={15} /> {uploadNotice.message}
+            </p>
           )}
           <WhyMirror>Your resume establishes the claims Mirror will attempt to verify through evidence and questioning.</WhyMirror>
 

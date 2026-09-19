@@ -16,6 +16,7 @@ class ProfileUnavailable(Exception):
 
 class ProfileRepository(Protocol):
     async def reconcile(self, identity: AuthenticatedUser) -> ProfileRead: ...
+    async def get(self, user_id: UUID) -> ProfileRead | None: ...
     async def update_full_name(self, user_id: UUID, full_name: str) -> ProfileRead: ...
 
 
@@ -68,6 +69,20 @@ class SupabaseProfileRepository:
                 )
                 created.raise_for_status()
                 return ProfileRead.model_validate(created.json()[0])
+        except (httpx.HTTPError, IndexError, TypeError, ValueError) as exc:
+            raise ProfileUnavailable from exc
+
+    async def get(self, user_id: UUID) -> ProfileRead | None:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(
+                    f"{self._url}/rest/v1/profiles",
+                    headers=self._headers,
+                    params={"id": f"eq.{user_id}", "select": "id,full_name,email", "limit": "1"},
+                )
+                response.raise_for_status()
+                rows = response.json()
+                return ProfileRead.model_validate(rows[0]) if rows else None
         except (httpx.HTTPError, IndexError, TypeError, ValueError) as exc:
             raise ProfileUnavailable from exc
 

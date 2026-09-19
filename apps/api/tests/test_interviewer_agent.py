@@ -864,3 +864,122 @@ def test_voice_endpoint_authentication_errors_and_public_contract():
         app.dependency_overrides.pop(get_token_verifier, None)
         app.dependency_overrides.pop(get_voice_interview_service, None)
 
+
+
+def test_turn_row_ignores_columns_outside_the_text_contract() -> None:
+    """The insert RPCs return whole `turns` rows, including voice columns."""
+    from app.interviewer_repository import _turn
+
+    row = {
+        "id": str(uuid4()),
+        "session_id": str(uuid4()),
+        "turn_index": 1,
+        "speaker": "interviewer",
+        "text": "Tell me about your last project.",
+        "turn_type": "planned",
+        "phase": "INTRO",
+        "primary_thread_id": "intro-1",
+        "response_to_turn_id": None,
+        "client_turn_id": None,
+        "agent_execution_id": None,
+        "model": "test-model",
+        "prompt_version": "v1",
+        "latency_ms": 12,
+        "retry_count": 0,
+        "target_claim_ids": [],
+        "target_competency_ids": [],
+        "created_at": datetime.now(UTC).isoformat(),
+        # Columns the voice flow added to the same table.
+        "audio_url": None,
+        "audio_status": None,
+        "audio_storage_path": None,
+        "audio_mime_type": None,
+        "duration_ms": None,
+        "silence_before_ms": None,
+        "parent_question_id": None,
+        "stt_provider": None,
+        "stt_model": None,
+        "stt_confidence": None,
+        "stt_detected_language": None,
+        "stt_metadata": {},
+        "stt_latency_ms": None,
+        "tts_provider": None,
+        "tts_model": None,
+        "tts_voice": None,
+        "tts_language": None,
+        "tts_metadata": {},
+        "tts_latency_ms": None,
+    }
+
+    turn = _turn(row)
+
+    assert turn.speaker is TurnSpeaker.INTERVIEWER
+    assert turn.turn_type is InterviewerTurnType.PLANNED
+    assert turn.text == "Tell me about your last project."
+
+
+def test_opening_greeting_is_personal_and_names_the_role():
+    from app.interviewer_service import compose_opening_greeting
+
+    greeting = compose_opening_greeting(
+        full_name="Sachin Kumar M P",
+        target_role="Data Analyst",
+        total_time_budget_seconds=1200,
+    )
+
+    assert greeting.startswith("Hi Sachin,")
+    assert "Data Analyst" in greeting
+    assert "20 minutes" in greeting
+    assert greeting.isascii(), "TTS and logs receive this verbatim"
+
+
+def test_opening_greeting_degrades_without_a_name_or_role():
+    from app.interviewer_service import compose_opening_greeting
+
+    greeting = compose_opening_greeting(
+        full_name=None, target_role=None, total_time_budget_seconds=600
+    )
+
+    assert greeting.startswith("Hi, thanks")
+    assert "10 minutes" in greeting
+    # An absent name must never leave a dangling placeholder.
+    assert "None" not in greeting
+
+
+def test_opening_greeting_rejects_unusable_names():
+    from app.interviewer_service import compose_opening_greeting
+
+    for unusable in ("", "   ", "x", "user123", "a" * 40):
+        greeting = compose_opening_greeting(
+            full_name=unusable, target_role="Analyst", total_time_budget_seconds=1200
+        )
+        assert greeting.startswith("Hi, thanks"), unusable
+
+
+def test_opening_turn_carries_greeting_then_question():
+    from app.interviewer_service import GREETING_SEPARATOR
+
+    service, _engine, _sessions, turns, _provider, session_id = asyncio.run(setup_service())
+    stored = asyncio.run(turns.list_turns(session_id))
+    opening = stored[0]
+
+    assert GREETING_SEPARATOR in opening.text, "welcome and question must stay separable"
+    greeting, question = opening.text.split(GREETING_SEPARATOR, 1)
+    assert greeting.startswith("Hi")
+    assert question.strip()
+    assert GREETING_SEPARATOR not in question, "only the opening turn is split"
+
+
+def test_opening_greeting_stays_short_enough_for_one_tts_request():
+    """Sarvam synthesises the whole opening turn in a single request."""
+    from app.interviewer_service import compose_opening_greeting
+
+    greeting = compose_opening_greeting(
+        full_name="Priyadarshini Venkataraman",
+        target_role="Senior Machine Learning Infrastructure Engineer",
+        total_time_budget_seconds=3600,
+    )
+    longest_plausible_question = "Q" * 240
+
+    assert len(greeting) <= 260, greeting
+    assert len(greeting) + 2 + len(longest_plausible_question) < 500

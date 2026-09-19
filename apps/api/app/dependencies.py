@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from fastapi import HTTPException, status
 
-from .config import get_settings
+from .config import Settings, get_settings
 from .claims_repository import (
     ClaimsGraphRepository,
     ClaimsGraphUnavailable,
@@ -72,6 +72,7 @@ from .flag_repository import SupabaseFlagActivationRepository
 from .audio_validation import AudioValidator
 from .speech_providers import (
     DeepgramSpeechToTextProvider,
+    SarvamSpeechToTextProvider,
     SarvamTextToSpeechProvider,
     SpeechProviderUnavailable,
     SpeechToTextProvider,
@@ -133,6 +134,15 @@ from .dashboard_repository import (
 from .dashboard_service import DashboardService
 
 
+def _agent_provider(settings: Settings) -> GroqProvider:
+    """One place to configure the shared agent transport."""
+    return GroqProvider(
+        settings.groq_api_key,
+        max_rate_limit_retries=settings.groq_rate_limit_max_retries,
+        max_rate_limit_wait_seconds=settings.groq_rate_limit_max_wait_seconds,
+    )
+
+
 @lru_cache
 def get_repository() -> SessionRepository:
     settings = get_settings()
@@ -169,7 +179,7 @@ def get_planner_agent_runner() -> AgentRunner:
     settings = get_settings()
     registry = AgentRegistry()
     registry.register(create_planner_agent(settings.batch_model))
-    return AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader())
+    return AgentRunner(registry, _agent_provider(settings), PromptLoader())
 
 
 @lru_cache
@@ -202,7 +212,7 @@ def get_interviewer_agent_runner() -> AgentRunner:
     settings = get_settings()
     registry = AgentRegistry()
     registry.register(create_interviewer_agent(settings.interviewer_model))
-    return AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader())
+    return AgentRunner(registry, _agent_provider(settings), PromptLoader())
 
 
 @lru_cache
@@ -223,6 +233,7 @@ def get_text_interview_service() -> TextInterviewService:
         get_interview_turn_repository(),
         get_interviewer_agent_runner(),
         flag_eligibility=get_flag_eligibility_service(),
+        profiles=get_profile_repository(),
     )
 
 
@@ -274,6 +285,12 @@ def get_interview_audio_storage() -> InterviewAudioStorage:
 def get_speech_to_text_provider() -> SpeechToTextProvider:
     settings = get_settings()
     try:
+        if settings.speech_to_text_provider.strip().lower() == "sarvam":
+            return SarvamSpeechToTextProvider(
+                settings.sarvam_api_key,
+                model=settings.sarvam_stt_model,
+                language=settings.sarvam_stt_language,
+            )
         return DeepgramSpeechToTextProvider(
             settings.deepgram_api_key, model=settings.deepgram_stt_model
         )
@@ -292,6 +309,7 @@ def get_text_to_speech_provider() -> TextToSpeechProvider:
             settings.sarvam_api_key,
             model=settings.sarvam_tts_model,
             voice=settings.sarvam_tts_voice,
+            output_codec=settings.sarvam_tts_output_codec,
         )
     except SpeechProviderUnavailable as exc:
         raise HTTPException(
@@ -394,7 +412,7 @@ def get_resume_agent_runner() -> AgentRunner:
     settings = get_settings()
     registry = AgentRegistry()
     registry.register(create_resume_agent(settings.batch_model))
-    return AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader())
+    return AgentRunner(registry, _agent_provider(settings), PromptLoader())
 
 
 @lru_cache
@@ -425,7 +443,7 @@ def get_role_agent_runner() -> AgentRunner:
     settings = get_settings()
     registry = AgentRegistry()
     registry.register(create_role_agent(settings.batch_model))
-    return AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader())
+    return AgentRunner(registry, _agent_provider(settings), PromptLoader())
 
 
 @lru_cache
@@ -470,7 +488,7 @@ def get_skeptic_agent_runner() -> AgentRunner:
     settings = get_settings()
     registry = AgentRegistry()
     registry.register(create_skeptic_agent(settings.skeptic_model))
-    return AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader())
+    return AgentRunner(registry, _agent_provider(settings), PromptLoader())
 
 
 @lru_cache
@@ -521,7 +539,7 @@ def get_evidence_agent_runner() -> AgentRunner:
     settings = get_settings()
     registry = AgentRegistry()
     registry.register(create_evidence_agent(settings.batch_model))
-    return AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader())
+    return AgentRunner(registry, _agent_provider(settings), PromptLoader())
 
 
 @lru_cache
@@ -565,7 +583,7 @@ def get_specialist_assessment_orchestrator() -> AssessmentOrchestrator:
         registry = AgentRegistry()
         registry.register(create_specialist_assessor(assessor_type, settings.assessor_model))
         runners[assessor_type] = AgentRunner(
-            registry, GroqProvider(settings.groq_api_key), PromptLoader()
+            registry, _agent_provider(settings), PromptLoader()
         )
     return AssessmentOrchestrator(
         get_specialist_assessment_repository(), runners,
@@ -605,7 +623,7 @@ def get_assessment_pipeline_repository() -> AssessmentPipelineRepository:
 def get_adjudicator_runner() -> AgentRunner:
     settings = get_settings(); registry = AgentRegistry()
     registry.register(create_adjudicator_agent(settings.assessor_model))
-    return AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader())
+    return AgentRunner(registry, _agent_provider(settings), PromptLoader())
 
 
 @lru_cache
@@ -617,7 +635,7 @@ def get_assessment_adjudicator() -> AssessmentAdjudicator:
 def get_verdict_language_service() -> VerdictLanguageService:
     settings = get_settings(); registry = AgentRegistry()
     registry.register(create_verdict_agent(settings.assessor_model))
-    return VerdictLanguageService(AgentRunner(registry, GroqProvider(settings.groq_api_key), PromptLoader()))
+    return VerdictLanguageService(AgentRunner(registry, _agent_provider(settings), PromptLoader()))
 
 
 @lru_cache

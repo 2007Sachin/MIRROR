@@ -9,6 +9,7 @@ import pytest
 from app import speech_providers
 from app.speech_providers import (
     DeepgramSpeechToTextProvider,
+    SarvamSpeechToTextProvider,
     SarvamTextToSpeechProvider,
     SynthesisProviderFailure,
     TranscriptionProviderFailure,
@@ -125,13 +126,13 @@ def test_sarvam_contract_and_base64_audio(monkeypatch: pytest.MonkeyPatch):
         StubResponse({"request_id": "request-safe", "audios": [encoded]}),
     )
     provider = SarvamTextToSpeechProvider(
-        "sarvam-secret", model="bulbul:v2", voice="anushka"
+        "sarvam-secret", model="bulbul:v3", voice="priya", output_codec="mp3"
     )
 
     result = asyncio.run(provider.synthesize("What did you build?", "en-IN"))
 
     assert result.audio_bytes.startswith(b"RIFF")
-    assert result.mime_type == "audio/wav"
+    assert result.mime_type == "audio/mpeg", "must follow the requested codec"
     assert result.provider == "sarvam"
     url, request = client.calls[0]
     assert url == "https://api.sarvam.ai/text-to-speech"
@@ -142,9 +143,26 @@ def test_sarvam_contract_and_base64_audio(monkeypatch: pytest.MonkeyPatch):
     assert request["json"] == {
         "text": "What did you build?",
         "language_code": "en-IN",
-        "speaker": "anushka",
-        "model": "bulbul:v2",
+        "speaker": "priya",
+        "model": "bulbul:v3",
+        "output_audio_codec": "mp3",
     }
+
+
+def test_sarvam_tts_codec_drives_mime_type(monkeypatch: pytest.MonkeyPatch):
+    encoded = base64.b64encode(b"RIFFsome-audio-bytes").decode()
+    for codec, mime in (("wav", "audio/wav"), ("mp3", "audio/mpeg"), ("flac", "audio/flac")):
+        install_client(monkeypatch, StubResponse({"audios": [encoded]}))
+        provider = SarvamTextToSpeechProvider("secret", output_codec=codec)
+        result = asyncio.run(provider.synthesize("Question", "en-IN"))
+        assert result.mime_type == mime, codec
+
+
+def test_sarvam_tts_rejects_an_unsupported_codec():
+    from app.speech_providers import SpeechProviderUnavailable
+
+    with pytest.raises(SpeechProviderUnavailable):
+        SarvamTextToSpeechProvider("secret", output_codec="ogg-vorbis")
 
 
 def test_sarvam_malformed_audio_is_provider_failure(monkeypatch: pytest.MonkeyPatch):
@@ -162,3 +180,109 @@ def test_missing_keys_fail_only_when_provider_is_invoked():
     with pytest.raises(SynthesisProviderFailure):
         asyncio.run(SarvamTextToSpeechProvider("").synthesize("Question", "en-IN"))
 
+
+
+def test_sarvam_stt_contract_and_structured_response(monkeypatch: pytest.MonkeyPatch):
+    client = install_client(
+        monkeypatch,
+        StubResponse(
+            {
+                "request_id": "stt-1",
+                "transcript": "  I owned the onboarding funnel.  ",
+                "language_code": "en-IN",
+                "language_probability": 0.97,
+            }
+        ),
+    )
+    provider = SarvamSpeechToTextProvider(
+        "sarvam-secret", model="saaras:v3", language="en-IN"
+    )
+
+    result = asyncio.run(provider.transcribe(b"audio-bytes", "audio/webm;codecs=opus"))
+
+    assert result.transcript == "I owned the onboarding funnel."
+    assert result.provider == "sarvam"
+    assert result.model == "saaras:v3"
+    assert result.detected_language == "en-IN"
+    assert result.provider_metadata["request_id"] == "stt-1"
+
+    url, request = client.calls[0]
+    assert url == "https://api.sarvam.ai/speech-to-text"
+    assert request["headers"] == {"api-subscription-key": "sarvam-secret"}
+    assert request["data"] == {"model": "saaras:v3", "language_code": "en-IN"}
+    filename, content, mime = request["files"]["file"]
+    assert filename == "answer.webm", "codec parameters must not leak into the name"
+    assert content == b"audio-bytes"
+    assert mime == "audio/webm"
+
+
+def test_sarvam_stt_does_not_report_language_id_as_confidence(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """language_probability is language ID, not transcription confidence."""
+    install_client(
+        monkeypatch,
+        StubResponse(
+            {"transcript": "mumbled answer", "language_probability": 0.99}
+        ),
+    )
+
+    result = asyncio.run(SarvamSpeechToTextProvider("secret").transcribe(b"a", "audio/wav"))
+
+    assert result.confidence is None, "would misfire the turn-quality gate"
+    assert result.provider_metadata["language_probability"] == 0.99
+
+
+def test_sarvam_stt_omits_language_when_auto_detecting(monkeypatch: pytest.MonkeyPatch):
+    client = install_client(monkeypatch, StubResponse({"transcript": "hello"}))
+
+    asyncio.run(SarvamSpeechToTextProvider("secret", language="").transcribe(b"a", "audio/mp4"))
+
+    _url, request = client.calls[0]
+    assert "language_code" not in request["data"]
+    assert request["files"]["file"][0] == "answer.m4a"
+
+
+def test_sarvam_stt_missing_transcript_is_provider_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_client(monkeypatch, StubResponse({"request_id": "stt-2"}))
+
+    with pytest.raises(TranscriptionProviderFailure):
+        asyncio.run(SarvamSpeechToTextProvider("secret").transcribe(b"a", "audio/wav"))
+
+
+def test_sarvam_stt_without_key_fails_only_when_invoked():
+    with pytest.raises(TranscriptionProviderFailure):
+        asyncio.run(SarvamSpeechToTextProvider("").transcribe(b"audio", "audio/webm"))
+
+
+@pytest.mark.parametrize(
+    "configured,expected",
+    [
+        ("sarvam", "sarvam"),
+        ("SARVAM", "sarvam"),
+        ("  sarvam  ", "sarvam"),
+        ("deepgram", "deepgram"),
+        ("", "deepgram"),
+        ("unrecognised", "deepgram"),
+    ],
+)
+def test_speech_to_text_provider_switch(monkeypatch: pytest.MonkeyPatch, configured, expected):
+    """An unknown value must fall back rather than leave transcription unwired."""
+    from app import dependencies
+    from app.config import Settings
+
+    settings = Settings(
+        speech_to_text_provider=configured,
+        sarvam_api_key="sarvam-key",
+        deepgram_api_key="deepgram-key",
+    )
+    monkeypatch.setattr(dependencies, "get_settings", lambda: settings)
+    dependencies.get_speech_to_text_provider.cache_clear()
+    try:
+        provider = dependencies.get_speech_to_text_provider()
+    finally:
+        dependencies.get_speech_to_text_provider.cache_clear()
+
+    assert provider.provider_name == expected

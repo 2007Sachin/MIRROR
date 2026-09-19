@@ -132,7 +132,13 @@ body:has(.interview-room) .site-header { display: none; }
 }
 .interview-stage { display: grid; gap: 1rem; grid-template-rows: minmax(0, 1fr) 10.25rem; min-height: 0; }
 .interview-participant { background: var(--room-panel); border: 1px solid var(--room-line); border-radius: .85rem; min-height: 0; overflow: hidden; position: relative; }
-.interview-participant--mirror { align-items: center; display: flex; justify-content: center; }
+/* Rows rather than an absolute overlay: a long question grows into its own track
+   instead of climbing over the presence orb. */
+.interview-participant--mirror {
+  align-content: center; display: grid; gap: clamp(1rem, 2vw, 1.75rem);
+  grid-template-rows: auto auto; justify-items: center;
+  padding: clamp(3rem, 5vw, 4rem) clamp(1.5rem, 3.5vw, 3.5rem) clamp(1.5rem, 3vw, 2.5rem);
+}
 .interview-participant--mirror::before {
   background-image: linear-gradient(rgba(224, 231, 222, .025) 1px, transparent 1px), linear-gradient(90deg, rgba(224, 231, 222, .025) 1px, transparent 1px);
   background-size: 3rem 3rem; content: ""; inset: 0; mask-image: radial-gradient(circle at center, #000, transparent 74%); pointer-events: none; position: absolute;
@@ -154,11 +160,12 @@ body:has(.interview-room) .site-header { display: none; }
 .interview-room--interviewer_speaking .interview-presence i:nth-of-type(2) { animation-delay: 180ms; }
 .interview-room--interviewer_speaking .interview-presence i:nth-of-type(3) { animation-delay: 360ms; }
 @keyframes interview-presence-pulse { 50% { border-color: rgba(108, 199, 163, .5); transform: scale(1.07); } }
-.interview-question {
-  background: linear-gradient(180deg, transparent, rgba(7, 10, 8, .94) 52%); bottom: 0; left: 0; padding: 5.5rem clamp(1.5rem, 3.5vw, 3.5rem) clamp(1.75rem, 3.2vw, 3rem); position: absolute; right: 0;
-}
+.interview-question { max-height: 100%; min-width: 0; overflow-y: auto; text-align: center; width: 100%; }
 .interview-question > span { color: var(--room-accent); font-family: var(--font-mono); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
-.interview-question h1 { font-size: clamp(1.9rem, 2.8vw, 3.35rem); font-weight: 500; letter-spacing: -.045em; line-height: 1.04; margin: .8rem 0 0; max-width: 27ch; text-wrap: balance; }
+.interview-question h1 { font-size: clamp(1.6rem, 2.5vw, 2.9rem); font-weight: 500; letter-spacing: -.045em; line-height: 1.08; margin: .8rem auto 0; max-width: 27ch; text-wrap: balance; }
+/* The spoken welcome that precedes the first question. */
+.interview-greeting { color: #a8b3a9; font-size: clamp(.85rem, 1.1vw, .98rem); line-height: 1.65; margin: .7rem auto 0; max-width: 54ch; text-wrap: pretty; }
+.interview-question--opening h1 { font-size: clamp(1.45rem, 2.1vw, 2.35rem); }
 .interview-participant--candidate { align-items: center; display: flex; flex-direction: column; justify-content: center; }
 .interview-participant--candidate > p { color: #9ca59b; font-size: .78rem; margin: .72rem 0 0; }
 .interview-live-caption { margin-top: .5rem; max-width: min(46rem, 78%); text-align: center; }
@@ -189,7 +196,8 @@ body:has(.interview-room) .site-header { display: none; }
 .interview-transcript-turn.is-candidate > span { color: #cbd1c9; }
 .interview-transcript-turn.is-live { background: rgba(123, 214, 175, .05); margin-inline: -.55rem; padding-inline: .55rem; }
 .interview-transcript-turn.is-live > span { color: var(--room-accent); }
-.interview-transcript-turn p { color: #bdc5ba; font-size: .82rem; line-height: 1.58; margin: .45rem 0 0; }
+/* pre-line keeps the opening welcome and its question as separate paragraphs. */
+.interview-transcript-turn p { color: #bdc5ba; font-size: .82rem; line-height: 1.58; margin: .45rem 0 0; white-space: pre-line; }
 .interview-transcript-empty { color: #858e84; font-size: .8rem; line-height: 1.6; margin: .9rem 0; }
 .interview-thinking { align-items: center; color: #929b91; display: flex; font-size: .74rem; gap: .32rem; padding: 1.1rem 0; }
 .interview-thinking i { animation: interview-thinking 1s ease-in-out infinite; background: #6cc7a3; border-radius: 50%; height: .25rem; width: .25rem; }
@@ -254,9 +262,11 @@ body:has(.interview-room) .site-header { display: none; }
   .interview-join-button { width: 100%; }
   .interview-call-layout { gap: .55rem; padding: .55rem; }
   .interview-stage { gap: .55rem; grid-template-rows: minmax(0, 1fr) 7.7rem; }
-  .interview-question { padding: 4.4rem 1rem 1.15rem; }
-  .interview-question h1 { font-size: clamp(1.45rem, 6.8vw, 1.9rem); line-height: 1.08; }
-  .interview-presence { height: 6.7rem; width: 6.7rem; }
+  .interview-participant--mirror { gap: .9rem; padding: 2.9rem 1rem 1.15rem; }
+  .interview-question h1 { font-size: clamp(1.35rem, 6.2vw, 1.8rem); line-height: 1.1; }
+  .interview-question--opening h1 { font-size: clamp(1.2rem, 5.4vw, 1.55rem); }
+  .interview-greeting { font-size: .82rem; line-height: 1.6; }
+  .interview-presence { height: 5.4rem; width: 5.4rem; }
   .interview-participant-label { left: .95rem; top: .85rem; }
   .interview-participant-label span { font-size: .78rem; }
   .interview-participant-label small { font-size: .63rem; }
@@ -510,7 +520,10 @@ body:has(.onboarding-workspace) :focus-visible { outline-color: #26775f; }
 .role-brief-paste { margin-top: 1.25rem; }
 .role-brief-paste textarea { min-height: 11rem; resize: vertical; }
 .onboarding-file { align-items: center; color: #26775f; display: flex; font-size: .78rem; gap: .5rem; margin: 1rem 0 0; }
-.onboarding-upload-progress { background: rgba(20, 24, 21, .12); height: 2px; margin-top: 1rem; overflow: hidden; }
+.onboarding-upload-status { color: #3f4a44; font-size: .78rem; margin: 1.25rem 0 0; }
+.onboarding-upload-notice { align-items: center; border-left: 2px solid #26775f; color: #26775f; display: flex; font-size: .8rem; gap: .5rem; line-height: 1.6; margin-top: 1.5rem; padding: .2rem 0 .2rem 1rem; }
+.onboarding-upload-notice svg { flex-shrink: 0; }
+.onboarding-upload-progress { background: rgba(20, 24, 21, .12); height: 2px; margin-top: .6rem; overflow: hidden; }
 .onboarding-upload-progress span { background: #26775f; display: block; height: 100%; transition: width 180ms ease; }
 .onboarding-actions { align-items: center; border-top: 1px solid rgba(20, 24, 21, .18); display: flex; justify-content: space-between; margin-top: 3.5rem; padding-top: 1.5rem; }
 .onboarding-workspace .button-primary { background: #17211c; border-color: #17211c; border-radius: .3rem; color: #f3f3ee; min-height: 3.25rem; }

@@ -12,11 +12,26 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     resume_max_file_size_bytes: int = 8 * 1024 * 1024
     groq_api_key: str = ""
+    # Groq bills a tokens-per-minute budget, and a full diagnostic runs several
+    # large agents in close succession, so a rate-limited call is worth waiting out.
+    # The provider returns short Retry-After hints while a minute-long bucket
+    # refills, so the attempt count has to be generous; the wait budget is the
+    # real bound on how long a request may block.
+    groq_rate_limit_max_retries: int = 10
+    groq_rate_limit_max_wait_seconds: float = 75.0
     deepgram_api_key: str = ""
     deepgram_stt_model: str = "nova-3"
+    # "sarvam" runs transcription and synthesis on one vendor; "deepgram" keeps the
+    # original split. Defaults to deepgram so existing deployments are unaffected.
+    speech_to_text_provider: str = "deepgram"
     sarvam_api_key: str = ""
-    sarvam_tts_model: str = "bulbul:v2"
-    sarvam_tts_voice: str = "anushka"
+    sarvam_stt_model: str = "saaras:v3"
+    # Blank asks Sarvam to auto-detect the spoken language.
+    sarvam_stt_language: str = "en-IN"
+    sarvam_tts_model: str = "bulbul:v3"
+    sarvam_tts_voice: str = "priya"
+    # Compressed audio keeps question playback fast on slow uplinks.
+    sarvam_tts_output_codec: str = "mp3"
     interview_tts_language: str = "en-IN"
     interview_audio_max_file_size_bytes: int = 10 * 1024 * 1024
     interview_audio_min_duration_ms: int = 300

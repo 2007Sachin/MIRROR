@@ -165,6 +165,18 @@ from .dashboard_repository import DashboardUnavailable
 from .dashboard_service import DashboardService
 
 settings = get_settings()
+
+# Uvicorn configures only its own loggers, so without an explicit handler every
+# "mirror.*" warning is discarded and operational failures surface to callers as
+# bare status codes with no matching server-side record.
+_mirror_logger = logging.getLogger("mirror")
+if not _mirror_logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+    _mirror_logger.addHandler(_handler)
+    _mirror_logger.setLevel(logging.INFO)
+    _mirror_logger.propagate = False
+
 logger = logging.getLogger("mirror.lifecycle")
 
 
@@ -1178,17 +1190,29 @@ async def upload_resume(
     safe_name = "resume.pdf" if detected_mime == "application/pdf" else "resume.docx"
     object_path = f"{user_id}/{session_id}/{safe_name}"
     if settings.supabase_enabled:
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(
-                f"{settings.next_public_supabase_url.rstrip('/')}/storage/v1/object/private-resumes/{object_path}",
-                headers={
-                    "apikey": settings.supabase_service_role_key,
-                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
-                    "Content-Type": detected_mime,
-                    "x-upsert": "true",
-                },
-                content=content,
+        # An unhandled transport error here escapes the CORS middleware, so the
+        # browser reports an opaque "Failed to fetch" instead of this status.
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(
+                    f"{settings.next_public_supabase_url.rstrip('/')}/storage/v1/object/private-resumes/{object_path}",
+                    headers={
+                        "apikey": settings.supabase_service_role_key,
+                        "Authorization": f"Bearer {settings.supabase_service_role_key}",
+                        "Content-Type": detected_mime,
+                        "x-upsert": "true",
+                    },
+                    content=content,
+                )
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "Private resume storage upload failed for session %s: %s",
+                session_id,
+                type(exc).__name__,
             )
+            raise HTTPException(
+                status_code=503, detail="Resume storage is temporarily unavailable"
+            ) from exc
         if response.status_code not in (200, 201):
             raise HTTPException(status_code=502, detail="Private resume storage failed")
     session = await repository.update(
@@ -1335,6 +1359,12 @@ async def start_text_interview(
             status_code=409, detail="Interview cannot be started"
         ) from exc
     except (ConcurrentSessionChange, InterviewTurnsUnavailable) as exc:
+        logger.warning(
+            "Text interview start failed for session %s: %s: %s",
+            session_id,
+            type(exc).__name__,
+            exc.__cause__ or exc,
+        )
         raise HTTPException(
             status_code=503, detail="Text interview is temporarily unavailable"
         ) from exc

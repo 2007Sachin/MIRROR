@@ -41,6 +41,12 @@ class CandidateTurnCompletedPublisher(Protocol):
         self, session_id: UUID, user_id: UUID, turn_id: UUID
     ) -> None: ...
 
+
+class OpeningProfileReader(Protocol):
+    """Only the candidate's name is needed, so the greeting stays decoupled."""
+
+    async def get(self, user_id: UUID) -> object | None: ...
+
 PROBE_TYPES = frozenset(
     {
         InterviewerTurnType.DEPTH_PROBE,
@@ -75,6 +81,40 @@ class InterviewerOutputRejected(Exception):
     pass
 
 
+# The opening turn carries a short spoken welcome before the first question so the
+# interview begins like a conversation rather than an interrogation. It is composed
+# deterministically here rather than by the agent: a greeting is lifecycle framing,
+# not interview content, and it must never vary in a way that implies evaluation.
+GREETING_SEPARATOR = "\n\n"
+
+
+def _first_name(full_name: str | None) -> str:
+    cleaned = " ".join((full_name or "").split())
+    if not cleaned:
+        return ""
+    first = cleaned.split(" ")[0]
+    return first if 1 < len(first) <= 24 and first.replace("-", "").isalpha() else ""
+
+
+def compose_opening_greeting(
+    *, full_name: str | None, target_role: str | None, total_time_budget_seconds: int
+) -> str:
+    """Build the welcome that precedes the first question."""
+    name = _first_name(full_name)
+    minutes = max(1, round((total_time_budget_seconds or 0) / 60))
+    role = " ".join((target_role or "").split())
+
+    opener = f"Hi {name}, thanks for making the time today." if name else "Hi, thanks for making the time today."
+    who = (
+        f"I'm Mirror, and I'll be your interviewer for this {role} conversation."
+        if role
+        else "I'm Mirror, and I'll be your interviewer today."
+    )
+    shape = f"We have about {minutes} minutes. Take your time, and think out loud."
+    handoff = "Let's begin."
+    return " ".join([opener, who, shape, handoff])
+
+
 class TextInterviewService:
     """Coordinates text turns while leaving lifecycle authority in the state machine."""
 
@@ -86,6 +126,7 @@ class TextInterviewService:
         runner: AgentRunner,
         turn_completed_publisher: CandidateTurnCompletedPublisher | None = None,
         flag_eligibility: FlagEligibilityService | None = None,
+        profiles: OpeningProfileReader | None = None,
     ) -> None:
         self._state = state
         self._context = context_builder
@@ -93,6 +134,18 @@ class TextInterviewService:
         self._runner = runner
         self._turn_completed_publisher = turn_completed_publisher
         self._flag_eligibility = flag_eligibility
+        self._profiles = profiles
+
+    async def _candidate_first_name(self, user_id: UUID) -> str | None:
+        """A missing name only makes the greeting less personal, never blocks it."""
+        if self._profiles is None:
+            return None
+        try:
+            profile = await self._profiles.get(user_id)
+        except Exception:  # noqa: BLE001 - greeting must not fail the interview
+            logger.warning("Could not read profile for interview greeting", exc_info=True)
+            return None
+        return getattr(profile, "full_name", None) if profile else None
 
     async def start(self, session_id: UUID, user_id: UUID) -> InterviewStartResponse:
         session = await self._state.get_state(session_id, user_id)
@@ -113,11 +166,16 @@ class TextInterviewService:
             session = await self._state.register_primary_question(
                 session_id, user_id, objective.objective_id
             )
+        greeting = compose_opening_greeting(
+            full_name=await self._candidate_first_name(user_id),
+            target_role=session.target_role,
+            total_time_budget_seconds=session.total_time_budget_seconds,
+        )
         opening = await self._turns.create_interviewer_turn(
             session_id,
             user_id,
             response_to_turn_id=None,
-            text=objective.initial_question,
+            text=f"{greeting}{GREETING_SEPARATOR}{objective.initial_question}",
             turn_type=InterviewerTurnType.PLANNED,
             phase=session.phase,
             primary_thread_id=objective.objective_id,

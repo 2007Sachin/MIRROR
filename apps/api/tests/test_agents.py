@@ -279,3 +279,98 @@ def test_execution_logs_exclude_input_and_output_content() -> None:
     assert "output" not in event
     assert event["success"] is True
 
+
+
+def _rate_limit_request() -> ProviderRequest:
+    return ProviderRequest(
+        model="test-model",
+        temperature=0,
+        messages=[{"role": "user", "content": "test"}],
+        output_schema_name="test_output",
+        output_json_schema={
+            "type": "object",
+            "properties": {"normalized_text": {"type": "string"}},
+        },
+    )
+
+
+def test_groq_provider_retries_rate_limit_and_honours_retry_after() -> None:
+    statuses = [429, 429, 200]
+    slept: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        status = statuses.pop(0)
+        if status == 429:
+            return httpx.Response(
+                429,
+                headers={"retry-after": "2"},
+                json={"error": {"code": "rate_limit_exceeded"}},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"content": '{"normalized_text":"ok"}'}}
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+        )
+
+    async def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GroqProvider("test-key", client=client, sleep=fake_sleep)
+    response = asyncio.run(provider.complete(_rate_limit_request(), timeout_seconds=1))
+    asyncio.run(client.aclose())
+
+    assert slept == [2.0, 2.0]
+    assert response.content == '{"normalized_text":"ok"}'
+
+
+def test_groq_provider_gives_up_on_sustained_rate_limiting() -> None:
+    slept: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            429,
+            headers={"retry-after": "1"},
+            json={"error": {"code": "rate_limit_exceeded"}},
+        )
+
+    async def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GroqProvider(
+        "test-key", client=client, sleep=fake_sleep, max_rate_limit_retries=2
+    )
+    with pytest.raises(ProviderFailureError):
+        asyncio.run(provider.complete(_rate_limit_request(), timeout_seconds=1))
+    asyncio.run(client.aclose())
+
+    assert slept == [1.0, 1.0]
+
+
+def test_groq_provider_stops_retrying_past_the_wait_budget() -> None:
+    slept: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            429,
+            headers={"retry-after": "45"},
+            json={"error": {"code": "rate_limit_exceeded"}},
+        )
+
+    async def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GroqProvider(
+        "test-key", client=client, sleep=fake_sleep, max_rate_limit_wait_seconds=30.0
+    )
+    with pytest.raises(ProviderFailureError):
+        asyncio.run(provider.complete(_rate_limit_request(), timeout_seconds=1))
+    asyncio.run(client.aclose())
+
+    assert slept == []
