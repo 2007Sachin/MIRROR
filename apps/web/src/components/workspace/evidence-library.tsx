@@ -17,6 +17,7 @@ import { EvidenceRemoveDialog, EvidenceUploadDialog } from "@/components/workspa
 import { EvidenceRow, type EvidenceRowAction } from "@/components/workspace/evidence-row";
 import { EVIDENCE_CATEGORIES, evidenceCategory } from "@/components/workspace/evidence-types";
 import { AppShell } from "@/components/workspace/app-shell";
+import { Reveal } from "@/components/motion/reveal";
 import {
   ApiError,
   downloadEvidenceDocument,
@@ -292,48 +293,54 @@ export function EvidenceLibrary() {
 
   return (
     <AppShell profile={profile}>
-      <header className="workspace-route-header evidence-library-header">
-        <div><p className="app-kicker">Evidence library</p><h1 className="display">Your professional evidence</h1><p>The evidence Mirror is allowed to reason from—managed by you.</p></div>
-        <button className="app-primary-button" type="button" onClick={() => { setDialogError(""); setShowUpload(true); }}><Plus size={17} /> Add evidence</button>
+      <header className="ws-page-header">
+        <div><p className="ws-eyebrow">Evidence library</p><h1 className="display">Your professional evidence</h1><p>The evidence Mirror is allowed to reason from—managed by you.</p></div>
+        <button className="button-primary" type="button" onClick={() => { setDialogError(""); setShowUpload(true); }}><Plus size={17} /> Add evidence</button>
       </header>
 
-      <div className="evidence-library-summary" aria-label="Evidence library summary">
+      <div className="ws-summary-bar" aria-label="Evidence library summary">
         <span><strong>{currentCount}</strong> in your library</span><i /><span><strong>{usedCount}</strong> used in diagnostics</span><i /><span>Archived versions remain attached to historical findings</span>
       </div>
 
-      <div className="evidence-view-tabs" role="tablist" aria-label="Evidence state">
+      <div className="ws-tabs" role="tablist" aria-label="Evidence state">
         <button type="button" role="tab" aria-selected={view === "CURRENT"} onClick={() => { setView("CURRENT"); setSelectedIds(new Set()); }}>Current evidence <span>{currentCount}</span></button>
         <button type="button" role="tab" aria-selected={view === "REMOVED"} onClick={() => { setView("REMOVED"); setSelectedIds(new Set()); }}>Recently removed <span>{removedCount}</span></button>
       </div>
 
-      <section className="evidence-toolbar" aria-label="Evidence tools">
-        <label className="evidence-search"><MagnifyingGlass size={17} /><span className="sr-only">Search evidence</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search evidence" />{search ? <button type="button" onClick={() => setSearch("")} aria-label="Clear search"><X size={15} /></button> : null}</label>
-        <label><span className="sr-only">Filter by category</span><select value={filter} onChange={(event) => setFilter(event.target.value as EvidenceFilter)}><option value="ALL">All categories</option>{EVIDENCE_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.plural}</option>)}</select><CaretDown size={14} /></label>
-        <label><span className="sr-only">Sort evidence</span><select value={sort} onChange={(event) => setSort(event.target.value as EvidenceSort)}><option value="UPDATED">Recently updated</option><option value="ADDED">Recently added</option><option value="NAME">Name</option></select><CaretDown size={14} /></label>
+      <section className="ws-toolbar" aria-label="Evidence tools">
+        <label className="ws-search"><MagnifyingGlass size={17} /><span className="sr-only">Search evidence</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search evidence" />{search ? <button type="button" onClick={() => setSearch("")} aria-label="Clear search"><X size={15} /></button> : null}</label>
+        <label className="ws-select-wrap"><span className="sr-only">Filter by category</span><select value={filter} onChange={(event) => setFilter(event.target.value as EvidenceFilter)}><option value="ALL">All categories</option>{EVIDENCE_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.plural}</option>)}</select><CaretDown size={14} /></label>
+        <label className="ws-select-wrap"><span className="sr-only">Sort evidence</span><select value={sort} onChange={(event) => setSort(event.target.value as EvidenceSort)}><option value="UPDATED">Recently updated</option><option value="ADDED">Recently added</option><option value="NAME">Name</option></select><CaretDown size={14} /></label>
       </section>
 
       {selected.length ? (
-        <div className="evidence-bulk-bar" role="toolbar" aria-label="Bulk evidence actions">
+        <div className="ws-bulk-bar" role="toolbar" aria-label="Bulk evidence actions">
           <strong>{selected.length} selected</strong>
           {view === "CURRENT" ? <><label>Change category <select defaultValue="" onChange={(event) => { if (event.target.value) void bulkCategory(event.target.value as EvidenceCategory); event.target.value = ""; }} disabled={busy}><option value="" disabled>Choose…</option>{EVIDENCE_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" onClick={() => setRemoving(selected)} disabled={busy}><Trash size={16} /> Remove from library</button></> : <button type="button" onClick={() => void restoreSelected()} disabled={busy}><ArrowCounterClockwise size={16} /> Restore selected</button>}
-          <button type="button" className="evidence-bulk-clear" onClick={() => setSelectedIds(new Set())}>Clear</button>
+          <button type="button" className="ws-bulk-clear" onClick={() => setSelectedIds(new Set())}>Clear</button>
         </div>
       ) : null}
 
-      {notice ? <div className="evidence-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss"><X size={15} /></button></div> : null}
-      {error ? <div className="app-inline-alert" role="alert"><WarningCircle size={18} /><span>{error}</span><button type="button" onClick={() => void load()}>Retry</button></div> : null}
+      {notice ? <div className="ws-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss"><X size={15} /></button></div> : null}
+      {error ? <div className="ws-alert is-inline" role="alert"><WarningCircle size={18} /><span>{error}</span><button type="button" onClick={() => void load()}>Retry</button></div> : null}
 
-      <section className="evidence-workspace-list app-panel" aria-live="polite">
-        {loading ? <div className="workspace-list-skeleton"><i /><i /><i /></div> : null}
-        {!loading && !visible.length ? (
-          <div className="workspace-route-empty">
-            <h2>{view === "REMOVED" ? "Nothing has been removed." : search || filter !== "ALL" ? "No evidence matches this view." : "Your evidence library is empty."}</h2>
-            <p>{view === "REMOVED" ? "Evidence removed from future diagnostics will appear here and can be restored." : "Add the documents, projects and achievements Mirror should use when evaluating your experience."}</p>
-            {view === "CURRENT" && !search && filter === "ALL" ? <button type="button" onClick={() => setShowUpload(true)}>Add evidence</button> : null}
-          </div>
-        ) : null}
-        {visible.map((detail) => <EvidenceRow key={detail.document.id} detail={detail} selected={selectedIds.has(detail.document.id)} onSelect={(checked) => select(detail.document.id, checked)} onAction={(nextAction) => action(detail, nextAction)} />)}
-      </section>
+      <Reveal>
+        <section className="ws-panel" aria-live="polite">
+          {loading ? <div className="ws-list-skeleton"><i className="skeleton" /><i className="skeleton" /><i className="skeleton" /></div> : null}
+          {!loading && !visible.length ? (
+            <div className="ws-empty">
+              <h2>{view === "REMOVED" ? "Nothing has been removed." : search || filter !== "ALL" ? "No evidence matches this view." : "Your evidence library is empty."}</h2>
+              <p>{view === "REMOVED" ? "Evidence removed from future diagnostics will appear here and can be restored." : "Add the documents, projects and achievements Mirror should use when evaluating your experience."}</p>
+              {view === "CURRENT" && !search && filter === "ALL" ? <button type="button" onClick={() => setShowUpload(true)}>Add evidence</button> : null}
+            </div>
+          ) : null}
+          {!loading && visible.length ? (
+            <div className="reveal-stagger is-visible">
+              {visible.map((detail) => <EvidenceRow key={detail.document.id} detail={detail} selected={selectedIds.has(detail.document.id)} onSelect={(checked) => select(detail.document.id, checked)} onAction={(nextAction) => action(detail, nextAction)} />)}
+            </div>
+          ) : null}
+        </section>
+      </Reveal>
 
       {drawer ? <EvidenceDrawer detail={drawer.detail} initialMode={drawer.mode} busy={busy} error={dialogError} onClose={() => { setDrawer(null); setDialogError(""); }} onSave={save} onReplace={(file) => replace(file)} onDownload={() => download(drawer.detail)} onArchive={() => { setDrawer(null); setRemoving([drawer.detail]); }} onRestore={() => restore(drawer.detail)} /> : null}
       {showUpload ? <EvidenceUploadDialog busy={busy} progress={uploadProgress} error={dialogError} onClose={() => { if (!busy) { setShowUpload(false); setDialogError(""); } }} onSubmit={upload} /> : null}

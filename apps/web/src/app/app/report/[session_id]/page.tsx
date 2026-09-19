@@ -18,6 +18,8 @@ import {
   type ReportEvidence,
   type ReportResponse,
 } from "@/lib/api";
+import { Reveal } from "@/components/motion/reveal";
+import "@/styles/sessions.css";
 
 const groups: Array<{
   key: keyof ReportResponse["claims_audit"];
@@ -56,15 +58,26 @@ function statusLabel(status: ReportClaim["status"]) {
     .replace(/^./, (value) => value.toUpperCase());
 }
 
+/** The report's one status-color vocabulary: pulse = supported, brass =
+ * partial/uncertain, danger = unsupported/contradicted, and a deliberately
+ * neutral silver for "not enough evidence" -- absence of evidence is not
+ * the same claim state as a contradiction and must not read as a failure. */
+function statusClass(status: ReportClaim["status"]) {
+  if (status === "CORROBORATED") return "is-supported";
+  if (status === "PARTIALLY_HELD") return "is-partial";
+  if (status === "WALKED_BACK" || status === "CONTRADICTED") return "is-unsupported";
+  return "is-neutral";
+}
+
 function ClaimEvidence({ evidence }: { evidence: ReportEvidence[] }) {
   if (!evidence.length) {
-    return <p className="report-muted">No linked evidence was captured.</p>;
+    return <p className="dg-muted">No linked evidence was captured.</p>;
   }
   return (
-    <div className="report-evidence-list">
+    <div className="dg-evidence-list">
       {evidence.map((item, index) => (
         <blockquote key={`${item.turn_id ?? "source"}-${index}`}>
-          <span className="report-quote-mark">“</span>
+          <span className="dg-quote-mark">“</span>
           {item.quote}
           <footer>
             {item.turn_id
@@ -83,6 +96,9 @@ function ClaimEvidence({ evidence }: { evidence: ReportEvidence[] }) {
   );
 }
 
+/** A range, never a single number, paired immediately with its qualitative
+ * label and signal strength -- the deliberate alternative to a gauge or a
+ * bare score (mirror-visual-design: show uncertainty explicitly). */
 function Readiness({
   title,
   value,
@@ -92,21 +108,24 @@ function Readiness({
 }) {
   const numeric = value.low != null && value.high != null;
   return (
-    <div className="report-readiness">
-      <p className="report-eyebrow">{title}</p>
-      <p className={`report-range ${numeric ? "" : "report-range-muted"}`}>
-        {numeric ? (
-          <>
-            <span>{value.low}</span>
-            <small>–</small>
-            <span>{value.high}</span>
-          </>
-        ) : (
-          "Not enough signal"
-        )}
-      </p>
-      <p className="report-readiness-label">{value.label}</p>
-      <p className="report-muted">{value.confidence_note}</p>
+    <div className="dg-readiness">
+      <p className="dg-eyebrow">{title}</p>
+      <div className="dg-readiness-row">
+        <p className={`dg-range ${numeric ? "" : "dg-range-muted"}`}>
+          {numeric ? (
+            <>
+              <span>{value.low}</span>
+              <small>–</small>
+              <span>{value.high}</span>
+            </>
+          ) : (
+            "Not enough signal"
+          )}
+        </p>
+        <span className="dg-readiness-label">{value.label}</span>
+      </div>
+      {value.signal_strength ? <p className="dg-signal">{value.signal_strength}</p> : null}
+      <p className="dg-muted">{value.confidence_note}</p>
     </div>
   );
 }
@@ -205,15 +224,15 @@ export default function ReportPage() {
 
   if (state === "loading" && !report) {
     return (
-      <main className="report-page">
+      <main id="main-content" className="dg-page">
         <div
-          className="report-shell"
+          className="dg-shell"
           role="status"
           aria-label="Loading report"
         >
-          <div className="report-skeleton report-skeleton-wide" />
-          <div className="report-skeleton" />
-          <div className="report-skeleton report-skeleton-tall" />
+          <div className="dg-skeleton dg-skeleton-wide" />
+          <div className="dg-skeleton" />
+          <div className="dg-skeleton dg-skeleton-tall" />
         </div>
       </main>
     );
@@ -221,15 +240,15 @@ export default function ReportPage() {
 
   if (state === "processing") {
     return (
-      <main className="report-page">
-        <div className="report-shell report-error" role="status">
+      <main id="main-content" className="dg-page">
+        <div className="dg-shell dg-status-shell" role="status">
           <Clock size={28} aria-hidden="true" />
           <h1>Evaluating evidence</h1>
           <p>
             Mirror is examining your answers against your claims, available
             evidence and the expectations of the role.
           </p>
-          <Link className="report-link" href="/dashboard">
+          <Link className="dg-back" href="/dashboard">
             Return to your evidence workspace
           </Link>
         </div>
@@ -239,8 +258,8 @@ export default function ReportPage() {
 
   if (state === "error") {
     return (
-      <main className="report-page">
-        <div className="report-shell report-error">
+      <main id="main-content" className="dg-page">
+        <div className="dg-shell dg-status-shell">
           <WarningCircle size={28} aria-hidden="true" />
           <h1>
             {retryable
@@ -248,19 +267,21 @@ export default function ReportPage() {
               : "Diagnostic unavailable"}
           </h1>
           <p>{message}</p>
-          {retryable ? (
-            <button
-              className="report-link"
-              type="button"
-              onClick={() => void retryEvaluation()}
-              disabled={retrying}
-            >
-              {retrying ? "Requesting retry…" : "Retry evaluation"}
-            </button>
-          ) : null}
-          <Link className="report-link" href="/dashboard">
-            Return to your evidence workspace
-          </Link>
+          <div className="dg-status-actions">
+            {retryable ? (
+              <button
+                className="dg-back"
+                type="button"
+                onClick={() => void retryEvaluation()}
+                disabled={retrying}
+              >
+                {retrying ? "Requesting retry…" : "Retry evaluation"}
+              </button>
+            ) : null}
+            <Link className="dg-back" href="/dashboard">
+              Return to your evidence workspace
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -270,71 +291,72 @@ export default function ReportPage() {
   const audit = report.claims_audit;
 
   return (
-    <main className="report-page">
-      <div className="report-shell">
-        <nav className="report-nav" aria-label="Report navigation">
-          <Link href="/dashboard" className="report-back">
+    <main id="main-content" className="dg-page">
+      <div className="dg-shell">
+        <nav className="dg-nav" aria-label="Report navigation">
+          <Link href="/dashboard" className="dg-back">
             <ArrowLeft size={16} aria-hidden="true" /> Evidence workspace
           </Link>
-          <span className="report-nav-meta">{report.session.target_role}</span>
+          <span className="dg-nav-meta">{report.session.target_role}</span>
         </nav>
 
-        <header className="report-verdict">
-          <p className="report-eyebrow">Your verdict</p>
+        <Reveal as="header" className="dg-verdict">
+          <p className="dg-eyebrow">Your verdict</p>
           <h1>{report.verdict.label}</h1>
-          <p className="report-lede">{report.verdict.summary}</p>
-        </header>
+          <p className="dg-lede">{report.verdict.summary}</p>
+        </Reveal>
 
-        <section
-          className="report-section report-readiness-section"
-          aria-labelledby="readiness-heading"
-        >
-          <div className="report-section-heading">
-            <p className="report-eyebrow">Readiness</p>
-            <h2 id="readiness-heading">Two signals, kept separate.</h2>
-          </div>
-          <div className="report-readiness-grid">
-            <Readiness title="Role readiness" value={report.role_readiness} />
-            <Readiness
-              title="Interview readiness"
-              value={report.interview_readiness}
-            />
-          </div>
+        <section className="dg-section" aria-labelledby="readiness-heading">
+          <Reveal>
+            <div className="dg-section-heading">
+              <p className="dg-eyebrow">Readiness</p>
+              <h2 id="readiness-heading">Two signals, kept separate.</h2>
+            </div>
+            <div className="dg-readiness-grid">
+              <Readiness title="Role readiness" value={report.role_readiness} />
+              <Readiness
+                title="Interview readiness"
+                value={report.interview_readiness}
+              />
+            </div>
+            <p className="dg-readiness-caption">
+              Shown as a range with a stated signal strength, not a single
+              score — readiness is an estimate built from this interview's
+              evidence, not a placement prediction.
+            </p>
+          </Reveal>
         </section>
 
-        <section
-          className="report-section report-claims-section"
-          aria-labelledby="claims-heading"
-        >
-          <div className="report-section-heading">
-            <p className="report-eyebrow">Evidence record</p>
+        <section className="dg-section" aria-labelledby="claims-heading">
+          <Reveal className="dg-section-heading">
+            <p className="dg-eyebrow">Evidence record</p>
             <h2 id="claims-heading">What held under questioning</h2>
             <p>
               Claims are shown as evidence records, not verdicts about you.
               Start with what the interview supported.
             </p>
-          </div>
-          <div className="report-claims-list">
+          </Reveal>
+          <Reveal as="div" stagger>
             {groups.map((group) => {
               const claims = audit[group.key];
               if (!claims.length) return null;
               return (
-                <div key={group.key} className="report-claim-group">
-                  <h3>
+                <div key={group.key} className="dg-claim-group">
+                  <h3 className="dg-claim-group-heading">
                     {group.label}<span>{claims.length}</span>
                   </h3>
                   {claims.map((claim) => (
-                    <details className="report-claim" key={claim.id}>
-                      <summary>
-                        <span className="report-claim-status">
+                    <details className="dg-claim" key={claim.id}>
+                      <summary className="dg-claim-row">
+                        <span className={`dg-status ${statusClass(claim.status)}`}>
                           {statusLabel(claim.status)}
                         </span>
-                        <span className="report-claim-title">
+                        <span className="dg-claim-title">
                           {claim.claim_text}
                         </span>
                         <CaretDown size={18} aria-hidden="true" />
                       </summary>
-                      <div className="report-claim-detail">
+                      <div className="dg-claim-detail">
                         <dl>
                           <div><dt>Source</dt><dd>{claim.source.toLowerCase()}</dd></div>
                           <div><dt>Explanation</dt><dd>{claim.explanation}</dd></div>
@@ -346,59 +368,63 @@ export default function ReportPage() {
                 </div>
               );
             })}
-          </div>
+          </Reveal>
           {!Object.values(audit).some((items) => items.length) ? (
-            <p className="report-empty">
+            <p className="dg-empty">
               No claims were available for this interview.
             </p>
           ) : null}
         </section>
 
-        <section className="report-section" aria-labelledby="skills-heading">
-          <div className="report-section-heading">
-            <p className="report-eyebrow">Capability evidence</p>
+        <section className="dg-section" aria-labelledby="skills-heading">
+          <Reveal className="dg-section-heading">
+            <p className="dg-eyebrow">Capability evidence</p>
             <h2 id="skills-heading">Skill evidence</h2>
-          </div>
-          <div className="report-skill-list">
+          </Reveal>
+          <Reveal as="div" stagger className="dg-skill-list">
             {report.skill_assessments.map((skill) => (
-              <article className="report-skill" key={skill.skill}>
-                <div>
+              <article className="dg-skill" key={skill.skill}>
+                <div className="dg-skill-head">
                   <h3>{skill.skill}</h3>
-                  <p className="report-muted">
+                  <span
+                    className={`dg-status ${
+                      skill.status === "NOT_ENOUGH_SIGNAL" ? "is-neutral" : "is-supported"
+                    }`}
+                  >
                     {skill.status === "NOT_ENOUGH_SIGNAL"
                       ? "Not enough signal"
                       : skill.signal_strength}
-                  </p>
+                  </span>
                 </div>
                 {skill.readiness ? (
-                  <p className="report-skill-range">
+                  <p className="dg-skill-range">
                     {skill.readiness.low}–{skill.readiness.high}
                   </p>
                 ) : null}
-                <p className="report-skill-explanation">{skill.explanation}</p>
+                <p className="dg-skill-explanation">{skill.explanation}</p>
                 <ClaimEvidence evidence={skill.evidence} />
               </article>
             ))}
-            {!report.skill_assessments.length ? (
-              <p className="report-empty">
-                Skill-level evidence will appear here when available.
-              </p>
-            ) : null}
-          </div>
+          </Reveal>
+          {!report.skill_assessments.length ? (
+            <p className="dg-empty">
+              Skill-level evidence will appear here when available.
+            </p>
+          ) : null}
         </section>
 
-        <section className="report-section" aria-labelledby="moments-heading">
-          <div className="report-section-heading">
-            <p className="report-eyebrow">Replay markers</p>
+        <section className="dg-section" aria-labelledby="moments-heading">
+          <Reveal className="dg-section-heading">
+            <p className="dg-eyebrow">Replay markers</p>
             <h2 id="moments-heading">Session moments</h2>
-          </div>
-          <div className="report-moments">
+          </Reveal>
+          <Reveal as="div" stagger className="dg-moments">
             {report.session_moments.map((moment, index) => (
               <article
                 key={`${moment.type}-${moment.turn_id ?? index}`}
-                className="report-moment"
+                className="dg-moment"
               >
-                <div className="report-moment-time">
+                <div className="dg-moment-time">
                   {moment.timecode_ms != null
                     ? formatTime(Math.round(moment.timecode_ms / 1000))
                     : "···"}
@@ -410,32 +436,34 @@ export default function ReportPage() {
                 </div>
               </article>
             ))}
-            {!report.session_moments.length ? (
-              <p className="report-empty">
-                No time-linked moments were recorded.
-              </p>
-            ) : null}
-          </div>
+          </Reveal>
+          {!report.session_moments.length ? (
+            <p className="dg-empty">
+              No time-linked moments were recorded.
+            </p>
+          ) : null}
         </section>
 
-        <section
-          className="report-section report-root-cause"
-          aria-labelledby="root-heading"
-        >
-          <p className="report-eyebrow">Your main bottleneck</p>
-          <h2 id="root-heading">
-            {report.root_cause
-              .replaceAll("_", " ")
-              .toLowerCase()
-              .replace(/^./, (value) => value.toUpperCase())}
-          </h2>
-          <p>
-            Mirror selected one primary area from the evidence in this
-            interview so your next practice session has a clear direction.
-          </p>
+        <section className="dg-section dg-root-cause" aria-labelledby="root-heading">
+          <Reveal>
+            <p className="dg-eyebrow">Your main bottleneck</p>
+            <h2 id="root-heading">
+              {report.root_cause
+                .replaceAll("_", " ")
+                .toLowerCase()
+                .replace(/^./, (value) => value.toUpperCase())}
+            </h2>
+            <p>
+              Mirror selected one primary area from the evidence in this
+              interview so your next practice session has a clear direction.
+            </p>
+          </Reveal>
         </section>
 
-        <section className="report-trust" aria-labelledby="trust-heading">
+        {/* Candidate-safety critical: always rendered, never gated behind
+            scroll-triggered opacity so it cannot be missed or read as
+            de-emphasized. */}
+        <section className="dg-trust" aria-labelledby="trust-heading">
           <Info size={22} aria-hidden="true" />
           <div>
             <h2 id="trust-heading">What this result means, and what it doesn’t</h2>
@@ -459,7 +487,7 @@ export default function ReportPage() {
           </div>
         </section>
 
-        <footer className="report-footer">
+        <footer className="dg-footer">
           <Clock size={16} aria-hidden="true" /> Completed{" "}
           {new Date(report.session.completed_at).toLocaleDateString(undefined, {
             year: "numeric",

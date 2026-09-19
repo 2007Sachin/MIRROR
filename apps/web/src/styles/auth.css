@@ -8,7 +8,10 @@
 .mirror-auth {
   background: var(--paper);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.86fr);
+  /* Single column below 900px, matching .mirror-auth-visual's own
+     display:none there -- otherwise the grid still reserves a >=22rem
+     track for the hidden visual panel and squeezes the form into a sliver. */
+  grid-template-columns: minmax(0, 1fr);
   min-height: calc(100dvh - 4rem);
 }
 
@@ -223,6 +226,7 @@
 }
 
 @media (min-width: 900px) {
+  .mirror-auth { grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.86fr); }
   .mirror-auth-visual { display: flex; }
 }
 

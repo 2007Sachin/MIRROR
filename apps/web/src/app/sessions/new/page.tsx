@@ -10,6 +10,8 @@ import {
   friendlyDocumentError,
   maximumFileSizeMb,
 } from "@/lib/documents";
+import { Reveal } from "@/components/motion/reveal";
+import "@/styles/sessions.css";
 
 /**
  * Preparing a diagnostic needs role intelligence and resume intelligence in place
@@ -125,17 +127,17 @@ export default function NewSessionPage() {
   }
 
   return (
-    <main className="shell py-12 sm:py-16">
+    <main id="main-content" className="shell py-12 sm:py-16">
       <div className="grid gap-12 lg:grid-cols-[.72fr_1.28fr]">
-        <section>
+        <Reveal as="section">
           <p className="text-sm text-[var(--silver)]">New diagnostic</p>
           <h1 className="display mt-4 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">Give Mirror the evidence it needs.</h1>
           <p className="mt-6 max-w-[42ch] leading-7 text-[var(--silver)]">Your resume sets the claims to examine. The job description sets the competencies to investigate.</p>
-          <div className="mt-10 flex items-start gap-3 border-t hairline pt-5 text-sm leading-6 text-[var(--silver)]">
+          <div className="sn-intro-note">
             <LockKey size={20} className="mt-0.5 shrink-0 text-[var(--pulse)]" />
             <p>Resumes and interview data are isolated per candidate and are not intentionally used to train third-party models.</p>
           </div>
-        </section>
+        </Reveal>
 
         <form onSubmit={submit} className="space-y-7 border-t hairline pt-7" aria-busy={busy}>
           <label className="block">
@@ -155,18 +157,32 @@ export default function NewSessionPage() {
           </label>
 
           {stage !== null && (
-            <div className="border-l-2 border-[var(--pulse)] pl-4" role="status" aria-live="polite">
-              <p className="text-sm font-semibold">
-                {pipelineStages[stage]}
-                {stage === 2 && uploadProgress !== null ? ` — ${uploadProgress}%` : null}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[var(--silver)]">
+            <div className="sn-pipeline" role="status" aria-live="polite">
+              <div className="sn-pipeline-headline">
+                <span>
+                  {pipelineStages[stage]}
+                  {stage === 2 && uploadProgress !== null ? ` — ${uploadProgress}%` : null}
+                </span>
+                <span className="sn-pipeline-progress">
+                  Step {stage + 1} of {pipelineStages.length}
+                </span>
+              </div>
+              <p className="sn-pipeline-note">
                 Mirror is benchmarking the role and mapping your evidence against it. This usually takes under a minute.
               </p>
-              <ol className="mt-4 space-y-2">
+              <ol className="sn-pipeline-stages">
                 {pipelineStages.map((label, index) => (
-                  <li key={label} className={`flex items-center gap-2 text-sm ${index <= stage ? "text-[var(--silver)]" : "text-[var(--silver)] opacity-50"}`}>
-                    {index < stage ? <Check size={15} className="shrink-0 text-[var(--pulse)]" /> : <span className="w-[15px] shrink-0 text-xs">{String(index + 1).padStart(2, "0")}</span>}
+                  <li
+                    key={label}
+                    className={`sn-pipeline-stage ${index < stage ? "is-done" : index === stage ? "is-current" : ""}`}
+                  >
+                    {index < stage ? (
+                      <span className="sn-pipeline-marker"><Check size={15} className="text-[var(--pulse)]" /></span>
+                    ) : index === stage ? (
+                      <span className="sn-pipeline-marker"><span className="sn-pipeline-dot live-dot" aria-hidden="true" /></span>
+                    ) : (
+                      <span className="sn-pipeline-marker">{String(index + 1).padStart(2, "0")}</span>
+                    )}
                     {label}
                   </li>
                 ))}

@@ -20,7 +20,7 @@ export function DiagnosticProgress({ diagnostic }: { diagnostic: DashboardDiagno
   ];
 
   return (
-    <ol className="diagnostic-progress" aria-label="Diagnostic lifecycle">
+    <ol className="ws-progress" aria-label="Diagnostic lifecycle">
       {stages.map((stage, index) => (
         <li key={stage.label} className={stage.complete ? "is-complete" : stage.current ? "is-current" : ""}>
           <span aria-hidden="true">{stage.complete ? <Check size={12} weight="bold" /> : index + 1}</span>

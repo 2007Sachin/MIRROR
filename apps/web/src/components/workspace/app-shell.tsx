@@ -16,6 +16,8 @@ import { useState, type ReactNode } from "react";
 import type { Profile } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
+import "@/styles/workspace.css";
+
 const navigation = [
   { href: "/dashboard", label: "Home", icon: House },
   { href: "/diagnostics", label: "Diagnostics", icon: Briefcase },
@@ -57,67 +59,75 @@ export function AppShell({
   }
 
   return (
-    <main className="app-workspace">
-      <aside className="app-sidebar" aria-label="Primary navigation">
-        <Link href="/dashboard" className="app-wordmark" aria-label="Mirror home">
-          <Image src="/icon.svg" alt="" width={27} height={27} priority />
+    <div className="app-shell ws-shell">
+      <aside className="ws-sidebar" aria-label="Primary navigation">
+        <Link href="/dashboard" className="ws-brand" aria-label="Mirror home">
+          <Image src="/icon.svg" alt="" width={24} height={24} priority />
           <span>MIRROR</span>
         </Link>
 
-        <nav className="app-sidebar-nav">
+        <nav className="ws-nav">
           {navigation.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
             return (
-              <Link key={href} href={href} className={active ? "is-active" : ""} aria-current={active ? "page" : undefined}>
-                <Icon size={19} weight={active ? "fill" : "regular"} />
+              <Link
+                key={href}
+                href={href}
+                className={`ws-nav-item${active ? " is-active" : ""}`}
+                aria-current={active ? "page" : undefined}
+              >
+                <Icon size={18} weight={active ? "fill" : "regular"} />
                 <span>{label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="app-sidebar-account">
-          <div className="app-avatar" aria-hidden="true">{initials(profile)}</div>
-          <div>
+        <div className="ws-sidebar-account">
+          <div className="ws-avatar" aria-hidden="true">{initials(profile)}</div>
+          <div className="ws-account-info">
             <strong>{profile?.full_name || "Mirror candidate"}</strong>
             <span>{profile?.email || "Private workspace"}</span>
           </div>
-          <button type="button" onClick={() => void logout()} aria-label="Log out">
-            <SignOut size={18} />
+          <button type="button" className="ws-logout" onClick={() => void logout()} aria-label="Log out">
+            <SignOut size={17} />
           </button>
         </div>
       </aside>
 
-      <section className="app-workspace-main">
-        <header className="app-topbar">
-          <Link href="/dashboard" className="app-mobile-brand" aria-label="Mirror home">
-            <Image src="/icon.svg" alt="" width={25} height={25} priority />
+      <div className="ws-main">
+        <header className="ws-topbar">
+          <Link href="/dashboard" className="ws-topbar-brand" aria-label="Mirror home">
+            <Image src="/icon.svg" alt="" width={22} height={22} priority />
             <span>MIRROR</span>
           </Link>
-          <p>Evidence workspace</p>
-          <div>
-            <Link href="/settings" className="app-topbar-user" aria-label="Open account settings">
-              <span>{initials(profile)}</span>
-              <strong>{profile?.full_name || "Your account"}</strong>
-            </Link>
-          </div>
+          <p className="ws-topbar-label">Evidence workspace</p>
+          <Link href="/settings" className="ws-topbar-user" aria-label="Open account settings">
+            <span>{initials(profile)}</span>
+            <strong>{profile?.full_name || "Your account"}</strong>
+          </Link>
         </header>
 
-        {logoutError ? <div className="app-shell-alert" role="alert">{logoutError}</div> : null}
-        <div className="app-content">{children}</div>
-      </section>
+        {logoutError ? <div className="ws-alert" role="alert">{logoutError}</div> : null}
+        <main id="main-content" className="ws-content">{children}</main>
+      </div>
 
-      <nav className="app-mobile-nav" aria-label="Mobile navigation">
+      <nav className="ws-mobile-nav" aria-label="Mobile navigation">
         {navigation.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
           return (
-            <Link key={href} href={href} className={active ? "is-active" : ""} aria-current={active ? "page" : undefined}>
+            <Link
+              key={href}
+              href={href}
+              className={`ws-mobile-nav-item${active ? " is-active" : ""}`}
+              aria-current={active ? "page" : undefined}
+            >
               <Icon size={19} weight={active ? "fill" : "regular"} />
               <span>{label === "Evidence Library" ? "Evidence" : label.replace(" Explorer", "")}</span>
             </Link>
           );
         })}
       </nav>
-    </main>
+    </div>
   );
 }

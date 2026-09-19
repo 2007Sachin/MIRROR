@@ -35,6 +35,16 @@ function usageLabel(detail: EvidenceDetail) {
   return "Available for future diagnostics";
 }
 
+/* Status reads from the document's real lifecycle state -- pulse (green) for
+   ready/supported, brass for a state that still needs attention, danger for
+   archived/error. Never a fabricated progress gauge. */
+function statusTone(archived: boolean, status: MirrorDocument["status"]) {
+  if (archived) return "archived";
+  if (status === "UPLOADED" || status === "PROCESSING") return "active"; // needs reading -> brass
+  if (status === "FAILED") return "error";
+  return "ready";
+}
+
 export type EvidenceRowAction = "open" | "edit" | "replace" | "category" | "context" | "download" | "archive" | "restore";
 
 export function EvidenceRow({
@@ -52,26 +62,28 @@ export function EvidenceRow({
   const archived = Boolean(document.archived_at);
   const title = document.title || document.original_filename || evidenceCategoryLabel(evidenceCategory(document));
   const updated = document.updated_at || document.processed_at || document.created_at;
+  const tone = statusTone(archived, document.status);
 
   return (
-    <article className={`evidence-workspace-row ${selected ? "is-selected" : ""}`}>
-      <label className="evidence-row-select">
+    <article className={`ws-evidence-row${selected ? " is-selected" : ""}`}>
+      <label className="ws-evidence-select">
         <span className="sr-only">Select {title}</span>
         <input type="checkbox" checked={selected} onChange={(event) => onSelect(event.target.checked)} />
       </label>
-      <span className="evidence-type-icon"><EvidenceIcon document={document} /></span>
-      <button type="button" className="evidence-row-main" onClick={() => onAction("open")}>
+      <span className="ws-evidence-icon"><EvidenceIcon document={document} /></span>
+      <button type="button" className="ws-evidence-main" onClick={() => onAction("open")}>
         <strong>{title}</strong>
         <span>{evidenceCategoryLabel(evidenceCategory(document))} · Version {document.version_number}</span>
       </button>
-      <div className="evidence-row-usage">
+      <div className="ws-evidence-usage">
         <span className={detail.usage.active_diagnostic_count ? "is-active" : ""}>{usageLabel(detail)}</span>
         <time dateTime={updated}>Updated {formatWorkspaceDate(updated)}</time>
       </div>
-      <span className={`evidence-document-status is-${archived ? "archived" : document.status.toLowerCase()}`}>
+      <span className={`ws-status-chip is-${tone}`}>
+        <i aria-hidden="true" />
         {archived ? "Removed" : document.status === "UPLOADED" ? "Needs reading" : document.status.toLowerCase()}
       </span>
-      <details className="evidence-row-menu">
+      <details className="ws-evidence-menu">
         <summary aria-label={`Actions for ${title}`}><DotsThree size={22} weight="bold" /></summary>
         <div>
           <button type="button" onClick={() => onAction("open")}><FileText size={16} /> Open</button>

@@ -77,35 +77,35 @@ export function CurrentDiagnostic({
   const date = formatWorkspaceDate(diagnostic.completed_at || diagnostic.updated_at);
 
   return (
-    <section className={`dashboard-current-card is-${diagnosticTone(diagnostic)}`} aria-labelledby="current-diagnostic-title">
-      <div className="dashboard-current-content">
-        <div className="dashboard-current-heading">
+    <section className={`ws-current is-${diagnosticTone(diagnostic)}`} aria-labelledby="current-diagnostic-title">
+      <div className="ws-current-content">
+        <div className="ws-current-heading">
           <div>
-            <p className="app-kicker"><i aria-hidden="true" /> Current diagnostic</p>
+            <p className="ws-eyebrow">Current diagnostic</p>
             <h2 id="current-diagnostic-title" className="display">{diagnostic.target_role}</h2>
-            <p className="dashboard-diagnostic-meta">
+            <p className="ws-current-meta">
               {diagnostic.company ? <><span>{diagnostic.company}</span><b aria-hidden="true" /></> : null}
               <span>{date}</span><b aria-hidden="true" /><span>{diagnosticStatus(diagnostic)}</span>
             </p>
           </div>
-          <span className={`diagnostic-state is-${diagnosticTone(diagnostic)}`}>
+          <span className={`ws-status-chip is-${diagnosticTone(diagnostic)}`}>
             {failed ? <WarningCircle size={14} /> : <i aria-hidden="true" />}
             {diagnosticStatus(diagnostic)}
           </span>
         </div>
 
-        <div className="dashboard-current-message">
+        <div className="ws-current-message">
           <div>
             <h3>{content.title}</h3>
             <p>{content.copy}</p>
             {processing ? <small><Clock size={14} /> We&apos;ll notify you as soon as your diagnostic is ready.</small> : null}
           </div>
           {failed ? (
-            <button type="button" className="app-primary-button" onClick={() => void onRetry(diagnostic.id)} disabled={retrying}>
+            <button type="button" className="button-primary" onClick={() => void onRetry(diagnostic.id)} disabled={retrying}>
               {retrying ? "Requesting retry..." : "Retry evaluation"}<ArrowRight size={17} />
             </button>
           ) : content.action ? (
-            <Link className="app-primary-button" href={diagnosticDestination(diagnostic)}>
+            <Link className="button-primary" href={diagnosticDestination(diagnostic)}>
               {content.action}<ArrowRight size={17} />
             </Link>
           ) : null}
@@ -114,7 +114,7 @@ export function CurrentDiagnostic({
         <DiagnosticProgress diagnostic={diagnostic} />
       </div>
 
-      <div className="dashboard-current-visual" aria-label="Turning your experience into evidence">
+      <div className="ws-current-visual" aria-label="Turning your experience into evidence">
         <CompactEnergyMesh energized={processing} variant="compact" />
         <p>Turning your experience into evidence.</p>
       </div>

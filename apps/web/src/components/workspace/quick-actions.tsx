@@ -24,19 +24,19 @@ const actions = [
 
 export function QuickActions() {
   return (
-    <section className="dashboard-quick-actions app-panel" aria-labelledby="quick-actions-title">
-      <div className="app-section-heading">
+    <section className="ws-panel" aria-labelledby="quick-actions-title">
+      <div className="ws-section-heading">
         <div>
           <h2 id="quick-actions-title">Continue building your case</h2>
           <p>Choose the next useful step for your evidence.</p>
         </div>
       </div>
-      <div className="dashboard-action-list">
+      <div className="ws-action-list">
         {actions.map(({ href, title, copy, icon: Icon }) => (
-          <Link key={href} href={href}>
-            <span><Icon size={20} /></span>
+          <Link key={href} href={href} className="ws-action-item">
+            <span><Icon size={19} /></span>
             <div><strong>{title}</strong><p>{copy}</p></div>
-            <ArrowRight size={16} />
+            <ArrowRight size={15} />
           </Link>
         ))}
       </div>

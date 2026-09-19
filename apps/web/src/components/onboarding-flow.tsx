@@ -1,5 +1,7 @@
 "use client";
 
+import "@/styles/onboarding.css";
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -28,6 +30,7 @@ import {
 } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { DiagnosticPanel } from "@/components/onboarding/diagnostic-panel";
+import { Reveal } from "@/components/motion/reveal";
 
 import {
   describeFileRejection,
@@ -94,7 +97,7 @@ const depthOptions: Array<{
 
 function WhyMirror({ children }: { children: ReactNode }) {
   return (
-    <details className="onboarding-why">
+    <details className="ob-why">
       <summary>Why Mirror needs this</summary>
       <p>{children}</p>
     </details>
@@ -103,21 +106,21 @@ function WhyMirror({ children }: { children: ReactNode }) {
 
 function StepHeader({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
   return (
-    <header className="onboarding-step-header">
-      <p className="onboarding-eyebrow">{eyebrow}</p>
+    <Reveal as="header" className="ob-step-header">
+      <p className="ob-eyebrow">{eyebrow}</p>
       <h1>{title}</h1>
       <p>{description}</p>
-    </header>
+    </Reveal>
   );
 }
 
 function ActionRow({ children }: { children: ReactNode }) {
-  return <div className="onboarding-actions">{children}</div>;
+  return <div className="ob-actions">{children}</div>;
 }
 
 function BackButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
   return (
-    <button type="button" className="onboarding-back" onClick={onClick} disabled={disabled}>
+    <button type="button" className="ob-back" onClick={onClick} disabled={disabled}>
       <ArrowLeft size={17} /> Back
     </button>
   );
@@ -135,6 +138,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
   const roleBriefInput = useRef<HTMLInputElement>(null);
   const [onboarding, setOnboarding] = useState(initialOnboarding);
   const [step, setStep] = useState(Math.min(5, Math.max(1, initialOnboarding.onboarding_step || 1)));
+  const [stepDirection, setStepDirection] = useState<"forward" | "back">("forward");
   const [targetRole, setTargetRole] = useState(initialOnboarding.target_role ?? "");
   const [targetCompany, setTargetCompany] = useState(initialOnboarding.target_company ?? "");
   const [roleBriefMode, setRoleBriefMode] = useState<RoleBriefMode>(
@@ -288,7 +292,10 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
   async function goBack(targetStep: number) {
     setError("");
     const updated = await persist({ onboarding_step: targetStep });
-    if (updated) setStep(targetStep);
+    if (updated) {
+      setStepDirection("back");
+      setStep(targetStep);
+    }
   }
 
   function validateFile(file: File, kind: "resume" | "role brief") {
@@ -380,6 +387,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       setRoleBrief(roleBriefMode === "none" ? null : selectedRoleBrief);
       setSession(null);
       setInterviewPlan(null);
+      setStepDirection("forward");
       setStep(2);
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) await signOutExpiredSession();
@@ -441,6 +449,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       const updated = await persist({ onboarding_step: 3 });
       if (!updated) return;
       setResumeAnalysis(analysis);
+      setStepDirection("forward");
       setStep(3);
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) await signOutExpiredSession();
@@ -479,7 +488,10 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
   async function confirmEvidenceMap() {
     setError("");
     const updated = await persist({ onboarding_step: 4 });
-    if (updated) setStep(4);
+    if (updated) {
+      setStepDirection("forward");
+      setStep(4);
+    }
   }
 
   function openFirstCorrection() {
@@ -536,6 +548,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       if (!updated) return;
       setSession(preparedSession);
       setInterviewPlan(preparedPlan);
+      setStepDirection("forward");
       setStep(5);
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) {
@@ -568,13 +581,13 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
   function renderStep() {
     if (step === 1) {
       return (
-        <form onSubmit={establishRole} className="onboarding-step" aria-busy={busy === "role"}>
+        <form onSubmit={establishRole} className="ob-step" aria-busy={busy === "role"}>
           <StepHeader
             eyebrow="Role benchmark"
             title="Define the role you're aiming at."
             description="Set the benchmark Mirror should use. Add the employer's brief when you have it, or continue with a role-level benchmark."
           />
-          <div className="onboarding-fields two-column">
+          <div className="ob-fields ob-two-col">
             <label>
               <span>Target role</span>
               <input className="field" value={targetRole} onChange={(event) => setTargetRole(event.target.value)} minLength={2} maxLength={160} required autoFocus placeholder="Product Manager" />
@@ -584,13 +597,13 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
               <input className="field" value={targetCompany} onChange={(event) => setTargetCompany(event.target.value)} maxLength={160} placeholder="Company name" />
             </label>
           </div>
-          <section className="role-brief-section" aria-labelledby="role-brief-title">
+          <section className="ob-role-brief" aria-labelledby="role-brief-title">
             <div>
-              <p className="onboarding-section-index">Role context</p>
+              <p className="ob-index">Role context</p>
               <h2 id="role-brief-title">Add the role brief</h2>
               <p>Use the employer's brief to make the interview specific to this opportunity.</p>
             </div>
-            <div className="role-brief-modes">
+            <div className="ob-role-brief-modes">
               <button type="button" aria-pressed={roleBriefMode === "upload"} onClick={() => roleBriefInput.current?.click()}>
                 <UploadSimple size={18} /> Upload role brief
               </button>
@@ -603,20 +616,20 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
             </div>
             <input ref={roleBriefInput} className="sr-only" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleRoleBriefUpload} />
             {roleBriefMode === "paste" && (
-              <label className="role-brief-paste">
+              <label className="ob-role-brief-paste">
                 <span>Role brief</span>
                 <textarea className="field" value={roleBriefText} onChange={(event) => setRoleBriefText(event.target.value)} maxLength={100000} placeholder="Paste the responsibilities, expectations, and role context." />
               </label>
             )}
             {roleBriefMode === "upload" && roleBrief && (
-              <p className="onboarding-file"><Check size={16} /> {roleBrief.original_filename ?? "Role brief uploaded"}</p>
+              <p className="ob-file-confirm"><Check size={16} /> {roleBrief.original_filename ?? "Role brief uploaded"}</p>
             )}
             {uploadKind === "role" && uploadProgress !== null && (
               <>
-                <p className="onboarding-upload-status" role="status" aria-live="polite">
+                <p className="ob-upload-status" role="status" aria-live="polite">
                   {uploadProgress < 100 ? `Uploading your role brief — ${uploadProgress}%` : "Upload complete. Extracting the role text…"}
                 </p>
-                <div className="onboarding-upload-progress" role="progressbar" aria-label="Role brief upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
+                <div className="ob-upload-progress" role="progressbar" aria-label="Role brief upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
                   <span style={{ width: `${uploadProgress}%` }} />
                 </div>
               </>
@@ -635,15 +648,15 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
 
     if (step === 2) {
       return (
-        <section className="onboarding-step" aria-busy={busy === "resume"}>
+        <section className="ob-step" aria-busy={busy === "resume"}>
           <StepHeader
             eyebrow="Starting evidence"
             title="Establish your starting evidence."
             description="Your resume gives Mirror the claims, experience, and outcomes the interview should examine."
           />
-          <div className="resume-dropzone" data-has-file={Boolean(resumeDocument)}>
+          <div className="ob-dropzone" data-has-file={Boolean(resumeDocument)}>
             <div>
-              <p className="resume-dropzone-label">Resume</p>
+              <p className="ob-dropzone-label">Resume</p>
               <h2>{resumeDocument ? resumeDocument.original_filename ?? "Resume uploaded" : "Add my resume"}</h2>
               <p>PDF or DOCX · up to {Math.round(maximumFileSize / 1024 / 1024)} MB</p>
             </div>
@@ -654,24 +667,24 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
           </div>
           {uploadKind === "resume" && uploadProgress !== null && (
             <>
-              <p className="onboarding-upload-status" role="status" aria-live="polite">
+              <p className="ob-upload-status" role="status" aria-live="polite">
                 {uploadProgress < 100 ? `Uploading your resume — ${uploadProgress}%` : "Upload complete. Saving to your evidence library…"}
               </p>
-              <div className="onboarding-upload-progress" role="progressbar" aria-label="Resume upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
+              <div className="ob-upload-progress" role="progressbar" aria-label="Resume upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
                 <span style={{ width: `${uploadProgress}%` }} />
               </div>
             </>
           )}
           {uploadKind === null && uploadNotice?.kind === "resume" && (
-            <p className="onboarding-upload-notice" role="status" aria-live="polite">
+            <p className="ob-upload-notice" role="status" aria-live="polite">
               <Check size={15} /> {uploadNotice.message}
             </p>
           )}
           <WhyMirror>Your resume establishes the claims Mirror will attempt to verify through evidence and questioning.</WhyMirror>
 
           {busy === "resume" && (
-            <div className="analysis-state" role="status" aria-live="polite">
-              <p className="onboarding-section-index">Building your evidence map</p>
+            <div className="ob-analysis" role="status" aria-live="polite">
+              <p className="ob-index">Building your evidence map</p>
               <h2>{analysisStages[stageIndex]}</h2>
               <p>Mirror is connecting your experience to the role and deciding where deeper questioning could separate stated experience from demonstrated ability.</p>
               <ol>
@@ -697,42 +710,42 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
 
     if (step === 3) {
       return (
-        <section className="onboarding-step">
+        <section className="ob-step">
           <StepHeader
             eyebrow="Evidence map"
             title="This is the case your resume currently makes."
             description="Review what Mirror inferred. Correct anything inaccurate before the diagnostic starts."
           />
 
-          <div className="evidence-map">
+          <div className="ob-evidence-map">
             <section>
-              <p className="evidence-map-label">Role benchmark</p>
+              <p className="ob-evidence-label">Role benchmark</p>
               <h2>{roleAnalysis?.canonical_role ?? onboarding.target_role}</h2>
               <p>{onboarding.target_company || (onboarding.onboarding_role_brief_skipped ? "Role-level benchmark" : "Specific role brief")}</p>
             </section>
             <section>
-              <p className="evidence-map-label">Capability signals</p>
-              <div className="evidence-signal-list">
+              <p className="ob-evidence-label">Capability signals</p>
+              <div className="ob-signal-list">
                 {experienceSignals.map((signal) => <span key={signal}>{signal}</span>)}
                 {!experienceSignals.length && <p>No explicit capability signals were extracted.</p>}
               </div>
             </section>
             <section>
-              <p className="evidence-map-label">Claims worth examining</p>
-              <div className="claim-review-list">
+              <p className="ob-evidence-label">Claims worth examining</p>
+              <div className="ob-claim-list">
                 {claimsWorthExamining.map((claim) => (
-                  <article id={`claim-${claim.id}`} key={claim.id}>
+                  <article id={`claim-${claim.id}`} key={claim.id} data-review={claim.review_status ?? "pending"}>
                     <div>
                       <p>{claimDisplayText(claim)}</p>
                       <span>{claim.claim_type.replaceAll("_", " ")} · {claim.source_reference}</span>
                       {claim.review_status && <strong>{claim.review_status === "CORRECT" ? "Confirmed by you" : "Correction saved"}</strong>}
                     </div>
-                    <div className="claim-review-actions">
+                    <div className="ob-claim-actions">
                       <button type="button" disabled={savingClaim === claim.id} onClick={() => void reviewClaim(claim.id, "CORRECT")}><CheckCircle size={15} /> Accurate</button>
                       <button type="button" disabled={savingClaim === claim.id} onClick={() => { setReviewingClaim(claim.id); setCorrectionDrafts((current) => ({ ...current, [claim.id]: current[claim.id] ?? claimDisplayText(claim) })); }}><PencilSimple size={15} /> Correct</button>
                     </div>
                     {reviewingClaim === claim.id && (
-                      <div className="claim-correction">
+                      <div className="ob-claim-correction">
                         <label htmlFor={`correction-${claim.id}`}>What should this claim say?</label>
                         <textarea id={`correction-${claim.id}`} className="field" value={correctionDrafts[claim.id] ?? ""} onChange={(event) => setCorrectionDrafts((current) => ({ ...current, [claim.id]: event.target.value }))} maxLength={2000} />
                         <div>
@@ -743,13 +756,13 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
                     )}
                   </article>
                 ))}
-                {!claimsWorthExamining.length && <p className="evidence-empty">Mirror found no sufficiently specific claims to display. You can replace the resume or retry analysis.</p>}
+                {!claimsWorthExamining.length && <p className="ob-evidence-empty">Mirror found no sufficiently specific claims to display. You can replace the resume or retry analysis.</p>}
               </div>
             </section>
             <section>
-              <p className="evidence-map-label">What documents cannot establish</p>
-              <p className="evidence-map-explainer">These are role expectations not clearly established by resume wording alone. They are questions for the interview, not judgments about ability.</p>
-              <ul className="document-gap-list">
+              <p className="ob-evidence-label">What documents cannot establish</p>
+              <p className="ob-evidence-explainer">These are role expectations not clearly established by resume wording alone. They are questions for the interview, not judgments about ability.</p>
+              <ul className="ob-gap-list">
                 {documentLimits.map((item) => <li key={item.id}>{item.name}<span>{item.expected_level.replaceAll("_", " ")}</span></li>)}
                 {!documentLimits.length && <li>Mirror will use the interview to test depth, ownership, and reasoning behind the visible claims.</li>}
               </ul>
@@ -757,8 +770,8 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
           </div>
           <ActionRow>
             <BackButton onClick={() => void goBack(2)} disabled={busy !== null} />
-            <div className="onboarding-action-group">
-              <button type="button" className="onboarding-text-action" onClick={openFirstCorrection}>Correct something</button>
+            <div className="ob-action-group">
+              <button type="button" className="ob-text-action" onClick={openFirstCorrection}>Correct something</button>
               <button type="button" className="button-primary" onClick={() => void confirmEvidenceMap()}>This reflects my experience <ArrowRight size={18} /></button>
             </div>
           </ActionRow>
@@ -768,29 +781,29 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
 
     if (step === 4) {
       return (
-        <section className="onboarding-step" aria-busy={busy === "plan"}>
+        <section className="ob-step" aria-busy={busy === "plan"}>
           <StepHeader
             eyebrow="Depth of inquiry"
             title="Decide where Mirror should probe deepest."
             description="Choose where questioning should go deeper. The evaluation standard remains the same."
           />
-          <div className="inquiry-depth-list" role="group" aria-label="Depth of inquiry">
+          <div className="ob-inquiry-list" role="group" aria-label="Depth of inquiry">
             {depthOptions.map((option, index) => {
               const selected = selectedDepth.includes(option.value);
               return (
                 <button key={option.value} type="button" aria-pressed={selected} onClick={() => toggleDepth(option.value)}>
-                  <span className="inquiry-number">{String(index + 1).padStart(2, "0")}</span>
-                  <span className="inquiry-copy"><strong>{option.title}</strong><small>{option.description}</small></span>
-                  {option.recommended && <span className="inquiry-recommended">Recommended</span>}
-                  <span className="inquiry-check">{selected && <Check size={16} weight="bold" />}</span>
+                  <span className="ob-inquiry-number">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="ob-inquiry-copy"><strong>{option.title}</strong><small>{option.description}</small></span>
+                  {option.recommended && <span className="ob-inquiry-recommended">Recommended</span>}
+                  <span className="ob-inquiry-check">{selected && <Check size={16} weight="bold" />}</span>
                 </button>
               );
             })}
           </div>
           <WhyMirror>Your selection becomes part of the planner's typed candidate context. It changes emphasis while the deterministic interview engine continues to enforce overall coverage and probe limits.</WhyMirror>
           {busy === "plan" && (
-            <div className="analysis-state compact" role="status" aria-live="polite">
-              <p className="onboarding-section-index">Constructing the inquiry plan</p>
+            <div className="ob-analysis ob-compact" role="status" aria-live="polite">
+              <p className="ob-index">Constructing the inquiry plan</p>
               <h2>{planStages[stageIndex]}</h2>
               <p>Mirror is using the saved role benchmark, reviewed claims, and your requested depth to prepare the evidence interview.</p>
             </div>
@@ -806,13 +819,13 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
     }
 
     return (
-      <section className="onboarding-step interview-thesis" aria-busy={busy === "complete"}>
+      <section className="ob-step ob-thesis" aria-busy={busy === "complete"}>
         <StepHeader
           eyebrow="Interview thesis"
           title="Mirror has built your interview thesis."
           description="Your role, evidence, and requested depth are now connected in a prepared interview plan."
         />
-        <div className="thesis-grid">
+        <div className="ob-thesis-grid">
           <section>
             <p>What you claim</p>
             <h2>The experience and achievements your resume presents.</h2>
@@ -833,10 +846,10 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
             </ul>
           </section>
         </div>
-        <div className="thesis-convergence">
+        <div className="ob-thesis-convergence">
           <span aria-hidden="true" />
           <div>
-            <p className="onboarding-section-index">The evidence interview</p>
+            <p className="ob-index">The evidence interview</p>
             <h2>Mirror will now test the gaps between them.</h2>
             <p>Your questions will not follow a fixed script. Convincing evidence moves the interview forward; incomplete or ambiguous evidence leads to a deeper probe.</p>
           </div>
@@ -852,21 +865,25 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
   }
 
   return (
-    <main className="onboarding-workspace" data-step={step}>
-      <div className="onboarding-main">
-        <div className="onboarding-progress" aria-label={`Step ${step} of 5`}>
+    <main id="main-content" className="ob-workspace" data-step={step}>
+      <div className="ob-main">
+        <div className="ob-progress" aria-label={`Step ${step} of 5`}>
           <span>Building your diagnostic</span>
           <span>{String(step).padStart(2, "0")} / 05</span>
           <div><span style={{ transform: `scaleX(${step / 5})` }} /></div>
         </div>
         {hydrating ? (
-          <div className="onboarding-restore" role="status">
-            <p className="onboarding-eyebrow">Restoring diagnostic context</p>
+          <div className="ob-restore" role="status">
+            <p className="ob-eyebrow">Restoring diagnostic context</p>
             <h1>Reconnecting your saved work.</h1>
             <p>Mirror is loading the role, documents, and analysis already attached to this diagnostic.</p>
           </div>
-        ) : renderStep()}
-        {error && <p role="alert" className="onboarding-error">{error}</p>}
+        ) : (
+          <div key={step} className={`ob-step-enter${stepDirection === "back" ? " ob-step-enter--back" : ""}`}>
+            {renderStep()}
+          </div>
+        )}
+        {error && <p role="alert" className="ob-error">{error}</p>}
       </div>
       <DiagnosticPanel
         step={step}

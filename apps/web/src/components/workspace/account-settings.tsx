@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 import { AppShell } from "@/components/workspace/app-shell";
+import { Reveal } from "@/components/motion/reveal";
 import { ApiError, mirrorApi, type Profile } from "@/lib/api";
 
 export function AccountSettings() {
@@ -56,21 +57,23 @@ export function AccountSettings() {
 
   return (
     <AppShell profile={profile}>
-      <header className="workspace-route-header is-stacked">
-        <div><p className="app-kicker">Settings</p><h1 className="display">Your account</h1><p>Manage the profile information attached to your private evidence workspace.</p></div>
+      <header className="ws-page-header is-stacked">
+        <div><p className="ws-eyebrow">Settings</p><h1 className="display">Your account</h1><p>Manage the profile information attached to your private evidence workspace.</p></div>
       </header>
 
-      {error ? <div className="app-inline-alert" role="alert"><WarningCircle size={18} /><span>{error}</span><button type="button" onClick={() => void load()}>Retry</button></div> : null}
-      {message ? <div className="app-inline-success" role="status"><Check size={17} />{message}</div> : null}
+      {error ? <div className="ws-alert is-inline" role="alert"><WarningCircle size={18} /><span>{error}</span><button type="button" onClick={() => void load()}>Retry</button></div> : null}
+      {message ? <div className="ws-success" role="status"><Check size={17} />{message}</div> : null}
 
-      <section className="settings-panel app-panel" aria-labelledby="profile-settings-title">
-        <div><p className="app-kicker">Profile</p><h2 id="profile-settings-title">Account details</h2><p>This name appears in your Mirror workspace. Your sign-in email is managed by your authentication account.</p></div>
-        <form onSubmit={submit} aria-busy={saving || loading}>
-          <label><span>Full name</span><input value={fullName} onChange={(event) => setFullName(event.target.value)} disabled={loading || saving} required maxLength={120} /></label>
-          <label><span>Email address</span><input value={profile?.email || ""} disabled readOnly /></label>
-          <button className="app-primary-button" type="submit" disabled={loading || saving || !fullName.trim()}>{saving ? "Saving..." : "Save changes"}</button>
-        </form>
-      </section>
+      <Reveal>
+        <section className="ws-panel" aria-labelledby="profile-settings-title">
+          <div className="ws-section-heading is-flush"><div><p className="ws-eyebrow">Profile</p><h2 id="profile-settings-title">Account details</h2><p>This name appears in your Mirror workspace. Your sign-in email is managed by your authentication account.</p></div></div>
+          <form className="ws-form" onSubmit={submit} aria-busy={saving || loading}>
+            <label><span>Full name</span><input className="field" value={fullName} onChange={(event) => setFullName(event.target.value)} disabled={loading || saving} required maxLength={120} /></label>
+            <label><span>Email address</span><input className="field" value={profile?.email || ""} disabled readOnly /></label>
+            <button className="button-primary" type="submit" disabled={loading || saving || !fullName.trim()}>{saving ? "Saving..." : "Save changes"}</button>
+          </form>
+        </section>
+      </Reveal>
     </AppShell>
   );
 }

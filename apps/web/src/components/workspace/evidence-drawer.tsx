@@ -34,10 +34,10 @@ function MirrorUnderstanding({ detail }: { detail: EvidenceDetail }) {
   const projects = analysis?.output?.projects?.slice(0, 3).map((project) => project.project_name) ?? [];
   const excerpt = document.raw_text?.trim().slice(0, 900);
   if (!analysis && !excerpt) {
-    return <p className="evidence-detail-muted">Mirror has not extracted a candidate-facing summary from this version yet.</p>;
+    return <p className="ws-muted-copy">Mirror has not extracted a candidate-facing summary from this version yet.</p>;
   }
   return (
-    <div className="evidence-understanding">
+    <div className="ws-understanding">
       {skills.length ? <p><strong>Skills found</strong>{skills.join(" · ")}</p> : null}
       {projects.length ? <p><strong>Projects found</strong>{projects.join(" · ")}</p> : null}
       {excerpt ? <p><strong>Document excerpt</strong>{excerpt}{document.raw_text && document.raw_text.length > 900 ? "…" : ""}</p> : null}
@@ -93,35 +93,35 @@ export function EvidenceDrawer({
   }
 
   return (
-    <dialog ref={dialogRef} className="evidence-drawer" onCancel={(event) => { event.preventDefault(); onClose(); }}>
-      <div className="evidence-drawer-shell">
+    <dialog ref={dialogRef} className="ws-drawer" onCancel={(event) => { event.preventDefault(); onClose(); }}>
+      <div className="ws-drawer-shell">
         <header>
-          <div><p className="app-kicker">Evidence record</p><h2 className="display">{document.title || document.original_filename || "Professional evidence"}</h2></div>
+          <div><p className="ws-eyebrow">Evidence record</p><h2 className="display">{document.title || document.original_filename || "Professional evidence"}</h2></div>
           <button type="button" onClick={onClose} aria-label="Close evidence details"><X size={20} /></button>
         </header>
 
         {usage.active_diagnostic_count ? (
-          <div className="evidence-active-warning">
+          <div className="ws-callout">
             <strong>This evidence is part of an active diagnostic.</strong>
             <p>Changes apply to future diagnostics. The active diagnostic keeps the version it already references.</p>
           </div>
         ) : null}
 
         {mode === "view" ? (
-          <div className="evidence-detail-body">
-            <dl className="evidence-detail-facts">
+          <div className="ws-drawer-body">
+            <dl className="ws-fact-grid">
               <div><dt>Type</dt><dd>{evidenceCategoryLabel(evidenceCategory(document))}</dd></div>
               <div><dt>Updated</dt><dd>{formatWorkspaceDate(updated)}</dd></div>
               <div><dt>Original file</dt><dd>{document.original_filename || "Text evidence"}</dd></div>
               <div><dt>Version</dt><dd>{document.version_number}</dd></div>
             </dl>
 
-            <section><h3>Context for Mirror</h3><p className={document.context_note ? "" : "evidence-detail-muted"}>{document.context_note || "No additional context has been added."}</p></section>
-            <section><h3>What Mirror extracted</h3><MirrorUnderstanding detail={detail} /></section>
-            <section>
+            <section className="ws-drawer-section"><h3>Context for Mirror</h3><p className={document.context_note ? "" : "ws-muted-copy"}>{document.context_note || "No additional context has been added."}</p></section>
+            <section className="ws-drawer-section"><h3>What Mirror extracted</h3><MirrorUnderstanding detail={detail} /></section>
+            <section className="ws-drawer-section">
               <h3>Used in diagnostics</h3>
               {usage.diagnostics.length ? (
-                <div className="evidence-usage-list">
+                <div className="ws-usage-list">
                   {usage.diagnostics.map((diagnostic) => (
                     <a key={diagnostic.session_id} href={diagnostic.status === "COMPLETED" ? `/app/report/${diagnostic.session_id}` : `/diagnostics`}>
                       <span><strong>{diagnostic.target_role}</strong><small>{diagnostic.status.toLowerCase().replaceAll("_", " ")}</small></span>
@@ -129,22 +129,22 @@ export function EvidenceDrawer({
                     </a>
                   ))}
                 </div>
-              ) : <p className="evidence-detail-muted">This version has not been linked to a diagnostic.</p>}
+              ) : <p className="ws-muted-copy">This version has not been linked to a diagnostic.</p>}
             </section>
           </div>
         ) : (
-          <form className="evidence-edit-form" onSubmit={submit}>
-            <label><span>Evidence title</span><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} required autoFocus={mode === "edit"} /></label>
-            <label><span>Evidence category</span><select value={category} onChange={(event) => setCategory(event.target.value as EvidenceCategory)} autoFocus={mode === "category"}>{EVIDENCE_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-            <label><span>Context for Mirror</span><textarea value={context} onChange={(event) => setContext(event.target.value)} maxLength={4000} rows={7} autoFocus={mode === "context"} placeholder="Add ownership, scope, chronology, or outcomes that the document does not make clear." /><small>{context.length}/4000 · Used only in future diagnostics.</small></label>
-            <div className="evidence-form-actions"><button type="button" onClick={() => setMode("view")}>Cancel</button><button type="submit" className="app-primary-button" disabled={busy || !title.trim()}>{busy ? <SpinnerGap className="interview-spinner" size={17} /> : null} Save changes</button></div>
+          <form className="ws-edit-form" onSubmit={submit}>
+            <label><span>Evidence title</span><input className="field" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} required autoFocus={mode === "edit"} /></label>
+            <label><span>Evidence category</span><select className="field" value={category} onChange={(event) => setCategory(event.target.value as EvidenceCategory)} autoFocus={mode === "category"}>{EVIDENCE_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <label><span>Context for Mirror</span><textarea className="field" value={context} onChange={(event) => setContext(event.target.value)} maxLength={4000} rows={7} autoFocus={mode === "context"} placeholder="Add ownership, scope, chronology, or outcomes that the document does not make clear." /><small>{context.length}/4000 · Used only in future diagnostics.</small></label>
+            <div className="ws-form-actions"><button type="button" className="button-secondary" onClick={() => setMode("view")}>Cancel</button><button type="submit" className="button-primary" disabled={busy || !title.trim()}>{busy ? <SpinnerGap className="interview-spinner" size={17} /> : null} Save changes</button></div>
           </form>
         )}
 
-        {error ? <p className="evidence-drawer-error" role="alert">{error}</p> : null}
+        {error ? <p className="ws-dialog-error" role="alert">{error}</p> : null}
 
         {mode === "view" ? (
-          <footer className="evidence-drawer-actions">
+          <footer className="ws-drawer-actions">
             {archived ? (
               <button type="button" onClick={() => void onRestore()} disabled={busy}><ArrowCounterClockwise size={17} /> Restore to library</button>
             ) : (

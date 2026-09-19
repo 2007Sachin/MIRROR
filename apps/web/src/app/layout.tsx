@@ -13,7 +13,7 @@ export const viewport: Viewport = { themeColor: "#F7F5EE", width: "device-width"
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body>
         <a href="#main-content" className="skip-link">Skip to content</a>
         <header className="site-header shell flex h-16 items-center justify-between border-b hairline">

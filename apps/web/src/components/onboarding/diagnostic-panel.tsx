@@ -37,11 +37,11 @@ function DiagnosticBody({
   busyLabel?: string;
 }) {
   return (
-    <div className="diagnostic-panel-body">
-      <p className="diagnostic-kicker">Mirror is learning</p>
+    <div className="ob-diagnostic-body">
+      <p className="ob-diagnostic-kicker">Mirror is learning</p>
       <h2>Diagnostic context</h2>
 
-      <dl className="diagnostic-context">
+      <dl className="ob-diagnostic-context">
         <div>
           <dt>Benchmark</dt>
           <dd>{targetRole || "Waiting for a target role"}</dd>
@@ -60,17 +60,17 @@ function DiagnosticBody({
         )}
       </dl>
 
-      <ol className="diagnostic-build-list">
+      <ol className="ob-diagnostic-list">
         {rows.map((row) => (
           <li key={row.label} data-state={row.state}>
-            <span className="diagnostic-build-mark"><BuildMark state={row.state} /></span>
+            <span className="ob-diagnostic-mark"><BuildMark state={row.state} /></span>
             <span>{row.label}</span>
             <span className="sr-only">{row.state}</span>
           </li>
         ))}
       </ol>
 
-      <p className="diagnostic-live" aria-live="polite">
+      <p className="ob-diagnostic-live" aria-live="polite">
         {busyLabel || (sessionReady
           ? "The inquiry plan is ready."
           : "Each input changes what Mirror can investigate next.")}
@@ -119,11 +119,11 @@ export function DiagnosticPanel({
   ];
 
   return (
-    <aside className="diagnostic-panel" aria-label="What Mirror is building">
-      <div className="diagnostic-panel-desktop">
+    <aside className="ob-diagnostic" aria-label="What Mirror is building">
+      <div className="ob-diagnostic-desktop">
         <DiagnosticBody rows={rows} targetRole={targetRole} targetCompany={targetCompany} resumeName={resumeName} sessionReady={sessionReady} busyLabel={busyLabel} />
       </div>
-      <details className="diagnostic-panel-mobile">
+      <details className="ob-diagnostic-mobile">
         <summary><span>Diagnostic context</span><span>{step} of 5</span></summary>
         <DiagnosticBody rows={rows} targetRole={targetRole} targetCompany={targetCompany} resumeName={resumeName} sessionReady={sessionReady} busyLabel={busyLabel} />
       </details>

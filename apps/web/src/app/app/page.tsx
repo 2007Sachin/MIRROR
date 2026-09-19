@@ -8,7 +8,7 @@ export default async function AppPage() {
   if (result.status === "unauthenticated") redirect("/login?reason=session_expired");
   if (result.status === "unavailable") {
     return (
-      <main className="shell py-20">
+      <main id="main-content" className="shell py-20">
         <p role="alert" className="text-sm text-[var(--silver)]">Mirror could not load your onboarding status. Refresh to try again.</p>
       </main>
     );

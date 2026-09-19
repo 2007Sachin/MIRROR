@@ -10,6 +10,7 @@ import { CurrentDiagnostic } from "@/components/workspace/current-diagnostic";
 import { EvidencePreview } from "@/components/workspace/evidence-preview";
 import { QuickActions } from "@/components/workspace/quick-actions";
 import { RecentDiagnostics } from "@/components/workspace/recent-diagnostics";
+import { Reveal } from "@/components/motion/reveal";
 import {
   ApiError,
   mirrorApi,
@@ -38,13 +39,13 @@ function firstName(profile: Profile | null) {
 
 function DashboardHeader({ profile }: { profile: Profile | null }) {
   return (
-    <header className="dashboard-page-header">
+    <header className="ws-page-header">
       <div>
-        <p className="app-kicker">Welcome back, {firstName(profile)}</p>
+        <p className="ws-eyebrow">Welcome back, {firstName(profile)}</p>
         <h1 className="display">Your evidence workspace</h1>
         <p>Continue where you left off, explore new opportunities, or strengthen your existing evidence.</p>
       </div>
-      <Link className="app-primary-button" href="/sessions/new">
+      <Link className="button-primary" href="/sessions/new">
         Start a new diagnostic <ArrowRight size={17} />
       </Link>
     </header>
@@ -53,8 +54,8 @@ function DashboardHeader({ profile }: { profile: Profile | null }) {
 
 function DashboardSkeleton() {
   return (
-    <div className="dashboard-skeleton" role="status" aria-label="Loading evidence workspace">
-      <i /><i /><i /><i />
+    <div className="ws-skeleton-grid" role="status" aria-label="Loading evidence workspace">
+      <i className="skeleton" /><i className="skeleton" /><i className="skeleton" /><i className="skeleton" />
     </div>
   );
 }
@@ -167,7 +168,7 @@ export function EvidenceDashboard() {
       <DashboardHeader profile={profile} />
 
       {error ? (
-        <div className="app-inline-alert" role="alert">
+        <div className="ws-alert is-inline" role="alert">
           <WarningCircle size={19} />
           <span>{error}</span>
           <button type="button" onClick={() => void loadWorkspace()}>Retry</button>
@@ -177,31 +178,37 @@ export function EvidenceDashboard() {
       {state === "loading" ? <DashboardSkeleton /> : null}
 
       {state === "ready" && !current ? (
-        <section className="dashboard-first-diagnostic app-panel" aria-labelledby="first-diagnostic-title">
-          <p className="app-kicker">Your first diagnostic</p>
-          <h2 id="first-diagnostic-title" className="display">Build your first evidence case.</h2>
-          <p>Give Mirror a role and the professional evidence you want tested. Mirror will identify what appears convincing, what remains uncertain, and where an interview needs to probe deeper.</p>
-          <Link className="app-primary-button" href="/sessions/new">Start a diagnostic <ArrowRight size={17} /></Link>
-        </section>
+        <Reveal>
+          <section className="ws-panel ws-first-diagnostic" aria-labelledby="first-diagnostic-title">
+            <p className="ws-eyebrow">Your first diagnostic</p>
+            <h2 id="first-diagnostic-title" className="display">Build your first evidence case.</h2>
+            <p>Give Mirror a role and the professional evidence you want tested. Mirror will identify what appears convincing, what remains uncertain, and where an interview needs to probe deeper.</p>
+            <Link className="button-primary" href="/sessions/new">Start a diagnostic <ArrowRight size={17} /></Link>
+          </section>
+        </Reveal>
       ) : null}
 
       {current ? (
         <>
-          <div className="dashboard-primary-grid">
-            <CurrentDiagnostic
-              diagnostic={current}
-              retrying={retryingId === current.id}
-              onRetry={retryAssessment}
-            />
-            <QuickActions />
-          </div>
+          <Reveal>
+            <div className="ws-primary-grid">
+              <CurrentDiagnostic
+                diagnostic={current}
+                retrying={retryingId === current.id}
+                onRetry={retryAssessment}
+              />
+              <QuickActions />
+            </div>
+          </Reveal>
           {pollingFinished && assessmentIsPending(current) ? (
-            <p className="dashboard-poll-note">Evaluation is taking longer than usual. You can leave this page and return later; Mirror will keep your interview saved.</p>
+            <p className="ws-poll-note">Evaluation is taking longer than usual. You can leave this page and return later; Mirror will keep your interview saved.</p>
           ) : null}
-          <div className="dashboard-secondary-grid">
-            <RecentDiagnostics diagnostics={previous} />
-            <EvidencePreview documents={documents} unavailable={documentsUnavailable} />
-          </div>
+          <Reveal>
+            <div className="ws-secondary-grid">
+              <RecentDiagnostics diagnostics={previous} />
+              <EvidencePreview documents={documents} unavailable={documentsUnavailable} />
+            </div>
+          </Reveal>
         </>
       ) : null}
     </AppShell>

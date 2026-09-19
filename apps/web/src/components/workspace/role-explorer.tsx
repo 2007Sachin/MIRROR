@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/workspace/app-shell";
+import { Reveal } from "@/components/motion/reveal";
 import { ApiError, mirrorApi, type DashboardDiagnostic, type Profile } from "@/lib/api";
 
 export function RoleExplorer() {
@@ -54,36 +55,39 @@ export function RoleExplorer() {
 
   return (
     <AppShell profile={profile}>
-      <header className="workspace-route-header is-stacked">
-        <div><p className="app-kicker">Role explorer</p><h1 className="display">Explore roles with clarity</h1><p>Understand what different roles demand and see how your experience can be tested against them.</p></div>
+      <header className="ws-page-header is-stacked">
+        <div><p className="ws-eyebrow">Role explorer</p><h1 className="display">Explore roles with clarity</h1><p>Understand what different roles demand and see how your experience can be tested against them.</p></div>
       </header>
 
-      <form className="role-search" onSubmit={submit}>
-        <MagnifyingGlass size={21} aria-hidden="true" />
+      <form className="ws-role-search" onSubmit={submit}>
+        <MagnifyingGlass size={20} aria-hidden="true" />
         <label className="sr-only" htmlFor="role-search-input">Role to explore</label>
         <input id="role-search-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search or enter a role, for example Product Manager" />
         <button type="submit" disabled={!query.trim()}>Start diagnostic <ArrowRight size={16} /></button>
       </form>
 
-      {error ? <div className="app-inline-alert" role="alert"><WarningCircle size={18} /><span>{error}</span><button type="button" onClick={() => void load()}>Retry</button></div> : null}
+      {error ? <div className="ws-alert is-inline" role="alert"><WarningCircle size={18} /><span>{error}</span><button type="button" onClick={() => void load()}>Retry</button></div> : null}
 
-      <section className="role-history" aria-labelledby="role-history-title">
-        <div className="app-section-heading"><div><h2 id="role-history-title">Roles you&apos;ve explored</h2><p>Based only on your existing Mirror diagnostics.</p></div></div>
-        {loading ? <div className="workspace-list-skeleton"><i /><i /><i /></div> : null}
-        {!loading && !roles.length ? (
-          <div className="workspace-route-empty app-panel"><h2>No role benchmarks yet.</h2><p>Enter a role above to start building a benchmark with real role context.</p></div>
-        ) : (
-          <div className="role-card-grid">
-            {roles.map((diagnostic) => (
-              <article key={diagnostic.id} className="app-panel">
-                <span><Briefcase size={20} /></span>
-                <div><p>Previously tested role</p><h3>{diagnostic.target_role}</h3><small>{diagnostic.company || "No company specified"}</small></div>
-                <Link href={`/sessions/new?role=${encodeURIComponent(diagnostic.target_role)}`}>Start a new diagnostic <ArrowRight size={15} /></Link>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+      <Reveal>
+        <section className="role-history" aria-labelledby="role-history-title">
+          <div className="ws-section-heading is-flush"><div><h2 id="role-history-title">Roles you&apos;ve explored</h2><p>Based only on your existing Mirror diagnostics.</p></div></div>
+          {loading ? <div className="ws-list-skeleton"><i className="skeleton" /><i className="skeleton" /><i className="skeleton" /></div> : null}
+          {!loading && !roles.length ? (
+            <div className="ws-empty ws-panel"><h2>No role benchmarks yet.</h2><p>Enter a role above to start building a benchmark with real role context.</p></div>
+          ) : null}
+          {!loading && roles.length ? (
+            <div className="ws-role-grid reveal-stagger is-visible">
+              {roles.map((diagnostic) => (
+                <article key={diagnostic.id} className="ws-role-card ws-panel">
+                  <span><Briefcase size={20} /></span>
+                  <div><p>Previously tested role</p><h3>{diagnostic.target_role}</h3><small>{diagnostic.company || "No company specified"}</small></div>
+                  <Link href={`/sessions/new?role=${encodeURIComponent(diagnostic.target_role)}`}>Start a new diagnostic <ArrowRight size={15} /></Link>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      </Reveal>
     </AppShell>
   );
 }

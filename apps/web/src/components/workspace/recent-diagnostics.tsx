@@ -11,8 +11,8 @@ import {
 
 export function RecentDiagnostics({ diagnostics }: { diagnostics: DashboardDiagnostic[] }) {
   return (
-    <section className="dashboard-recent app-panel" aria-labelledby="recent-diagnostics-title">
-      <div className="app-section-heading is-split">
+    <section className="ws-panel" aria-labelledby="recent-diagnostics-title">
+      <div className="ws-section-heading">
         <div>
           <h2 id="recent-diagnostics-title">Recent diagnostics</h2>
           <p>Revisit past roles and findings.</p>
@@ -20,23 +20,23 @@ export function RecentDiagnostics({ diagnostics }: { diagnostics: DashboardDiagn
         <Link href="/diagnostics">View all <ArrowRight size={14} /></Link>
       </div>
       {diagnostics.length ? (
-        <div className="diagnostic-row-list">
+        <div className="ws-row-list">
           {diagnostics.slice(0, 3).map((diagnostic) => (
-            <Link key={diagnostic.id} href={diagnosticDestination(diagnostic)}>
-              <div>
+            <Link key={diagnostic.id} href={diagnosticDestination(diagnostic)} className="ws-diagnostic-row">
+              <div className="ws-row-main">
                 <strong>{diagnostic.target_role}</strong>
                 <span>{diagnostic.company || "General diagnostic"}</span>
               </div>
               <time dateTime={diagnostic.completed_at || diagnostic.updated_at}>
                 {formatWorkspaceDate(diagnostic.completed_at || diagnostic.updated_at)}
               </time>
-              <span className={`diagnostic-state is-${diagnosticTone(diagnostic)}`}><i aria-hidden="true" />{diagnosticStatus(diagnostic)}</span>
+              <span className={`ws-status-chip is-${diagnosticTone(diagnostic)}`}><i aria-hidden="true" />{diagnosticStatus(diagnostic)}</span>
               <ArrowRight size={15} />
             </Link>
           ))}
         </div>
       ) : (
-        <p className="app-empty-copy">Completed and in-progress diagnostics will appear here.</p>
+        <p className="ws-empty-copy">Completed and in-progress diagnostics will appear here.</p>
       )}
     </section>
   );
