@@ -1,5 +1,7 @@
 "use client";
 
+import "@/styles/auth.css";
+
 import { ArrowRight, GoogleLogo } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -9,7 +11,7 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
 
 const AnimatedEnergyMesh = dynamic(
   () => import("@/components/auth/animated-energy-mesh").then((module) => module.AnimatedEnergyMesh),
-  { ssr: false, loading: () => <div className="energy-mesh-loading" aria-hidden="true" /> },
+  { ssr: false, loading: () => <div className="mirror-mesh" aria-hidden="true" /> },
 );
 
 type Mode = "login" | "signup";
@@ -112,73 +114,79 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   const isLogin = mode === "login";
   return (
-    <main className="auth-page">
-      <section className="auth-visual" aria-label="Mirror energy field">
-        <div className="auth-signal-map" aria-hidden="true">
-          <span className="auth-signal auth-signal-claim">01 / Claim source</span>
-          <span className="auth-signal auth-signal-role">02 / Target role</span>
-          <span className="auth-signal auth-signal-evidence">03 / Interview evidence</span>
-        </div>
-        <AnimatedEnergyMesh energized={formFocused || busy} />
-        <div className="auth-visual-copy" aria-hidden="true">
-          <span className="mono">MIRROR / SIGNAL 01</span>
-          <p>Find the evidence behind your experience.</p>
+    <main id="main-content" className="mirror-auth">
+      <section className="mirror-auth-visual" aria-hidden="true">
+        <div className="mirror-auth-visual-inner">
+          <p className="mirror-auth-visual-eyebrow">Mirror / Evidence pipeline</p>
+          <AnimatedEnergyMesh energized={formFocused || busy} />
+          <p className="mirror-auth-visual-copy">Find the evidence behind your experience.</p>
         </div>
       </section>
-      <section className="auth-form-panel">
-        <div className="auth-form-inner">
-          <p className="auth-eyebrow">Private candidate access</p>
-          <h1 className="display auth-title">
+      <section className="mirror-auth-panel">
+        <div className="mirror-auth-panel-inner fade-in-once">
+          <p className="mirror-auth-eyebrow">Private candidate access</p>
+          <h1 className="display mirror-auth-title">
             {isLogin ? "Sign in to Mirror" : "Create your account"}
           </h1>
-          <p className="auth-intro">
+          <p className="mirror-auth-intro">
             {isLogin
               ? "Continue your evidence-backed interview preparation."
               : "Start a private, evidence-backed interview diagnostic."}
           </p>
           <form
             onSubmit={submit}
-            className="auth-form"
+            className="mirror-auth-form"
             onFocusCapture={() => setFormFocused(true)}
             onBlurCapture={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFormFocused(false);
             }}
           >
-          {!isLogin && (
-            <label className="auth-label">
-              <span>Full name</span>
-              <input className="field" name="full_name" required maxLength={120} autoComplete="name" disabled={busy} />
+            {!isLogin && (
+              <label className="mirror-auth-field">
+                <span>Full name</span>
+                <input className="field" name="full_name" required maxLength={120} autoComplete="name" disabled={busy} />
+              </label>
+            )}
+            <label className="mirror-auth-field">
+              <span>Email</span>
+              <input className="field" name="email" type="email" required autoComplete="email" disabled={busy} />
             </label>
-          )}
-          <label className="auth-label">
-            <span>Email</span>
-            <input className="field" name="email" type="email" required autoComplete="email" disabled={busy} />
-          </label>
-          <label className="auth-label">
-            <span>Password</span>
-            <input className="field" name="password" type="password" required minLength={8} autoComplete={isLogin ? "current-password" : "new-password"} disabled={busy} />
-          </label>
-          {error && <p role="alert" className="border-l-2 border-red-400 pl-3 text-sm text-red-200">{error}</p>}
-          {notice && <p role="status" className="border-l-2 border-[var(--pulse)] pl-3 text-sm text-[var(--paper)]">{notice}</p>}
-          <button type="submit" className="button-primary w-full" disabled={busy || !configured}>
-            {busy ? "Please wait…" : isLogin ? "Sign in" : "Create account"} {!busy && <ArrowRight size={18} />}
-          </button>
+            <label className="mirror-auth-field">
+              <span>Password</span>
+              <input className="field" name="password" type="password" required minLength={8} autoComplete={isLogin ? "current-password" : "new-password"} disabled={busy} />
+            </label>
+            {error && <p role="alert" className="mirror-auth-message">{error}</p>}
+            {notice && <p role="status" className="mirror-auth-message is-notice">{notice}</p>}
+            <div className="mirror-auth-submit-row">
+              <button type="submit" className="button-primary w-full" disabled={busy || !configured}>
+                {busy ? "Please wait…" : isLogin ? "Sign in" : "Create account"}
+                {!busy && <ArrowRight size={18} />}
+                {busy && (
+                  <svg className="mirror-auth-spinner" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeOpacity="0.3" strokeWidth="2" />
+                    <path d="M14.5 8a6.5 6.5 0 0 0-6.5-6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </form>
           {googleEnabled && (
-            <button type="button" className="button-secondary mt-3 w-full" onClick={signInWithGoogle} disabled={busy || !configured}>
-              <GoogleLogo size={18} /> Continue with Google
-            </button>
+            <>
+              <div className="mirror-auth-divider">or</div>
+              <button type="button" className="button-secondary w-full" onClick={signInWithGoogle} disabled={busy || !configured}>
+                <GoogleLogo size={18} /> Continue with Google
+              </button>
+            </>
           )}
-          <p className="auth-switch">
+          <p className="mirror-auth-switch">
             {isLogin ? "New to Mirror? " : "Already have an account? "}
             <Link href={isLogin ? "/signup" : "/login"}>
               {isLogin ? "Create an account" : "Sign in"}
             </Link>
           </p>
-          {!configured && <p className="auth-config-note">Set the public Supabase URL and publishable/anonymous key to enable authentication.</p>}
+          {!configured && <p className="mirror-auth-config-note">Set the public Supabase URL and publishable/anonymous key to enable authentication.</p>}
         </div>
       </section>
     </main>
   );
 }
-
