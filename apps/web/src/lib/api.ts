@@ -88,6 +88,8 @@ export type DashboardSummary = {
     improvements: Array<{ title: string; note: string; from_label: string | null }>;
     next_step: { title: string; body: string };
     shorter_conversation: boolean;
+    root_cause?: string | null;
+    practice_focus?: PracticeFocusKey | null;
   };
 };
 
@@ -533,6 +535,33 @@ export type AnswerChecks = {
   follow_up: string | null;
 };
 
+export type AnswerAspect =
+  | "SITUATION" | "OWNERSHIP" | "ACTIONS" | "REASONING" | "RESULT" | "MEASURE" | "SPECIFIC_EXAMPLE";
+
+export type AnswerAttempt = {
+  id: string;
+  session_id: string;
+  question_turn_id: string;
+  original_turn_id: string;
+  sequence: number;
+  question_text: string;
+  original_answer: string;
+  answer_text: string;
+  area_key: string | null;
+  area_title: string | null;
+  created_at: string;
+  comparison: null | {
+    source: "MODEL" | "CHECKS";
+    changes: Array<{ aspect: AnswerAspect; first: "PRESENT" | "ABSENT"; latest: "PRESENT" | "ABSENT" }>;
+    summary: string;
+    next_suggestion: string;
+    came_through_more_clearly: AnswerAspect[];
+    still_missing: AnswerAspect[];
+    first_present: AnswerAspect[];
+    latest_present: AnswerAspect[];
+  };
+};
+
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string, public readonly code?: string) {
     super(message);
@@ -922,6 +951,13 @@ export const mirrorApi = {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ kind, answer }),
   }),
+  attempts: (sessionId: string) => request<AnswerAttempt[]>(`/api/v1/sessions/${sessionId}/attempts`),
+  tryAgain: (sessionId: string, answerTurnId: string, values: { answer: string; area_key?: string | null; area_title?: string | null }) =>
+    request<AnswerAttempt>(`/api/v1/sessions/${sessionId}/answers/${answerTurnId}/attempts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    }),
   stories: () => request<Story[]>("/api/v1/stories"),
   story: (id: string) => request<Story>(`/api/v1/stories/${id}`),
   createStory: (values: StoryInput) => request<Story>("/api/v1/stories", {

@@ -7,7 +7,7 @@
  * What is left here is presentation: pairing questions with answers, and attaching
  * the report's own notes to the answer they came from.
  */
-import type { PublicInterviewTurn, ReportEvidence, ReportResponse, SessionReview } from "@/lib/api";
+import type { PracticeChoice, PublicInterviewTurn, ReportEvidence, ReportResponse, SessionReview } from "@/lib/api";
 import { developmentState } from "@/lib/dashboard-view";
 import { areaLabel } from "@/lib/progress-view";
 
@@ -22,24 +22,21 @@ export function reviewStrengths(review: SessionReview | null, limit = 3): Review
     .map((dimension) => ({ key: dimension.key, label: areaLabel(dimension.key), note: dimension.note }));
 }
 
-/** Which focus the "practice this" action should carry, from the review's own area. */
-const FOCUS_FOR_ROOT_CAUSE: Record<string, string> = {
-  OWNERSHIP_SPECIFICITY: "impact",
-  OUTCOME_EVIDENCE: "impact",
-  TECHNICAL_DEPTH: "decisions",
-  ANSWER_STRUCTURE: "story",
-  COMPOSURE_UNDER_PROBE: "full",
-  ROLE_SKILL_GAP: "role",
-};
-
-export function focusForReview(report: ReportResponse | null) {
-  return (report && FOCUS_FOR_ROOT_CAUSE[report.root_cause]) || "full";
+/**
+ * The one practice a review points to next: a quick drill on the review's own growth
+ * area (decided on the server). Null when the review names no area, and the page then
+ * lets the person choose instead of inventing one.
+ */
+export function practiceNext(review: SessionReview | null): PracticeChoice | null {
+  const focus = review?.practice_focus;
+  return focus ? { mode: "QUICK_DRILL", focus, theme: null } : null;
 }
 
 // ------------------------------------------------------------------- your answers
 
 export type AnswerBlock = {
   id: string;
+  answerTurnId: string | null;
   question: string;
   answer: string | null;
   cameThrough: ReportEvidence[];
@@ -76,6 +73,7 @@ export function answerBlocks(turns: PublicInterviewTurn[], report: ReportRespons
     const quotes = answer ? byTurn.get(answer.id) ?? [] : [];
     blocks.push({
       id: turn.id,
+      answerTurnId: answer?.id ?? null,
       question: turn.text,
       answer: answer?.text?.trim() || null,
       cameThrough: dedupe(quotes.filter((quote) => quote.direction === "SUPPORTS")),
@@ -91,5 +89,24 @@ function dedupe(quotes: ReportEvidence[]) {
     if (seen.has(quote.quote)) return false;
     seen.add(quote.quote);
     return true;
+  });
+}
+
+// ------------------------------------------------------------------- review -> retry
+
+export type RetryTarget = { answerTurnId: string; question: string; answer: string };
+
+/**
+ * Which answer each "needs more work" item can be retried on. An item is matched to an
+ * answer the review itself marked as "could be clearer", in order, one answer per item.
+ * When no such answer exists the item gets no retry, and offers practice instead.
+ */
+export function retryTargets(itemCount: number, blocks: AnswerBlock[]): Array<RetryTarget | null> {
+  const candidates = blocks.filter((block) => block.answerTurnId && block.answer && block.couldBeClearer.length);
+  return Array.from({ length: itemCount }, (_, index) => {
+    const block = candidates[index];
+    return block && block.answerTurnId && block.answer
+      ? { answerTurnId: block.answerTurnId, question: block.question, answer: block.answer }
+      : null;
   });
 }

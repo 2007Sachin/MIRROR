@@ -1,6 +1,6 @@
 # Interview readiness system — implementation plan
 
-Status: Phases 0–3 implemented on branch `ui-redesign` (uncommitted). Stopped before Phase 4 for a product decision (§8).
+Status: Phases 0–6 implemented on branch `ui-redesign`. Paused before Phase 7 (Progress) to verify the learning loop. Verification and migration status: `READINESS_QA_STATUS.md`.
 
 Mirror is moving from "resume + JD → mock interview → report" to a preparation system that answers
 one question: *am I ready to defend my experience for this specific role?* The mock interview becomes
@@ -161,3 +161,22 @@ an LLM or database. Services are tested with in-memory repositories. Routes are 
   candidate's own material, and say so.
 - **Uncommitted working tree.** Phases 1–3 build on earlier uncommitted UI work, so commits are left
   to the product owner rather than mixing unrelated local changes into one commit.
+
+## 11. Phases 4–6 as built
+
+**Practice modes (Phase 4).** `sessions` gained `practice_mode`, `practice_focus`,
+`practice_theme`. The engine sets shorter budgets for short modes; the planner builds a fixed
+plan for them (`practice_modes.build_practice_plan`) instead of calling the Planner agent, so a
+drill is ready immediately. The interviewer now enforces each objective's `max_probes`, which
+is how a drill allows one follow-up. Full interviews are unchanged apart from honouring the
+planner's own per-objective limits, which were previously advisory.
+
+**Try again (Phase 5).** `answer_attempts` rows copy the question and original answer and add
+the retry, numbered per answer and immutable. One `retry_comparison` agent call per attempt
+returns PRESENT/ABSENT per aspect plus two screened sentences; everything shown as "what
+changed" is derived from those pairs. On any failure the deterministic presence checks from
+Dig Deeper are used instead and the attempt still saves.
+
+**Review (Phase 6).** Up to three items need work; each is matched to an answer the review
+itself marked "could be clearer" for Try again, otherwise it offers practice. The growth-area →
+practice mapping lives once, in `dashboard_summary.PRACTICE_FOCUS_FOR_ROOT_CAUSE`.

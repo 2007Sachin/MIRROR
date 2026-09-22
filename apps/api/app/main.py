@@ -27,6 +27,7 @@ from .dependencies import (
     get_dashboard_summary_service,
     get_progress_service,
     get_readiness_service,
+    get_attempt_service,
     get_story_repository,
     current_user_id,
     get_document_repository,
@@ -180,6 +181,8 @@ from .progress_summary import ProgressResponse, ProgressService
 from .interview_map import InterviewMap
 from .readiness_service import ClaimNotFoundForUser, ReadinessService
 from .practice_recommendation import RecommendationResponse
+from .attempt_models import AttemptCreate, AttemptView, attempt_view
+from .attempt_service import AttemptNotAllowed, AttemptNotFinished, AttemptNotFound, AttemptService, AttemptsUnavailable
 from .pressure_test import (
     AnswerCheckRequest,
     AnswerChecks,
@@ -1231,6 +1234,45 @@ async def read_practice_recommendation(
         raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
     except (RoleAnalysisUnavailable, DocumentUnavailable, StoriesUnavailable, DashboardUnavailable) as exc:
         raise HTTPException(status_code=503, detail="Your practice suggestion isn't available right now. Please try again in a moment.") from exc
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/answers/{turn_id}/attempts",
+    response_model=AttemptView,
+    status_code=201,
+)
+async def create_answer_attempt(
+    session_id: UUID,
+    turn_id: UUID,
+    payload: AttemptCreate,
+    user: AuthenticatedUser = Depends(get_current_user),
+    attempts: AttemptService = Depends(get_attempt_service),
+) -> AttemptView:
+    """Answer the same question again. The original answer is kept exactly as it was."""
+    try:
+        return attempt_view(await attempts.create(session_id, turn_id, user.id, payload))
+    except AttemptNotFound as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that answer.") from exc
+    except AttemptNotFinished as exc:
+        raise HTTPException(status_code=409, detail="You can try again once this practice has finished.") from exc
+    except AttemptNotAllowed as exc:
+        raise HTTPException(status_code=409, detail="This answer already has several attempts. A quick drill on the same area is a good next step.") from exc
+    except (AttemptsUnavailable, InterviewTurnsUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="We couldn't save that attempt just now. Your answer is still on screen.") from exc
+
+
+@app.get("/api/v1/sessions/{session_id}/attempts", response_model=list[AttemptView])
+async def list_answer_attempts(
+    session_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    attempts: AttemptService = Depends(get_attempt_service),
+) -> list[AttemptView]:
+    try:
+        return [attempt_view(record) for record in await attempts.list_for_session(session_id, user.id)]
+    except AttemptNotFound as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that practice.") from exc
+    except AttemptsUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Your attempts aren't available right now. Please try again in a moment.") from exc
 
 
 @app.get("/api/v1/stories", response_model=list[StoryView])

@@ -382,3 +382,19 @@ a.dh-role-name:hover { color: var(--dh-cobalt-dark); }
 /* ------------------------------------------------------------------ practice modes */
 
 .dh-focus-tag.is-quiet { background: var(--paper-sunken); color: var(--slate); font-weight: 600; }
+
+/* ------------------------------------------------------------------ try again */
+
+.dh-row-actions.is-start { justify-content: flex-start; margin-top: var(--space-3); }
+.dh-first-answer { margin-top: var(--space-4); }
+.dh-first-answer summary { color: var(--slate); cursor: pointer; font-size: var(--text-sm); font-weight: 650; }
+.dh-first-answer summary:focus-visible { outline: 2px solid var(--dh-cobalt); outline-offset: 3px; }
+.dh-attempt-result { margin-top: var(--space-5); }
+.dh-attempt-result .dh-review-columns { margin-top: var(--space-4); }
+.dh-before-after { border-top: 1px solid var(--dh-line); display: grid; gap: var(--space-6); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--space-6); padding-top: var(--space-5); }
+.dh-attempt-column h4 { font-size: var(--text-sm); font-weight: 650; margin: 0 0 var(--space-2); }
+.dh-attempt-column .dh-fine-print { margin: var(--space-3) 0 var(--space-2); }
+
+@media (max-width: 720px) {
+  .dh-before-after { grid-template-columns: 1fr; }
+}

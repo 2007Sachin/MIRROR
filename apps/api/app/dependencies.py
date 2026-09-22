@@ -139,6 +139,7 @@ from .dashboard_service import DashboardService
 if TYPE_CHECKING:
     from .progress_summary import ProgressService
     from .readiness_service import ReadinessService
+    from .attempt_service import AttemptRepository, AttemptService
     from .story_repository import PressureResponseRepository, StoryRepository
 
 
@@ -714,3 +715,40 @@ def get_pressure_response_repository() -> "PressureResponseRepository":
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Pressure-test storage is not configured",
         ) from exc
+
+
+@lru_cache
+def get_attempt_repository() -> "AttemptRepository":
+    from .attempt_service import AttemptsUnavailable, MemoryAttemptRepository, SupabaseAttemptRepository
+
+    if not get_settings().supabase_enabled:
+        return MemoryAttemptRepository()
+    try:
+        return SupabaseAttemptRepository(get_settings())
+    except AttemptsUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Attempt storage is not configured",
+        ) from exc
+
+
+@lru_cache
+def get_retry_comparison_runner() -> AgentRunner:
+    from .agents.retry_comparison import create_retry_comparison_agent
+
+    settings = get_settings()
+    registry = AgentRegistry()
+    registry.register(create_retry_comparison_agent(settings.interviewer_model))
+    return AgentRunner(registry, _agent_provider(settings), PromptLoader())
+
+
+def get_attempt_service() -> "AttemptService":
+    from .attempt_service import AttemptService
+
+    return AttemptService(
+        get_repository(),
+        get_text_interview_service(),
+        get_attempt_repository(),
+        get_retry_comparison_runner(),
+        model=get_settings().interviewer_model,
+    )

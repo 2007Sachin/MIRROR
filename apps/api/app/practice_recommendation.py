@@ -18,18 +18,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from .dashboard_summary import ROOT_CAUSE_TEXT, LatestReview
+from .dashboard_summary import PRACTICE_FOCUS_FOR_ROOT_CAUSE, ROOT_CAUSE_TEXT, LatestReview
 from .interview_map import AreaAction, Coverage, InterviewMap, MapState
 from .practice_modes import PracticeFocus, PracticeMode
 
-# The review's own growth-area codes, and the practice that works on each.
 FOCUS_FOR_ROOT_CAUSE: dict[str, PracticeFocus] = {
-    "OWNERSHIP_SPECIFICITY": PracticeFocus.IMPACT,
-    "OUTCOME_EVIDENCE": PracticeFocus.IMPACT,
-    "TECHNICAL_DEPTH": PracticeFocus.DECISIONS,
-    "ANSWER_STRUCTURE": PracticeFocus.STORY,
-    "COMPOSURE_UNDER_PROBE": PracticeFocus.DECISIONS,
-    "ROLE_SKILL_GAP": PracticeFocus.ROLE,
+    code: PracticeFocus(focus) for code, focus in PRACTICE_FOCUS_FOR_ROOT_CAUSE.items()
 }
 
 

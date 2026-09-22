@@ -67,6 +67,7 @@ class LatestReview(SummaryModel):
     next_step: ReviewNextStep
     shorter_conversation: bool = False
     root_cause: str | None = None  # the review's own growth-area code; used to pick practice
+    practice_focus: str | None = None  # the practice area that works on that growth area
 
 
 class DashboardSummaryResponse(SummaryModel):
@@ -134,6 +135,17 @@ ROOT_CAUSE_TEXT: dict[str, tuple[str, str]] = {
     "ANSWER_STRUCTURE": ("Shape your answers", "Try the situation, what you did, and what happened."),
     "COMPOSURE_UNDER_PROBE": ("Stay comfortable when asked more", "A pause before a follow-up is always welcome."),
     "ROLE_SKILL_GAP": ("Build skills for this role", "Pick one skill from the role and practise it this week."),
+}
+
+# The review's own growth-area codes, and the practice area that works on each.
+# The one place this mapping lives: practice recommendations and the review both read it.
+PRACTICE_FOCUS_FOR_ROOT_CAUSE: dict[str, str] = {
+    "OWNERSHIP_SPECIFICITY": "impact",
+    "OUTCOME_EVIDENCE": "impact",
+    "TECHNICAL_DEPTH": "decisions",
+    "ANSWER_STRUCTURE": "story",
+    "COMPOSURE_UNDER_PROBE": "decisions",
+    "ROLE_SKILL_GAP": "role",
 }
 
 # One plain title per kind of area that came through only partly.
@@ -250,6 +262,7 @@ def build_latest_review(session_id: UUID, report: ReportResponse) -> LatestRevie
         next_step=review_next_step(improvements),
         shorter_conversation=bool(getattr(report, "shorter_conversation", False)),
         root_cause=report.root_cause or None,
+        practice_focus=PRACTICE_FOCUS_FOR_ROOT_CAUSE.get(report.root_cause),
     )
 
 

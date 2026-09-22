@@ -6,20 +6,23 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Loader } from "@/components/loader";
+import { AttemptComparison, TryAgain } from "@/components/review/try-again";
 import { PageHeader, PageShell, Section } from "@/components/workspace/page-shell";
 import {
   ApiError,
   mirrorApi,
+  type AnswerAttempt,
   type PublicInterviewTurn,
   type ReportEvidence,
   type ReportResponse,
   type SessionReview,
 } from "@/lib/api";
-import { loading, report as reportCopy, review as t } from "@/lib/copy";
+import { loading, report as reportCopy, review as t, tryAgain as tryCopy } from "@/lib/copy";
+import { attemptsByAnswer, latestAttempt } from "@/lib/attempt-view";
 import { formatDay } from "@/lib/dashboard-view";
-import { startPracticeHref } from "@/lib/practice-view";
+import { focusFor, modeCopy, startPracticeHref } from "@/lib/practice-view";
 import { stateClass } from "@/lib/progress-view";
-import { answerBlocks, focusForReview, reviewStrengths } from "@/lib/review-view";
+import { answerBlocks, practiceNext, retryTargets, reviewStrengths } from "@/lib/review-view";
 
 type ViewState = "loading" | "processing" | "error" | "ready";
 
@@ -34,6 +37,9 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
   const [review, setReview] = useState<SessionReview | null>(null);
   const [turns, setTurns] = useState<PublicInterviewTurn[] | null>(null);
   const [turnsFailed, setTurnsFailed] = useState(false);
+  const [attempts, setAttempts] = useState<AnswerAttempt[]>([]);
+  const [openRetry, setOpenRetry] = useState<string | null>(null);
+  const [openComparison, setOpenComparison] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [retryable, setRetryable] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -69,6 +75,11 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
           .interviewTurns(sessionId)
           .then((next) => mounted.current && setTurns(next))
           .catch(() => mounted.current && setTurnsFailed(true));
+        // Earlier attempts are shown next to their answer; without them the page is unchanged.
+        void mirrorApi
+          .attempts(sessionId)
+          .then((next) => mounted.current && setAttempts(next))
+          .catch(() => undefined);
       } catch (reason) {
         if (!(reason instanceof ApiError) || reason.status !== 409) {
           fail(reason);
@@ -116,10 +127,16 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
   }
 
   const strengths = useMemo(() => reviewStrengths(review), [review]);
-  const improvements = review?.improvements ?? [];
+  const improvements = useMemo(() => (review?.improvements ?? []).slice(0, 3), [review]);
   const blocks = useMemo(() => answerBlocks(turns ?? [], report), [turns, report]);
-  const focus = focusForReview(report);
+  const targets = useMemo(() => retryTargets(improvements.length, blocks), [improvements, blocks]);
+  const byAnswer = useMemo(() => attemptsByAnswer(attempts), [attempts]);
+  const next = practiceNext(review);
   const role = report?.session.target_role ?? review?.target_role ?? "";
+
+  function saved(attempt: AnswerAttempt) {
+    setAttempts((current) => [...current, attempt]);
+  }
 
   if (state === "loading") {
     return (
@@ -179,7 +196,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
           {review.counts ? (
             <p className="dh-action-meta">
               {review.counts.clear} {reportCopy.cameThrough.groups.held.toLowerCase()} ·{" "}
-              {review.counts.could_be_stronger + review.counts.worth_revisiting} to improve
+              {t.toImprove(review.counts.could_be_stronger + review.counts.worth_revisiting)}
             </p>
           ) : null}
           {review.shorter_conversation ? <p className="dh-action-meta">{reportCopy.shorterNote}</p> : null}
@@ -218,16 +235,38 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
         <Section id="review-improve" label={t.improveTitle} title={t.improveTitle}>
           {improvements.length ? (
             <ul className="dh-plain-list">
-              {improvements.map((item, index) => (
-                <li key={`${item.title}-${index}`}>
-                  <strong>{item.title}</strong>
-                  <small>{item.note}</small>
-                  {item.from_label ? <small className="dh-quiet">{`${t.improveFrom}: ${item.from_label}`}</small> : null}
-                  <Link className="dh-text-action" href={startPracticeHref(role, focus)}>
-                    {t.practiceThis} <ArrowRight size={15} aria-hidden="true" />
-                  </Link>
-                </li>
-              ))}
+              {improvements.map((item, index) => {
+                const target = targets[index];
+                const key = `item-${index}`;
+                return (
+                  <li key={key}>
+                    <strong>{item.title}</strong>
+                    <small>{item.note}</small>
+                    {item.from_label ? <small className="dh-quiet">{`${t.improveFrom}: ${item.from_label}`}</small> : null}
+                    <span className="dh-row-actions is-start">
+                      {target ? (
+                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === key ? null : key)} aria-expanded={openRetry === key}>
+                          {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
+                        </button>
+                      ) : null}
+                      <Link className={target ? "dh-text-action is-quiet" : "dh-text-action"} href={startPracticeHref(role, next ?? { mode: "QUICK_DRILL" })}>
+                        {t.practiceThis} <ArrowRight size={15} aria-hidden="true" />
+                      </Link>
+                    </span>
+                    {target && openRetry === key ? (
+                      <TryAgain
+                        sessionId={sessionId}
+                        answerTurnId={target.answerTurnId}
+                        question={target.question}
+                        firstAnswer={target.answer}
+                        area={{ key: review.practice_focus ?? null, title: item.title }}
+                        onSaved={saved}
+                        onClose={() => setOpenRetry(null)}
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="dh-review-empty">{t.improveEmpty}</p>
@@ -240,36 +279,83 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
           {turns !== null && !blocks.length ? <p className="dh-review-empty">{t.answersEmpty}</p> : null}
           {blocks.length ? (
             <ol className="dh-answer-list">
-              {blocks.map((block) => (
-                <li key={block.id}>
-                  <p className="dh-answer-question">{block.question}</p>
-                  {block.answer ? (
-                    <blockquote className="dh-answer-text">{block.answer}</blockquote>
-                  ) : (
-                    <p className="dh-review-empty">{t.noAnswer}</p>
-                  )}
-                  {block.cameThrough.length || block.couldBeClearer.length ? (
-                    <div className="dh-answer-notes">
-                      <QuoteNotes title={t.cameThrough} quotes={block.cameThrough} tone="is-ready" />
-                      <QuoteNotes title={t.couldBeClearer} quotes={block.couldBeClearer} tone="is-active" />
-                    </div>
-                  ) : null}
-                </li>
-              ))}
+              {blocks.map((block) => {
+                const previous = block.answerTurnId ? byAnswer.get(block.answerTurnId) : undefined;
+                const latest = latestAttempt(previous);
+                const retryKey = block.answerTurnId ? `answer-${block.answerTurnId}` : null;
+                return (
+                  <li key={block.id}>
+                    <p className="dh-answer-question">{block.question}</p>
+                    {block.answer ? (
+                      <blockquote className="dh-answer-text">{block.answer}</blockquote>
+                    ) : (
+                      <p className="dh-review-empty">{t.noAnswer}</p>
+                    )}
+                    {block.cameThrough.length || block.couldBeClearer.length ? (
+                      <div className="dh-answer-notes">
+                        <QuoteNotes title={t.cameThrough} quotes={block.cameThrough} tone="is-ready" />
+                        <QuoteNotes title={t.couldBeClearer} quotes={block.couldBeClearer} tone="is-active" />
+                      </div>
+                    ) : null}
+                    {block.answerTurnId && block.answer && retryKey ? (
+                      <span className="dh-row-actions is-start">
+                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === retryKey ? null : retryKey)} aria-expanded={openRetry === retryKey}>
+                          {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
+                        </button>
+                        {latest ? (
+                          <button className="dh-text-action is-quiet" type="button" onClick={() => setOpenComparison(openComparison === retryKey ? null : retryKey)} aria-expanded={openComparison === retryKey}>
+                            {tryCopy.latestAvailable(previous?.length ?? 0)} · {openComparison === retryKey ? tryCopy.hideComparison : tryCopy.showComparison}
+                          </button>
+                        ) : null}
+                      </span>
+                    ) : null}
+                    {latest && openComparison === retryKey ? (
+                      <div className="dh-drill">
+                        <p className="dh-subhead">{tryCopy.yourLatest}</p>
+                        <blockquote className="dh-answer-text">{latest.answer_text}</blockquote>
+                        <AttemptComparison attempt={latest} />
+                      </div>
+                    ) : null}
+                    {block.answerTurnId && block.answer && openRetry === retryKey ? (
+                      <TryAgain
+                        sessionId={sessionId}
+                        answerTurnId={block.answerTurnId}
+                        question={block.question}
+                        firstAnswer={block.answer}
+                        onSaved={saved}
+                        onClose={() => setOpenRetry(null)}
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
             </ol>
           ) : null}
         </Section>
 
         <section className="dh-next-action" aria-labelledby="review-next">
           <p className="dh-section-label">{t.nextTitle}</p>
-          <h2 id="review-next" className="display">{review.next_step.title}</h2>
-          <p className="dh-next-copy">{review.next_step.body}</p>
-          <div className="dh-action-row">
-            <Link className="dh-primary-action" href={startPracticeHref(role, focus)}>
-              {t.nextStart} <ArrowRight size={17} aria-hidden="true" />
-            </Link>
-            <span className="dh-action-meta">{t.nextMinutes}</span>
-          </div>
+          {next ? (
+            <>
+              <h2 id="review-next" className="display">{focusFor(next.focus)?.title ?? review.next_step.title}</h2>
+              <p className="dh-next-copy">{review.next_step.body}</p>
+              <div className="dh-action-row">
+                <Link className="dh-primary-action" href={startPracticeHref(role, next)}>
+                  {t.nextStart} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+                <span className="dh-action-meta">{modeCopy(next.mode).title} · {modeCopy(next.mode).length}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 id="review-next" className="display">{t.nextChoose}</h2>
+              <div className="dh-action-row">
+                <Link className="dh-primary-action" href={startPracticeHref(role, { mode: "QUICK_DRILL" })}>
+                  {t.nextChooseAction} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
+            </>
+          )}
         </section>
 
         <aside className="dh-trust" aria-labelledby="review-trust">

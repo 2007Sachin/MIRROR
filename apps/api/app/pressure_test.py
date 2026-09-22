@@ -230,25 +230,29 @@ class AnswerChecks(PressureModel):
     follow_up: str | None = None
 
 
-_NUMBER = re.compile(r"\d|\b(percent|half|double|twice|thousand|lakh|crore|million|hundred)\b", re.IGNORECASE)
+_NUMBER = re.compile(r"\d|\b(percent|half|third|quarter|double|twice|triple|dozen|thousand|lakh|crore|million|hundred)\b", re.IGNORECASE)
 _I = re.compile(r"\b(i|i'm|i've|i'd|my|me)\b", re.IGNORECASE)
 _WE = re.compile(r"\b(we|our|us|the team)\b", re.IGNORECASE)
 _RESULT = re.compile(r"\b(result|so that|which meant|led to|reduced|increased|improved|saved|cut|grew|changed|after)\b", re.IGNORECASE)
 _REASON = re.compile(r"\b(because|so that|instead|rather than|chose|decided|trade-?off|option|alternative)\b", re.IGNORECASE)
 
 
-def check_answer(request: AnswerCheckRequest) -> AnswerChecks:
-    """Which of the things this kind of question looks for appear in the answer."""
-    answer = request.answer
+def answer_features(answer: str) -> dict[str, bool]:
+    """Presence of a number, the speaker's own part, a result, a reason, and enough detail."""
     singular = len(_I.findall(answer))
     plural = len(_WE.findall(answer))
-    found = {
+    return {
         "number": bool(_NUMBER.search(answer)),
         "own_part": singular > 0 and singular >= plural,
         "result": bool(_RESULT.search(answer)),
         "reason": bool(_REASON.search(answer)),
         "detail": len(answer.split()) >= 40,
     }
+
+
+def check_answer(request: AnswerCheckRequest) -> AnswerChecks:
+    """Which of the things this kind of question looks for appear in the answer."""
+    found = answer_features(request.answer)
     wanted = {
         QuestionKind.OWNERSHIP: ("own_part", "detail"),
         QuestionKind.MEASURE: ("number", "result"),
