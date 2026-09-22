@@ -1,6 +1,6 @@
 # Interview readiness system — implementation plan
 
-Status: Phases 0–6 implemented on branch `ui-redesign`. Paused before Phase 7 (Progress) to verify the learning loop. Verification and migration status: `READINESS_QA_STATUS.md`.
+Status: Phases 0–6 implemented. Practice is now role-explicit (see §11). Home is specified in HOME_SPEC.md but not implemented. Still paused before Phase 7 (Progress).
 
 Mirror is moving from "resume + JD → mock interview → report" to a preparation system that answers
 one question: *am I ready to defend my experience for this specific role?* The mock interview becomes
