@@ -1013,7 +1013,7 @@ export const stories = {
   nextPart: (label: string) => `Add next: ${label.toLowerCase()}`,
   sourceLabel: "Based on",
   themesLabel: "Themes",
-  themesHint: "Separate themes with commas, for example: stakeholder management, pricing",
+  themesHint: "Separate themes with commas, for example: stakeholder management, pricing. Use the same wording as an area on your Interview Map so this story counts as preparation for it.",
   titleLabel: "Story title",
   titleHint: "A short name you'll recognise, for example “Rebuilding the pricing model”.",
   save: "Save story",
