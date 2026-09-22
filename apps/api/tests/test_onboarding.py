@@ -125,7 +125,7 @@ def test_completion_requires_all_onboarding_fields(
     assert response.status_code == 422
     assert (
         response.json()["detail"]
-        == "Complete all required onboarding fields before continuing"
+        == "Please finish the required setup steps before continuing."
     )
 
 

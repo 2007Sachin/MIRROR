@@ -84,7 +84,7 @@ def test_invalid_token_returns_401(
     client, _ = auth_client
     response = client.get("/api/v1/me", headers=auth("not-valid"))
     assert response.status_code == 401
-    assert response.json() == {"detail": "Invalid or expired access token"}
+    assert response.json() == {"detail": "Your session has ended. Please sign in again."}
 
 
 def test_authenticated_request_reconciles_profile(

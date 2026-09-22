@@ -1,15 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { DiagnosticsIndex } from "@/components/workspace/diagnostics-index";
-import { WorkspaceUnavailable } from "@/components/workspace/workspace-unavailable";
-import { getServerOnboarding } from "@/lib/server-api";
-
-export const dynamic = "force-dynamic";
-
-export default async function DiagnosticsPage() {
-  const result = await getServerOnboarding();
-  if (result.status === "unauthenticated") redirect("/login?reason=session_expired");
-  if (result.status === "unavailable") return <WorkspaceUnavailable />;
-  if (!result.onboarding.onboarding_completed) redirect("/onboarding");
-  return <DiagnosticsIndex />;
+/** Practice used to live here. The old link keeps working. */
+export default function DiagnosticsRedirect() {
+  redirect("/practice");
 }

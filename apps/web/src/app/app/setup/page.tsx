@@ -7,7 +7,7 @@ export default async function SetupPage() {
   const result = await getServerOnboarding();
   if (result.status === "unauthenticated") redirect("/login?reason=session_expired");
   if (result.status === "unavailable") {
-    return <main id="main-content" className="shell py-20"><p role="alert" className="text-sm text-[var(--silver)]">Mirror could not load setup. Refresh to try again.</p></main>;
+    return <main id="main-content" className="shell py-20"><p role="alert" className="text-sm text-[var(--silver)]">We couldn't load setup just now. Please refresh and try again.</p></main>;
   }
   if (!result.onboarding.onboarding_completed) redirect("/onboarding");
   redirect("/dashboard");

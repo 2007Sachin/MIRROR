@@ -6,6 +6,8 @@ from uuid import UUID
 
 import httpx
 
+from .http_pool import pooled
+
 from .claims_models import (
     ClaimChangedBy,
     ClaimCreate,
@@ -337,7 +339,7 @@ class SupabaseClaimsGraphRepository:
         last_error: Exception | None = None
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=10) as client:
+                async with pooled(10) as client:
                     response = await client.get(
                         f"{self._url}/rest/v1/{resource}",
                         headers=self._headers,
@@ -363,7 +365,7 @@ class SupabaseClaimsGraphRepository:
             self._headers if prefer is None else {**self._headers, "Prefer": prefer}
         )
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/{resource}",
                     headers=headers,

@@ -5,6 +5,8 @@ from uuid import UUID
 
 import httpx
 
+from .http_pool import pooled
+
 from .auth import AuthenticatedUser
 from .config import Settings
 from .schemas import ProfileRead
@@ -34,7 +36,7 @@ class SupabaseProfileRepository:
     async def reconcile(self, identity: AuthenticatedUser) -> ProfileRead:
         params = {"id": f"eq.{identity.id}", "select": "id,full_name,email"}
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/profiles",
                     headers=self._headers,
@@ -74,7 +76,7 @@ class SupabaseProfileRepository:
 
     async def get(self, user_id: UUID) -> ProfileRead | None:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/profiles",
                     headers=self._headers,
@@ -88,7 +90,7 @@ class SupabaseProfileRepository:
 
     async def update_full_name(self, user_id: UUID, full_name: str) -> ProfileRead:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.patch(
                     f"{self._url}/rest/v1/profiles",
                     headers={**self._headers, "Prefer": "return=representation"},

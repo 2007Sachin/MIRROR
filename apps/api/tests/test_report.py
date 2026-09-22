@@ -113,7 +113,7 @@ async def test_not_enough_signal_has_no_fake_range():
     report = await ReportService(FakeReportRepository(result=result)).get_report(SESSION, USER)
     assert report.role_readiness.low is None
     assert report.role_readiness.high is None
-    assert report.role_readiness.label == "Not enough signal"
+    assert report.role_readiness.label == "Not enough to say yet"
 
 
 @pytest.mark.asyncio
@@ -127,7 +127,7 @@ async def test_skill_assessment_and_schema_are_candidate_safe():
     )
     report = await ReportService(FakeReportRepository(result=RESULT, specialists=[{"assessor_type": "TECHNICAL", "result_json": output.model_dump(mode="json")}])).get_report(SESSION, USER)
     assert report.skill_assessments[0].skill == "SQL"
-    assert set(report.model_dump()) == {"session", "verdict", "role_readiness", "interview_readiness", "claims_audit", "skill_assessments", "session_moments", "root_cause", "trust_and_limitations", "prescription"}
+    assert set(report.model_dump()) == {"session", "verdict", "role_readiness", "interview_readiness", "claims_audit", "skill_assessments", "session_moments", "root_cause", "trust_and_limitations", "prescription", "shorter_conversation"}
 
 
 @pytest.mark.asyncio

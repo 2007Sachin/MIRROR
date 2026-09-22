@@ -105,4 +105,5 @@ class ReportResponse(ReportModel):
     root_cause: str
     trust_and_limitations: TrustAndLimitations
     prescription: dict | None = None
+    shorter_conversation: bool = False
 

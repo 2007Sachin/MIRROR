@@ -6,6 +6,8 @@ from uuid import UUID, uuid4
 
 import httpx
 
+from .http_pool import pooled
+
 from .config import Settings
 from .schemas import Phase, SessionCreate, SessionEventRead, SessionRead, SessionStatus
 
@@ -179,7 +181,7 @@ class SupabaseSessionRepository:
             "total_time_budget_seconds": total_time_budget_seconds,
             "phase_time_budget_seconds": phase_time_budget_seconds,
         }
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with pooled(10) as client:
             response = await client.post(
                 f"{self.url}/rest/v1/sessions",
                 headers={**self.headers, "Prefer": "return=representation"},
@@ -192,7 +194,7 @@ class SupabaseSessionRepository:
         return session
 
     async def get(self, session_id: UUID, user_id: UUID) -> SessionRead | None:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with pooled(10) as client:
             response = await client.get(
                 f"{self.url}/rest/v1/sessions",
                 headers=self.headers,
@@ -217,7 +219,7 @@ class SupabaseSessionRepository:
             else value
             for key, value in values.items()
         }
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with pooled(10) as client:
             response = await client.patch(
                 f"{self.url}/rest/v1/sessions",
                 headers={**self.headers, "Prefer": "return=representation"},
@@ -247,7 +249,7 @@ class SupabaseSessionRepository:
             else value
             for key, value in values.items()
         }
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with pooled(10) as client:
             try:
                 response = await client.post(
                     f"{self.url}/rest/v1/rpc/apply_interview_state_change",
@@ -298,7 +300,7 @@ class SupabaseSessionRepository:
     async def record_event(
         self, session_id: UUID, user_id: UUID, event_type: str, payload: dict
     ) -> SessionEventRead:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with pooled(10) as client:
             response = await client.post(
                 f"{self.url}/rest/v1/session_events",
                 headers={**self.headers, "Prefer": "return=representation"},
@@ -315,7 +317,7 @@ class SupabaseSessionRepository:
     async def list_events(
         self, session_id: UUID, user_id: UUID
     ) -> list[SessionEventRead]:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with pooled(10) as client:
             response = await client.get(
                 f"{self.url}/rest/v1/session_events",
                 headers=self.headers,

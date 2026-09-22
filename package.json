@@ -6,12 +6,14 @@
   "scripts": {
     "predev": "node scripts/free-ports.js",
     "dev": "concurrently -n web,api,assessor -c green,cyan,yellow \"npm run dev:web\" \"npm run dev:api\" \"npm run dev:worker\"",
+    "serve": "concurrently -n web,api,assessor -c green,cyan,yellow \"node scripts/run-web.js start\" \"node scripts/run-python.js -m uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8001\" \"npm run dev:worker\"",
     "dev:web": "node scripts/run-web.js dev",
     "dev:api": "node scripts/run-python.js -m uvicorn app.main:app --reload --app-dir apps/api --host 127.0.0.1 --port 8001",
     "dev:worker": "node scripts/run-assessor.js --worker-id assessor-local",
     "build": "node scripts/run-web.js build",
-    "test": "node scripts/run-python.js -m pytest && npm --workspace @mirror/web run typecheck",
-    "lint": "npm --workspace @mirror/web run lint"
+    "test": "npm run lint:copy && node scripts/run-python.js -m pytest && npm --workspace @mirror/web run typecheck",
+    "lint:copy": "node scripts/run-python.js scripts/copy_lint.py",
+    "lint": "npm run lint:copy && npm --workspace @mirror/web run lint"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

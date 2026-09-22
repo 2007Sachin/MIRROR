@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Protocol
 from uuid import UUID
 
+from .config import get_settings
+from .deferred_writes import get_deferred_writes
 from .flag_activation import FlagEligibilityService
 from .agents import AgentRunner
 from .agents.definitions import AgentExecutionContext, AgentExecutionResult
@@ -30,7 +33,7 @@ from .interviewer_models import (
 )
 from .interviewer_repository import InterviewTurnRepository
 from .planner_models import InterviewObjective, InterviewPlan
-from .schemas import Phase, SessionStatus
+from .schemas import Phase, SessionRead, SessionStatus
 
 
 logger = logging.getLogger("mirror.interviewer")
@@ -104,15 +107,17 @@ def compose_opening_greeting(
     minutes = max(1, round((total_time_budget_seconds or 0) / 60))
     role = " ".join((target_role or "").split())
 
-    opener = f"Hi {name}, thanks for making the time today." if name else "Hi, thanks for making the time today."
+    opener = f"Hi {name}, I'm Mirror." if name else "Hi, I'm Mirror."
     who = (
-        f"I'm Mirror, and I'll be your interviewer for this {role} conversation."
+        f"This is your {role} conversation."
         if role
-        else "I'm Mirror, and I'll be your interviewer today."
+        else "This is your practice conversation."
     )
-    shape = f"We have about {minutes} minutes. Take your time, and think out loud."
-    handoff = "Let's begin."
-    return " ".join([opener, who, shape, handoff])
+    shape = (
+        "There are no trick questions, just your experience in your own words. "
+        f"We have about {minutes} minutes, so take your time."
+    )
+    return " ".join([opener, who, shape])
 
 
 class TextInterviewService:
@@ -150,6 +155,18 @@ class TextInterviewService:
     async def start(self, session_id: UUID, user_id: UUID) -> InterviewStartResponse:
         session = await self._state.get_state(session_id, user_id)
         existing = await self._turns.list_turns(session_id)
+        resumed = False
+        if session.status == SessionStatus.ACTIVE and self._state.is_paused(session):
+            # Coming back to a saved conversation picks the timer up where it stopped.
+            session = await self._state.resume(session_id, user_id)
+            resumed = True
+        elif session.status == SessionStatus.ACTIVE:
+            # A tab that closed without saving must not eat the interview's time while it was away.
+            credited = await self._state.credit_idle_time(
+                session_id, user_id, idle_seconds=get_settings().session_idle_credit_seconds
+            )
+            resumed = credited.started_at != session.started_at
+            session = credited
         if session.status == SessionStatus.ACTIVE and existing:
             latest_interviewer = next(
                 (turn for turn in reversed(existing) if turn.speaker.value == "INTERVIEWER"),
@@ -157,7 +174,12 @@ class TextInterviewService:
             )
             if latest_interviewer:
                 _, remaining = self._state.remaining_times(session)
-                return self._start_response(latest_interviewer, remaining)
+                response = self._start_response(latest_interviewer, remaining)
+                if resumed:
+                    response = response.model_copy(
+                        update={"welcome_back": True, "welcome_text": WELCOME_BACK_TEXT}
+                    )
+                return response
 
         objective = await self._context.opening_objective(session_id, user_id)
         if session.status == SessionStatus.READY:
@@ -203,15 +225,30 @@ class TextInterviewService:
         request: TextTurnRequest,
         *,
         on_candidate_ready: Callable[[StoredInterviewTurn], Awaitable[None]] | None = None,
+        session: SessionRead | None = None,
     ) -> TextTurnResponse:
-        session = await self._state.get_state(session_id, user_id)
+        parallel = get_settings().voice_parallel_context
+        if session is None:
+            session = await self._state.get_state(session_id, user_id)
         if session.status != SessionStatus.ACTIVE:
             raise InterviewFlowRejected("session is not accepting candidate turns")
 
-        existing_candidate = await self._turns.get_candidate_by_client_id(
-            session_id, request.client_turn_id
-        )
+        plan_task = None
+        recent_prefetch = None
+        if parallel:
+            # Start the plan read now; it does not depend on this turn.
+            plan_task = asyncio.ensure_future(self._context.get_plan(session_id, user_id))
+            existing_candidate, recent_prefetch = await asyncio.gather(
+                self._turns.get_candidate_by_client_id(session_id, request.client_turn_id),
+                self._turns.list_turns(session_id, limit=1),
+            )
+        else:
+            existing_candidate = await self._turns.get_candidate_by_client_id(
+                session_id, request.client_turn_id
+            )
         if existing_candidate:
+            if plan_task is not None:
+                plan_task.cancel()
             existing_response = await self._turns.get_response(
                 session_id, existing_candidate.id
             )
@@ -220,7 +257,7 @@ class TextInterviewService:
                     await on_candidate_ready(existing_candidate)
                 return await self._response(existing_candidate, existing_response, user_id)
 
-        recent = await self._turns.list_turns(session_id, limit=1)
+        recent = recent_prefetch if parallel else await self._turns.list_turns(session_id, limit=1)
         previous = recent[-1] if recent else None
         candidate = existing_candidate or await self._turns.create_candidate_turn(
             session_id,
@@ -231,27 +268,46 @@ class TextInterviewService:
             phase=session.phase,
             primary_thread_id=session.current_primary_question_id,
         )
-        if self._turn_completed_publisher:
-            try:
-                await self._turn_completed_publisher.publish_candidate_turn_completed(
-                    session_id, user_id, candidate.id
-                )
-            except Exception:
-                logger.exception(
-                    "candidate turn event enqueue failed",
-                    extra={"session_id": str(session_id), "turn_id": str(candidate.id)},
-                )
-        if on_candidate_ready:
-            await on_candidate_ready(candidate)
+        async def publish() -> None:
+            if self._turn_completed_publisher:
+                try:
+                    await self._turn_completed_publisher.publish_candidate_turn_completed(
+                        session_id, user_id, candidate.id
+                    )
+                except Exception:
+                    logger.exception(
+                        "candidate turn event enqueue failed",
+                        extra={"session_id": str(session_id), "turn_id": str(candidate.id)},
+                    )
 
         _, remaining = self._state.remaining_times(session)
+        if parallel:
+            # The candidate turn now exists, so the reads that need it can start with the writes.
+            jobs = [publish(), on_candidate_ready(candidate) if on_candidate_ready else _noop()]
+            if remaining != 0:
+                jobs.append(
+                    self._context.build(
+                        session_id, user_id, candidate.turn_index,
+                        session=session, plan_task=plan_task,
+                    )
+                )
+            results = await asyncio.gather(*jobs)
+            context = results[2] if remaining != 0 else None
+        else:
+            await publish()
+            if on_candidate_ready:
+                await on_candidate_ready(candidate)
+            context = None
         if remaining == 0:
+            if plan_task is not None:
+                plan_task.cancel()
             interviewer = await self._store_close(
                 candidate, session_id, user_id, reason=InterviewerReasonCode.TIME_LIMIT
             )
             return await self._response(candidate, interviewer, user_id)
 
-        context = await self._context.build(session_id, user_id, candidate.turn_index)
+        if context is None:
+            context = await self._context.build(session_id, user_id, candidate.turn_index)
         execution = await self._runner.run(
             INTERVIEWER_AGENT_NAME,
             context,
@@ -284,7 +340,7 @@ class TextInterviewService:
             )
             interviewer = await self._fallback(candidate, context, execution, user_id)
 
-        await self._state.record_event(
+        completed = self._state.record_event(
             session_id,
             user_id,
             "TEXT_TURN_COMPLETED",
@@ -293,6 +349,29 @@ class TextInterviewService:
                 "interviewer_turn_index": interviewer.turn_index,
             },
         )
+        if get_settings().voice_async_persist and on_candidate_ready is not None:
+            # Voice turns only: the event is analytics. Text turns keep the write inline.
+            completed.close()
+            get_deferred_writes().enqueue(
+                session_id,
+                f"{request.client_turn_id}:text-event",
+                lambda: self._state.record_event(
+                    session_id,
+                    user_id,
+                    "TEXT_TURN_COMPLETED",
+                    {
+                        "candidate_turn_index": candidate.turn_index,
+                        "interviewer_turn_index": interviewer.turn_index,
+                    },
+                ),
+            )
+            return await self._response(candidate, interviewer, user_id)
+        if parallel:
+            _, response = await asyncio.gather(
+                completed, self._response(candidate, interviewer, user_id)
+            )
+            return response
+        await completed
         return await self._response(candidate, interviewer, user_id)
 
     async def list_public_turns(
@@ -418,7 +497,14 @@ class TextInterviewService:
         execution: AgentExecutionResult,
         user_id: UUID,
     ) -> StoredInterviewTurn:
-        if await self._state.can_ask_question(
+        planned = context.objective.initial_question.strip()
+        already_asked = any(
+            turn.speaker.value == "INTERVIEWER" and planned and planned in turn.text
+            for turn in context.recent_turns
+        )
+        # Re-asking the same planned question makes the conversation feel stuck, so when it was
+        # just asked the fallback moves on instead.
+        if not already_asked and await self._state.can_ask_question(
             candidate.session_id, user_id, probe=True
         ):
             session = await self._state.register_probe(candidate.session_id, user_id)
@@ -513,7 +599,7 @@ class TextInterviewService:
         user_id: UUID,
         *,
         reason: InterviewerReasonCode,
-        text: str = "That concludes the interview. Thank you for your time.",
+        text: str = "Thank you for sharing all of that. That's the end of our conversation. Your reflection will be ready shortly.",
         execution: AgentExecutionResult | None = None,
     ) -> StoredInterviewTurn:
         session = await self._state.get_state(session_id, user_id)
@@ -597,3 +683,10 @@ class TextInterviewService:
             remaining_time_seconds=remaining,
         )
 
+
+
+WELCOME_BACK_TEXT = "Welcome back. Thank you for coming back. Let's pick up where we were."
+
+
+async def _noop() -> None:
+    return None

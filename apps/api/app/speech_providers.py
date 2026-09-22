@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
+import io
+import json
 import logging
 from time import perf_counter
 from typing import Any, Protocol
@@ -195,6 +198,128 @@ class SarvamSpeechToTextProvider:
                 self.model, type(exc).__name__, _provider_detail(exc),
             )
             raise TranscriptionProviderFailure from exc
+
+
+def decode_to_pcm16k(audio: bytes) -> bytes:
+    """Any browser container (webm/opus, mp4, ogg, wav, mp3) to 16 kHz mono signed 16-bit PCM."""
+    import av  # imported lazily: only the streaming path needs it
+
+    pcm = bytearray()
+    with av.open(io.BytesIO(audio)) as container:
+        stream = container.streams.audio[0]
+        resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
+        for frame in container.decode(stream):
+            for resampled in resampler.resample(frame):
+                pcm += bytes(resampled.planes[0])[: resampled.samples * 2]
+        for resampled in resampler.resample(None):
+            pcm += bytes(resampled.planes[0])[: resampled.samples * 2]
+    return bytes(pcm)
+
+
+class SarvamStreamingSpeechToTextProvider(SarvamSpeechToTextProvider):
+    """Sarvam over its WebSocket, which has no 30 second cap (flag: VOICE_STREAMING_STT).
+
+    Answers up to `rest_limit_seconds` keep using the REST endpoint unchanged. Longer answers are
+    decoded to PCM and streamed in one-second chunks, then flushed for the final transcript.
+    """
+
+    WS_URL = "wss://api.sarvam.ai/speech-to-text/ws"
+    CHUNK_BYTES = 32_000  # one second of 16 kHz mono s16
+    MAX_SECONDS = 600
+
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        model: str = "saaras:v3",
+        language: str = "en-IN",
+        rest_limit_seconds: float = 25.0,
+        ws_url: str | None = None,
+        grace_seconds: float = 0.7,
+    ) -> None:
+        super().__init__(api_key, model=model, language=language)
+        self._rest_limit = rest_limit_seconds
+        self._ws_url = ws_url or self.WS_URL
+        self._grace = grace_seconds
+
+    async def transcribe(self, audio: bytes, mime_type: str) -> SpeechToTextResult:
+        if not self._api_key:
+            raise TranscriptionProviderFailure("Sarvam is not configured")
+        try:
+            pcm = await asyncio.to_thread(decode_to_pcm16k, audio)
+        except Exception:  # noqa: BLE001 - an undecodable file falls back to the REST path
+            logger.warning("Could not decode audio for streaming; using REST", exc_info=True)
+            return await super().transcribe(audio, mime_type)
+        seconds = len(pcm) / 32_000
+        if seconds <= self._rest_limit:
+            return await super().transcribe(audio, mime_type)
+        if seconds > self.MAX_SECONDS:
+            raise TranscriptionProviderFailure("audio is too long to transcribe")
+        return await self._stream(pcm, seconds)
+
+    async def _stream(self, pcm: bytes, seconds: float) -> SpeechToTextResult:
+        import websockets
+
+        started = perf_counter()
+        query = f"language-code={self.language or 'unknown'}&model={self.model}&sample_rate=16000&input_audio_codec=pcm_s16le"
+        parts: list[str] = []
+        meta: dict[str, Any] = {}
+        try:
+            async with websockets.connect(
+                f"{self._ws_url}?{query}",
+                additional_headers={"Api-Subscription-Key": self._api_key},
+                max_size=None,
+                open_timeout=10,
+            ) as ws:
+                for offset in range(0, len(pcm), self.CHUNK_BYTES):
+                    chunk = base64.b64encode(pcm[offset : offset + self.CHUNK_BYTES]).decode()
+                    await ws.send(json.dumps({"audio": {"data": chunk, "sample_rate": "16000", "encoding": "audio/wav"}}))
+                await ws.send(json.dumps({"type": "flush"}))
+                wait = 30.0  # first result may take a moment; later ones follow closely
+                while True:
+                    try:
+                        message = json.loads(await asyncio.wait_for(ws.recv(), timeout=wait))
+                    except asyncio.TimeoutError:
+                        break
+                    except websockets.ConnectionClosed:
+                        break
+                    kind, data = message.get("type"), message.get("data") or {}
+                    if kind == "error":
+                        raise ValueError(f"Sarvam streaming error: {data.get('code')}")
+                    if kind == "data":
+                        text = str(data.get("transcript") or "").strip()
+                        if text:
+                            parts.append(text)
+                        meta = {
+                            "request_id": data.get("request_id"),
+                            "language_code": data.get("language_code") or meta.get("language_code"),
+                            "language_probability": data.get("language_probability"),
+                        }
+                        wait = self._grace
+        except (OSError, ValueError, TypeError, websockets.WebSocketException) as exc:
+            logger.warning(
+                "Sarvam streaming transcription failed (model=%s): %s", self.model, type(exc).__name__, exc_info=True
+            )
+            raise TranscriptionProviderFailure from exc
+        transcript = " ".join(parts).strip()
+        if not transcript:
+            raise TranscriptionProviderFailure("Sarvam streaming returned no transcript")
+        return SpeechToTextResult(
+            transcript=transcript,
+            confidence=None,
+            detected_language=meta.get("language_code"),
+            provider=self.provider_name,
+            model=self.model,
+            provider_metadata={
+                "request_id": meta.get("request_id"),
+                "language_probability": meta.get("language_probability"),
+                "requested_language": self.language or "unknown",
+                "requested_model": self.model,
+                "streaming": True,
+                "audio_seconds": round(seconds, 1),
+            },
+            latency_ms=max(0, round((perf_counter() - started) * 1000)),
+        )
 
 
 class SarvamTextToSpeechProvider:

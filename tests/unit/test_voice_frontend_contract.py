@@ -22,7 +22,8 @@ def test_voice_interview_preserves_accessible_fallback_controls() -> None:
     assert 'aria-label={muted ? "Unmute microphone" : "Mute microphone"}' in source
     assert "Type your answer" in source
     assert "Replay question" in source
-    assert "End interview" in source
+    assert "Step away" in (VOICE_INTERVIEW.parents[1] / "lib" / "copy.ts").read_text(encoding="utf-8")
+    assert "saveAndContinueLater" in source
 
 
 def test_live_captions_are_interim_only_and_browser_capability_aware() -> None:

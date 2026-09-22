@@ -18,12 +18,17 @@
 
 /* ---------------------------------------------------------------- Sidebar */
 .ws-sidebar {
+  background: var(--paper);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-6);
   padding: var(--space-6) var(--space-5);
+  z-index: 50;
 }
+.ws-sidebar-head { align-items: center; display: flex; justify-content: space-between; }
+.ws-sidebar-close { align-items: center; color: var(--silver); display: none; height: 2.25rem; justify-content: center; width: 2.25rem; }
+.ws-sidebar-backdrop { display: none; }
 .ws-brand {
   align-items: center;
   color: var(--ink);
@@ -38,6 +43,7 @@
   letter-spacing: -.02em;
 }
 .ws-nav { display: grid; gap: var(--space-1); }
+.ws-nav-secondary { border-top: 1px solid var(--line); margin-top: auto; padding-top: var(--space-5); }
 .ws-nav-item {
   align-items: center;
   border-radius: .5rem;
@@ -60,9 +66,9 @@
   border-top: 1px solid var(--line);
   display: flex;
   gap: var(--space-2);
-  margin-top: auto;
   padding-top: var(--space-5);
 }
+.ws-account-link { align-items: center; color: var(--ink); display: flex; flex: 1; gap: var(--space-2); min-width: 0; text-decoration: none; }
 .ws-avatar {
   align-items: center;
   background: var(--ink);
@@ -104,20 +110,57 @@
   justify-content: space-between;
   padding: 0 var(--space-8);
 }
+.ws-topbar-start, .ws-topbar-actions { align-items: center; display: flex; gap: var(--space-3); }
+.ws-menu-button { align-items: center; color: var(--slate); display: none; height: 2.5rem; justify-content: center; width: 2.5rem; }
 .ws-topbar-brand { align-items: center; color: var(--ink); display: none; gap: var(--space-2); text-decoration: none; }
 .ws-topbar-brand span { font-family: var(--font-display); font-size: var(--text-base); font-weight: 650; }
-.ws-topbar-label {
-  color: var(--silver);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: .08em;
-  margin: 0;
-  text-transform: uppercase;
+.ws-topbar-help { align-items: center; color: var(--slate); display: flex; font-size: var(--text-xs); gap: var(--space-2); text-decoration: none; }
+.ws-topbar-help:hover { color: var(--ink); }
+/* The account menu. Deliberately short: it never repeats the main navigation. */
+.ws-profile-menu { position: relative; }
+.ws-profile-panel {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  box-shadow: 0 .8rem 2rem rgba(23, 22, 15, .12);
+  display: grid;
+  min-width: 15rem;
+  padding: var(--space-2);
+  position: absolute;
+  right: 0;
+  top: calc(100% + .4rem);
+  z-index: 70;
 }
+.ws-profile-identity { display: grid; gap: .1rem; padding: var(--space-3); }
+.ws-profile-identity strong { font-size: var(--text-sm); overflow-wrap: anywhere; }
+.ws-profile-identity span { color: var(--silver); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.ws-profile-panel hr { border: 0; border-top: 1px solid var(--line); margin: var(--space-2) 0; }
+.ws-profile-panel :is(a, button) {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: .4rem;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-sm);
+  gap: var(--space-3);
+  padding: .55rem var(--space-3);
+  text-align: left;
+  text-decoration: none;
+  width: 100%;
+}
+.ws-profile-panel :is(a, button):hover { background: var(--paper-sunken); }
+.ws-profile-panel svg { color: var(--slate); flex: none; }
 .ws-topbar-user {
   align-items: center;
+  background: transparent;
+  border: 0;
   color: var(--ink);
+  cursor: pointer;
   display: flex;
+  font: inherit;
   gap: var(--space-2);
   text-decoration: none;
 }
@@ -663,6 +706,16 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
 .ws-form label span { color: var(--slate); font-size: var(--text-xs); font-weight: 620; }
 .ws-form .button-primary { justify-self: start; }
 
+/* ----------------------------------------------------- Progress / help foundation */
+.ws-info-links { display: grid; max-width: 46rem; }
+.ws-info-links a { align-items: center; border-top: 1px solid var(--line); color: var(--ink); display: flex; gap: var(--space-4); justify-content: space-between; padding: var(--space-4) var(--space-5); text-decoration: none; }
+.ws-info-links a:first-child { border-top: 0; }
+.ws-info-links a:hover strong { color: var(--pulse-hover); }
+.ws-info-links a > span { display: grid; gap: .2rem; }
+.ws-info-links strong { font-size: var(--text-base); transition: color var(--dur-fast) var(--ease-out); }
+.ws-info-links small { color: var(--silver); font-size: var(--text-sm); line-height: 1.45; }
+.ws-info-links svg { color: var(--silver); flex: none; }
+
 /* ------------------------------------------------------ Unavailable page */
 .ws-unavailable-page {
   align-items: center;
@@ -684,20 +737,30 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
   .ws-current-visual { display: none; }
 }
 @media (max-width: 900px) {
-  .ws-shell { grid-template-columns: 4.75rem minmax(0, 1fr); }
-  .ws-sidebar { align-items: center; padding-inline: var(--space-2); }
-  .ws-brand span, .ws-nav-item span, .ws-account-info { display: none; }
-  .ws-nav-item { justify-content: center; padding-inline: 0; width: 3.2rem; }
-  .ws-sidebar-account { border: 0; justify-content: center; padding-top: 0; }
+  .ws-shell { display: block; }
+  .ws-sidebar {
+    bottom: 0;
+    box-shadow: 1rem 0 2.5rem rgba(23, 22, 15, .12);
+    left: 0;
+    position: fixed;
+    top: 0;
+    transform: translateX(-105%);
+    transition: transform var(--dur-base) var(--ease-out);
+    width: min(19rem, calc(100vw - 3rem));
+  }
+  .ws-sidebar.is-open { transform: translateX(0); }
+  .ws-sidebar-close, .ws-menu-button { display: flex; }
+  .ws-sidebar-backdrop { background: rgba(23, 22, 15, .32); border: 0; inset: 0; opacity: 0; position: fixed; transition: opacity var(--dur-base) var(--ease-out); visibility: hidden; z-index: 45; }
+  .ws-sidebar-backdrop.is-visible { display: block; opacity: 1; visibility: visible; }
+  .ws-topbar-brand { display: flex; }
   .ws-content { padding-inline: var(--space-5); }
 }
 @media (max-width: 720px) {
   .ws-shell { display: block; padding-bottom: 4.5rem; }
   .ws-sidebar { display: none; }
   .ws-topbar { height: 3.5rem; padding-inline: var(--space-4); }
-  .ws-topbar-brand { display: flex; }
-  .ws-topbar-label { display: none; }
-  .ws-topbar-user strong { display: none; }
+  .ws-menu-button { display: none; }
+  .ws-topbar-help, .ws-topbar-user strong { display: none; }
   .ws-content { padding: var(--space-5) var(--space-4) var(--space-8); }
   .ws-mobile-nav {
     align-items: center;
@@ -705,7 +768,7 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
     border-top: 1px solid var(--line);
     bottom: 0;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     height: 4.5rem;
     left: 0;
     position: fixed;
@@ -720,6 +783,7 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
     font-size: .58rem;
     gap: .2rem;
     justify-content: center;
+    min-width: 0;
     text-decoration: none;
   }
   .ws-mobile-nav-item.is-active { color: var(--pulse-hover); }
@@ -736,3 +800,8 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
   .ws-drawer-shell { animation: none; }
   .ws-progress-bar > i::before { transition: none; }
 }
+
+/* Active navigation: a quiet cobalt tint, matching the Home page. */
+.ws-nav-item.is-active { background: rgba(61, 90, 254, 0.09); color: #2c45d8; }
+.ws-nav-item.is-active svg { color: #3d5afe; }
+.ws-mobile-nav-item.is-active { color: #2c45d8; }

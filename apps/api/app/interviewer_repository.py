@@ -5,6 +5,8 @@ from uuid import UUID
 
 import httpx
 
+from .http_pool import pooled
+
 from .config import Settings
 from .interviewer_models import (
     InterviewerTurnType,
@@ -266,7 +268,7 @@ class SupabaseInterviewTurnRepository:
 
     async def _get(self, resource: str, params: dict[str, str]) -> list[dict[str, Any]]:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/{resource}",
                     headers=self._headers,
@@ -281,7 +283,7 @@ class SupabaseInterviewTurnRepository:
         self, resource: str, payload: dict[str, Any]
     ) -> list[dict[str, Any]]:
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with pooled(15) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/{resource}",
                     headers=self._headers,

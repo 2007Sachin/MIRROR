@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { meta } from "@/lib/copy";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mirror by Pathwisse",
-  description: "An evidence-backed interview diagnostic and claims audit.",
+  title: meta.title,
+  description: meta.description,
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg" },
 };
@@ -15,10 +16,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body>
-        <a href="#main-content" className="skip-link">Skip to content</a>
+        <a href="#main-content" className="skip-link">{meta.skipLink}</a>
         <header className="site-header shell flex h-16 items-center justify-between border-b hairline">
           <Link href="/" className="display text-lg font-semibold tracking-[-0.03em]">Mirror</Link>
-          <span className="text-xs text-[var(--silver)]">by Pathwisse</span>
+          <span className="text-xs text-[var(--silver)]">{meta.byline}</span>
         </header>
         {children}
       </body>

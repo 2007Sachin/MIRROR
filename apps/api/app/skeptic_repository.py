@@ -7,6 +7,8 @@ from uuid import UUID
 
 import httpx
 
+from .http_pool import pooled
+
 from .agents.definitions import AgentExecutionResult
 from .config import Settings
 from .skeptic_models import (
@@ -583,7 +585,7 @@ class SupabaseSkepticRepository:
         last_error: Exception | None = None
         for attempt in range(attempts):
             try:
-                async with httpx.AsyncClient(timeout=20) as client:
+                async with pooled(20) as client:
                     response = await client.request(
                         method,
                         f"{self._url}/rest/v1/{resource}",

@@ -3,6 +3,8 @@ from __future__ import annotations
 from functools import lru_cache
 from fastapi import HTTPException, status
 
+from typing import TYPE_CHECKING
+
 from .config import Settings, get_settings
 from .claims_repository import (
     ClaimsGraphRepository,
@@ -12,7 +14,7 @@ from .claims_repository import (
 from .claims_service import ClaimsGraphService
 from .auth import current_user_id as current_user_id
 from .agents import AgentRegistry, AgentRunner, PromptLoader
-from .agents.providers import GroqProvider
+from .agents.providers import ChatCompletionsProvider
 from .agents.resume import create_resume_agent
 from .agents.role import create_role_agent
 from .agents.planner import create_planner_agent
@@ -73,6 +75,7 @@ from .audio_validation import AudioValidator
 from .speech_providers import (
     DeepgramSpeechToTextProvider,
     SarvamSpeechToTextProvider,
+    SarvamStreamingSpeechToTextProvider,
     SarvamTextToSpeechProvider,
     SpeechProviderUnavailable,
     SpeechToTextProvider,
@@ -133,13 +136,18 @@ from .dashboard_repository import (
 )
 from .dashboard_service import DashboardService
 
+if TYPE_CHECKING:
+    from .progress_summary import ProgressService
+    from .readiness_service import ReadinessService
+    from .story_repository import PressureResponseRepository, StoryRepository
 
-def _agent_provider(settings: Settings) -> GroqProvider:
+
+def _agent_provider(settings: Settings) -> ChatCompletionsProvider:
     """One place to configure the shared agent transport."""
-    return GroqProvider(
-        settings.groq_api_key,
-        max_rate_limit_retries=settings.groq_rate_limit_max_retries,
-        max_rate_limit_wait_seconds=settings.groq_rate_limit_max_wait_seconds,
+    return ChatCompletionsProvider(
+        settings.sarvam_api_key,
+        max_rate_limit_retries=settings.llm_rate_limit_max_retries,
+        max_rate_limit_wait_seconds=settings.llm_rate_limit_max_wait_seconds,
     )
 
 
@@ -286,7 +294,12 @@ def get_speech_to_text_provider() -> SpeechToTextProvider:
     settings = get_settings()
     try:
         if settings.speech_to_text_provider.strip().lower() == "sarvam":
-            return SarvamSpeechToTextProvider(
+            provider_class = (
+                SarvamStreamingSpeechToTextProvider
+                if settings.voice_streaming_stt
+                else SarvamSpeechToTextProvider
+            )
+            return provider_class(
                 settings.sarvam_api_key,
                 model=settings.sarvam_stt_model,
                 language=settings.sarvam_stt_language,
@@ -596,6 +609,18 @@ def get_report_service() -> ReportService:
     return ReportService(SupabaseReportRepository(get_settings()))
 
 
+def get_dashboard_summary_service() -> "DashboardSummaryService":
+    from .dashboard_summary import DashboardSummaryService
+
+    return DashboardSummaryService(get_dashboard_service(), get_report_service())
+
+
+def get_progress_service() -> "ProgressService":
+    from .progress_summary import ProgressService
+
+    return ProgressService(get_dashboard_service(), get_report_service())
+
+
 @lru_cache
 def get_dashboard_service() -> DashboardService:
     if not get_settings().supabase_enabled:
@@ -642,3 +667,50 @@ def get_verdict_language_service() -> VerdictLanguageService:
 def get_assessment_worker() -> AssessmentWorker:
     settings = get_settings()
     return AssessmentWorker(get_assessment_pipeline_repository(), get_specialist_assessment_orchestrator(), get_assessment_adjudicator(), FinalAssessmentAggregator(), get_verdict_language_service(), get_claims_audit_service(), max_attempts=settings.assessment_job_max_attempts, retry_base_seconds=settings.assessment_job_retry_base_seconds)
+
+
+@lru_cache
+def get_story_repository() -> "StoryRepository":
+    from .story_repository import MemoryStoryRepository, StoriesUnavailable, SupabaseStoryRepository
+
+    if not get_settings().supabase_enabled:
+        return MemoryStoryRepository()
+    try:
+        return SupabaseStoryRepository(get_settings())
+    except StoriesUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Story storage is not configured",
+        ) from exc
+
+
+def get_readiness_service() -> "ReadinessService":
+    from .readiness_service import ReadinessService
+
+    return ReadinessService(
+        get_role_analysis_service(),
+        get_document_repository(),
+        get_resume_analysis_service(),
+        get_story_repository(),
+        get_progress_service(),
+        get_pressure_response_repository(),
+    )
+
+
+@lru_cache
+def get_pressure_response_repository() -> "PressureResponseRepository":
+    from .story_repository import (
+        MemoryPressureResponseRepository,
+        StoriesUnavailable,
+        SupabasePressureResponseRepository,
+    )
+
+    if not get_settings().supabase_enabled:
+        return MemoryPressureResponseRepository()
+    try:
+        return SupabasePressureResponseRepository(get_settings())
+    except StoriesUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Pressure-test storage is not configured",
+        ) from exc

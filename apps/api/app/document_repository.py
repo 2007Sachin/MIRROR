@@ -7,6 +7,8 @@ from urllib.parse import quote
 
 import httpx
 
+from .http_pool import pooled
+
 from .config import Settings
 from .schemas import (
     DocumentRead,
@@ -74,7 +76,7 @@ class SupabaseDocumentRepository:
             for key, value in values.items()
         }
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/documents",
                     headers={**self._headers, "Prefer": "return=representation"},
@@ -97,7 +99,7 @@ class SupabaseDocumentRepository:
         if not include_archived:
             params["archived_at"] = "is.null"
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/documents",
                     headers=self._headers,
@@ -112,7 +114,7 @@ class SupabaseDocumentRepository:
         self, document_id: UUID, user_id: UUID
     ) -> DocumentRead | None:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/documents",
                     headers=self._headers,
@@ -130,7 +132,7 @@ class SupabaseDocumentRepository:
 
     async def linked_to_protected_session(self, document_id: UUID) -> bool:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/session_document_links",
                     headers=self._headers,
@@ -153,7 +155,7 @@ class SupabaseDocumentRepository:
                 completed_diagnostic_count=0,
             )
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/session_document_links",
                     headers=self._headers,
@@ -204,7 +206,7 @@ class SupabaseDocumentRepository:
             for key, value in values.items()
         }
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.patch(
                     f"{self._url}/rest/v1/documents",
                     headers={**self._headers, "Prefer": "return=representation"},
@@ -225,7 +227,7 @@ class SupabaseDocumentRepository:
 
     async def delete(self, document_id: UUID, user_id: UUID) -> bool:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.delete(
                     f"{self._url}/rest/v1/documents",
                     headers={**self._headers, "Prefer": "return=representation"},
@@ -258,7 +260,7 @@ class SupabaseDocumentRepository:
             "p_context_note": values.get("context_note"),
         }
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/rpc/replace_evidence_document",
                     headers=self._headers,
@@ -275,7 +277,7 @@ class SupabaseDocumentRepository:
 
     async def link_to_session(self, session_id: UUID, document_id: UUID) -> None:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/session_document_links",
                     headers={
@@ -302,7 +304,7 @@ class SupabaseResumeStorage:
 
     async def upload(self, path: str, content: bytes, mime_type: str) -> None:
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with pooled(30) as client:
                 response = await client.post(
                     f"{self._url}/storage/v1/object/private-resumes/{path}",
                     headers={
@@ -319,7 +321,7 @@ class SupabaseResumeStorage:
 
     async def download(self, path: str) -> bytes:
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with pooled(30) as client:
                 response = await client.get(
                     f"{self._url}/storage/v1/object/private-resumes/{quote(path, safe='/')}",
                     headers={
@@ -334,7 +336,7 @@ class SupabaseResumeStorage:
 
     async def delete(self, path: str) -> None:
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with pooled(15) as client:
                 response = await client.delete(
                     f"{self._url}/storage/v1/object/private-resumes/{path}",
                     headers={

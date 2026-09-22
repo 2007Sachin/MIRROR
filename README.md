@@ -1,6 +1,6 @@
 # Mirror by Pathwisse
 
-Mirror is an evidence-backed interview diagnostic and claims-audit system. This repository contains the Stage 1 production foundation: the candidate web app, typed FastAPI service, deterministic interview state machine, Supabase schema/RLS, versioned prompt contracts, and synthetic evaluation fixtures.
+Mirror is a calm space to practice talking about your experience, with a friendly voice conversation and a kind, clear reflection afterward. This repository contains the Stage 1 production foundation: the web app, typed FastAPI service, deterministic interview state machine, Supabase schema/RLS, versioned prompt contracts, and synthetic evaluation fixtures.
 
 ## Quick start
 
@@ -21,5 +21,5 @@ Authentication fails closed without Supabase credentials. Configure the public U
 - Numeric assessments cannot be published without candidate evidence.
 - All supplied personas are marked synthetic and are excluded from real calibration.
 
-See `docs/architecture.md`, `docs/scoring.md`, `docs/privacy.md`, and `docs/synthetic-data.md`.
+See `docs/architecture.md`, `docs/scoring.md`, `docs/privacy.md`, and `docs/synthetic-data.md`. Everything people read or hear follows `docs/copy-guide.md`; run `npm run lint:copy` after changing copy.
 

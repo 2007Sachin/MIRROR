@@ -20,17 +20,17 @@ function friendlyAuthError(code?: string) {
   switch (code) {
     case "invalid_credentials":
     case "email_not_confirmed":
-      return "The email or password is incorrect, or the email is not confirmed.";
+      return "That email and password didn't match, or the email isn't confirmed yet. Please try again.";
     case "user_already_exists":
-      return "An account already exists for this email. Try signing in instead.";
+      return "There's already an account with this email. You can sign in instead.";
     case "weak_password":
-      return "Choose a stronger password with at least eight characters.";
+      return "Please choose a password with at least eight characters.";
     case "over_email_send_rate_limit":
-      return "Too many attempts. Wait a few minutes and try again.";
+      return "That was a few too many tries. Please wait a few minutes and try again.";
     case "signup_disabled":
-      return "New account creation is temporarily unavailable.";
+      return "New accounts can't be created right now. Please try again later.";
     default:
-      return "We could not complete authentication. Check your details and try again.";
+      return "We couldn't sign you in just now. Please check your details and try again.";
   }
 }
 
@@ -41,13 +41,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const reason = searchParams.get("reason");
   const [error, setError] = useState(
     searchParams.get("error") === "oauth"
-      ? "Google sign-in could not be completed. Please try again."
+      ? "We couldn't finish signing you in with Google. Please try again."
       : reason === "configuration"
         ? "Authentication is not configured for this environment."
         : reason === "network"
-          ? "Mirror could not reach the authentication service. Check your connection and try again."
+          ? "We couldn't reach the sign-in service just now. Please check your connection and try again."
       : reason === "session_expired"
-        ? "Your session is no longer active. Please sign in again."
+        ? "Your session has ended. Please sign in again."
         : "",
   );
   const [notice, setNotice] = useState("");
@@ -83,13 +83,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
         return;
       }
       if (mode === "signup" && !result.data.session) {
-        setNotice("Check your email to confirm your account, then return here to sign in.");
+        setNotice("Please check your email to confirm your account, then come back here to sign in.");
         return;
       }
       router.replace("/dashboard");
       router.refresh();
     } catch {
-      setError("Mirror could not reach the authentication service. Check your connection and try again.");
+      setError("We couldn't reach the sign-in service just now. Please check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -106,7 +106,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       });
       if (oauthError) setError(friendlyAuthError(oauthError.code));
     } catch {
-      setError("Mirror could not reach Google sign-in. Check your connection and try again.");
+      setError("We couldn't reach Google just now. Please check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -117,21 +117,21 @@ export function AuthForm({ mode }: { mode: Mode }) {
     <main id="main-content" className="mirror-auth">
       <section className="mirror-auth-visual" aria-hidden="true">
         <div className="mirror-auth-visual-inner">
-          <p className="mirror-auth-visual-eyebrow">Mirror / Evidence pipeline</p>
+          <p className="mirror-auth-visual-eyebrow">Mirror by Pathwisse</p>
           <AnimatedEnergyMesh energized={formFocused || busy} />
-          <p className="mirror-auth-visual-copy">Find the evidence behind your experience.</p>
+          <p className="mirror-auth-visual-copy">Find the words for your experience.</p>
         </div>
       </section>
       <section className="mirror-auth-panel">
         <div className="mirror-auth-panel-inner fade-in-once">
-          <p className="mirror-auth-eyebrow">Private candidate access</p>
+          <p className="mirror-auth-eyebrow">Your private space</p>
           <h1 className="display mirror-auth-title">
             {isLogin ? "Sign in to Mirror" : "Create your account"}
           </h1>
           <p className="mirror-auth-intro">
             {isLogin
-              ? "Continue your evidence-backed interview preparation."
-              : "Start a private, evidence-backed interview diagnostic."}
+              ? "Pick up your practice where you left off."
+              : "Start a private, gentle practice session."}
           </p>
           <form
             onSubmit={submit}

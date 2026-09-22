@@ -44,16 +44,16 @@ type BusyOperation = "role" | "resume" | "plan" | "complete" | null;
 
 const analysisStages = [
   "Reading your experience",
-  "Mapping claims to role expectations",
-  "Identifying evidence gaps",
-  "Preparing lines of inquiry",
+  "Connecting your experience to the role",
+  "Noticing what to explore",
+  "Preparing your questions",
 ];
 
 const planStages = [
-  "Connecting claims to role demands",
-  "Prioritising unresolved evidence",
-  "Building adaptive lines of inquiry",
-  "Preparing the interview thesis",
+  "Connecting your experience to the role",
+  "Choosing where to start",
+  "Shaping your questions",
+  "Preparing your conversation plan",
 ];
 
 const depthOptions: Array<{
@@ -64,8 +64,8 @@ const depthOptions: Array<{
 }> = [
   {
     value: "EVIDENCE_BEHIND_CLAIMS",
-    title: "Evidence behind my claims",
-    description: "Can I substantiate the achievements and responsibilities on my resume?",
+    title: "The story behind my work",
+    description: "Can I explain the achievements and responsibilities on my resume?",
   },
   {
     value: "ROLE_KNOWLEDGE",
@@ -84,13 +84,13 @@ const depthOptions: Array<{
   },
   {
     value: "COMMUNICATION_UNDER_SCRUTINY",
-    title: "Communication under scrutiny",
-    description: "Can I explain my thinking clearly when challenged?",
+    title: "Explaining clearly when asked more",
+    description: "Can I explain my thinking clearly when someone asks more?",
   },
   {
     value: "COMPLETE_READINESS",
-    title: "Complete readiness assessment",
-    description: "Let Mirror decide where deeper questioning is warranted.",
+    title: "A little of everything",
+    description: "Let Mirror decide where to spend a little more time.",
     recommended: true,
   },
 ];
@@ -98,7 +98,7 @@ const depthOptions: Array<{
 function WhyMirror({ children }: { children: ReactNode }) {
   return (
     <details className="ob-why">
-      <summary>Why Mirror needs this</summary>
+      <summary>Why we ask</summary>
       <p>{children}</p>
     </details>
   );
@@ -212,7 +212,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
           router.replace("/login?reason=session_expired");
           return;
         }
-        setError("Mirror could not restore your saved diagnostic context. Refresh to try again.");
+        setError("We couldn't restore your saved session just now. Please refresh and try again.");
       } finally {
         if (active) setHydrating(false);
       }
@@ -262,11 +262,11 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
   const sessionReady = session?.status === "READY" || session?.status === "ACTIVE";
   const activeStages = busy === "plan" ? planStages : analysisStages;
   const busyLabel = busy === "role"
-    ? "Establishing the role benchmark"
+    ? "Getting to know the role"
     : busy === "resume" || busy === "plan"
       ? activeStages[stageIndex]
       : busy === "complete"
-        ? "Opening the evidence interview"
+        ? "Opening your conversation"
         : undefined;
 
   async function signOutExpiredSession() {
@@ -283,7 +283,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       if (reason instanceof ApiError && reason.status === 401) {
         await signOutExpiredSession();
       } else {
-        setError("Mirror could not save this part of your diagnostic. Check your connection and try again.");
+        setError("We couldn't save this part just now. Please check your connection and try again.");
       }
       return null;
     }
@@ -341,7 +341,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
     const cleanedCompany = targetCompany.trim();
     if (cleanedRole.length < 2) return;
     if (!roleBriefMode) {
-      setError("Upload or paste a role brief, or continue without one.");
+      setError("Please upload or paste a role brief, or continue without one.");
       return;
     }
     setError("");
@@ -351,7 +351,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       if (roleBriefMode === "paste") {
         const cleanedBrief = roleBriefText.trim();
         if (!cleanedBrief) {
-          setError("Paste the role brief or choose to continue without one.");
+          setError("Please paste the role brief, or choose to continue without one.");
           return;
         }
         if (!selectedRoleBrief || cleanedBrief !== savedRoleBriefText) {
@@ -370,7 +370,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
         ...(reusableProfileId ? { role_profile_id: reusableProfileId } : {}),
       });
       if (analysedRole.latest_analysis?.status !== "COMPLETED") {
-        setError("Mirror could not finish the role benchmark yet. Try again in a moment.");
+        setError("We couldn't finish getting to know the role just now. Please try again in a moment.");
         return;
       }
       const updated = await persist({
@@ -418,7 +418,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       setInterviewPlan(null);
       setUploadNotice({
         kind: "resume",
-        message: `Resume uploaded — ${document.original_filename ?? file.name}. Continue to build your evidence map.`,
+        message: `Resume uploaded — ${document.original_filename ?? file.name}. Continue whenever you're ready.`,
       });
     } catch (reason) {
       setError(friendlyDocumentError(reason, "resume"));
@@ -437,13 +437,13 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       const analysis = await mirrorApi.analyzeResume(resumeDocument.id);
       if (analysis.status === "FAILED") {
         const message = analysis.error_type === "document_parsing_failure"
-          ? "Mirror could not extract enough text from this resume. Try a text-based PDF or DOCX file."
-          : "Mirror could not build the evidence map from this resume. Your upload is saved; try again.";
+          ? "We couldn't read enough text from this resume. Please try a text-based PDF or DOCX file."
+          : "We couldn't put your experience together just now. Your upload is saved, so you can try again.";
         setError(message);
         return;
       }
       if (analysis.status !== "COMPLETED" || !analysis.output) {
-        setError("Evidence mapping is still in progress. Try again in a moment.");
+        setError("This is still in progress. Please try again in a moment.");
         return;
       }
       const updated = await persist({ onboarding_step: 3 });
@@ -463,7 +463,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
     if (!resumeDocument) return;
     const correction = correctionDrafts[claimId]?.trim();
     if (status === "NEEDS_CORRECTION" && (!correction || correction.length < 3)) {
-      setError("Describe the correction before saving it.");
+      setError("Please describe the correction before saving it.");
       return;
     }
     setError("");
@@ -479,7 +479,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       setReviewingClaim(null);
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) await signOutExpiredSession();
-      else setError("Mirror could not save that correction. Try again.");
+      else setError("We couldn't save that correction just now. Please try again.");
     } finally {
       setSavingClaim(null);
     }
@@ -537,7 +537,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
         preparedSession = prepared.session;
       }
       if (preparedSession.status !== "READY" && preparedSession.status !== "ACTIVE") {
-        setError("Mirror could not finish the inquiry plan. Your analysis is saved; try again.");
+        setError("We couldn't finish your conversation plan just now. Your progress is saved, so you can try again.");
         return;
       }
       const preparedPlan = await mirrorApi.interviewPlan(preparedSession.id);
@@ -554,11 +554,11 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       if (reason instanceof ApiError && reason.status === 401) {
         await signOutExpiredSession();
       } else if (reason instanceof ApiError && reason.status === 409) {
-        setError("Mirror needs completed role and resume analysis before it can prepare the inquiry plan.");
+        setError("Your role and resume need to finish being read before we can prepare your conversation. Please try again in a moment.");
       } else if (reason instanceof ApiError && reason.status === 503) {
-        setError("Interview planning is temporarily unavailable. Your role and evidence map remain saved.");
+        setError("Planning is unavailable for a moment. Your role and experience are still saved.");
       } else {
-        setError("Mirror could not prepare the interview thesis. Check your connection and try again.");
+        setError("We couldn't prepare your conversation plan just now. Please check your connection and try again.");
       }
     } finally {
       setBusy(null);
@@ -583,9 +583,9 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       return (
         <form onSubmit={establishRole} className="ob-step" aria-busy={busy === "role"}>
           <StepHeader
-            eyebrow="Role benchmark"
-            title="Define the role you're aiming at."
-            description="Set the benchmark Mirror should use. Add the employer's brief when you have it, or continue with a role-level benchmark."
+            eyebrow="Your target role"
+            title="Tell us the role you're aiming for."
+            description="Add the employer's brief if you have one, or continue with a general picture of the role."
           />
           <div className="ob-fields ob-two-col">
             <label>
@@ -601,7 +601,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
             <div>
               <p className="ob-index">Role context</p>
               <h2 id="role-brief-title">Add the role brief</h2>
-              <p>Use the employer's brief to make the interview specific to this opportunity.</p>
+              <p>Use the employer's brief to make the conversation fit this opportunity.</p>
             </div>
             <div className="ob-role-brief-modes">
               <button type="button" aria-pressed={roleBriefMode === "upload"} onClick={() => roleBriefInput.current?.click()}>
@@ -634,12 +634,12 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
                 </div>
               </>
             )}
-            <WhyMirror>The role brief tells Mirror which expectations matter for this specific opportunity. Without one, Mirror uses a role-level benchmark and labels that limitation.</WhyMirror>
+            <WhyMirror>The role brief tells Mirror what matters for this opportunity. Without one, Mirror uses a general picture of the role and says so.</WhyMirror>
           </section>
           <ActionRow>
             <span />
             <button className="button-primary" disabled={busy !== null || targetRole.trim().length < 2 || !roleBriefMode}>
-              {busy === "role" ? "Establishing benchmark" : "Continue to evidence"} <ArrowRight size={18} />
+              {busy === "role" ? "Getting to know the role" : "Continue"} <ArrowRight size={18} />
             </button>
           </ActionRow>
         </form>
@@ -650,9 +650,9 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       return (
         <section className="ob-step" aria-busy={busy === "resume"}>
           <StepHeader
-            eyebrow="Starting evidence"
-            title="Establish your starting evidence."
-            description="Your resume gives Mirror the claims, experience, and outcomes the interview should examine."
+            eyebrow="Your starting point"
+            title="Share your resume to begin."
+            description="Your resume lets the conversation start from your own experience."
           />
           <div className="ob-dropzone" data-has-file={Boolean(resumeDocument)}>
             <div>
@@ -668,7 +668,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
           {uploadKind === "resume" && uploadProgress !== null && (
             <>
               <p className="ob-upload-status" role="status" aria-live="polite">
-                {uploadProgress < 100 ? `Uploading your resume — ${uploadProgress}%` : "Upload complete. Saving to your evidence library…"}
+                {uploadProgress < 100 ? `Uploading your resume — ${uploadProgress}%` : "Upload complete. Saving to your experience library…"}
               </p>
               <div className="ob-upload-progress" role="progressbar" aria-label="Resume upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
                 <span style={{ width: `${uploadProgress}%` }} />
@@ -680,13 +680,13 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
               <Check size={15} /> {uploadNotice.message}
             </p>
           )}
-          <WhyMirror>Your resume establishes the claims Mirror will attempt to verify through evidence and questioning.</WhyMirror>
+          <WhyMirror>Your resume is where Mirror starts. It helps us ask about your own experience.</WhyMirror>
 
           {busy === "resume" && (
             <div className="ob-analysis" role="status" aria-live="polite">
-              <p className="ob-index">Building your evidence map</p>
+              <p className="ob-index">Putting your experience at a glance</p>
               <h2>{analysisStages[stageIndex]}</h2>
-              <p>Mirror is connecting your experience to the role and deciding where deeper questioning could separate stated experience from demonstrated ability.</p>
+              <p>Mirror is connecting your experience to the role and choosing where a little more detail could help your story come across.</p>
               <ol>
                 {analysisStages.map((label, index) => (
                   <li key={label} data-state={index < stageIndex ? "complete" : index === stageIndex ? "active" : "waiting"}>
@@ -701,7 +701,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
           <ActionRow>
             <BackButton onClick={() => void goBack(1)} disabled={busy !== null} />
             <button type="button" className="button-primary" disabled={!resumeDocument || busy !== null || uploadKind !== null} onClick={() => void buildEvidenceMap()}>
-              {busy === "resume" ? analysisStages[stageIndex] : "Build my evidence map"} <ArrowRight size={18} />
+              {busy === "resume" ? analysisStages[stageIndex] : "Show my experience at a glance"} <ArrowRight size={18} />
             </button>
           </ActionRow>
         </section>
@@ -712,26 +712,26 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       return (
         <section className="ob-step">
           <StepHeader
-            eyebrow="Evidence map"
-            title="This is the case your resume currently makes."
-            description="Review what Mirror inferred. Correct anything inaccurate before the diagnostic starts."
+            eyebrow="Your experience at a glance"
+            title="Here's the story your resume tells right now."
+            description="Have a look at what Mirror understood. Change anything that doesn't feel right before we begin."
           />
 
           <div className="ob-evidence-map">
             <section>
-              <p className="ob-evidence-label">Role benchmark</p>
+              <p className="ob-evidence-label">Your target role</p>
               <h2>{roleAnalysis?.canonical_role ?? onboarding.target_role}</h2>
-              <p>{onboarding.target_company || (onboarding.onboarding_role_brief_skipped ? "Role-level benchmark" : "Specific role brief")}</p>
+              <p>{onboarding.target_company || (onboarding.onboarding_role_brief_skipped ? "General picture of the role" : "Specific role brief")}</p>
             </section>
             <section>
-              <p className="ob-evidence-label">Capability signals</p>
+              <p className="ob-evidence-label">Skills that came up</p>
               <div className="ob-signal-list">
                 {experienceSignals.map((signal) => <span key={signal}>{signal}</span>)}
-                {!experienceSignals.length && <p>No explicit capability signals were extracted.</p>}
+                {!experienceSignals.length && <p>No specific skills stood out yet.</p>}
               </div>
             </section>
             <section>
-              <p className="ob-evidence-label">Claims worth examining</p>
+              <p className="ob-evidence-label">Moments worth talking through</p>
               <div className="ob-claim-list">
                 {claimsWorthExamining.map((claim) => (
                   <article id={`claim-${claim.id}`} key={claim.id} data-review={claim.review_status ?? "pending"}>
@@ -746,7 +746,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
                     </div>
                     {reviewingClaim === claim.id && (
                       <div className="ob-claim-correction">
-                        <label htmlFor={`correction-${claim.id}`}>What should this claim say?</label>
+                        <label htmlFor={`correction-${claim.id}`}>How would you like this to read?</label>
                         <textarea id={`correction-${claim.id}`} className="field" value={correctionDrafts[claim.id] ?? ""} onChange={(event) => setCorrectionDrafts((current) => ({ ...current, [claim.id]: event.target.value }))} maxLength={2000} />
                         <div>
                           <button type="button" onClick={() => setReviewingClaim(null)}>Cancel</button>
@@ -756,15 +756,15 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
                     )}
                   </article>
                 ))}
-                {!claimsWorthExamining.length && <p className="ob-evidence-empty">Mirror found no sufficiently specific claims to display. You can replace the resume or retry analysis.</p>}
+                {!claimsWorthExamining.length && <p className="ob-evidence-empty">Mirror didn't find enough detail to show here. You can replace the resume or try again.</p>}
               </div>
             </section>
             <section>
-              <p className="ob-evidence-label">What documents cannot establish</p>
-              <p className="ob-evidence-explainer">These are role expectations not clearly established by resume wording alone. They are questions for the interview, not judgments about ability.</p>
+              <p className="ob-evidence-label">What a resume can't show on its own</p>
+              <p className="ob-evidence-explainer">These are parts of the role a resume doesn't always show. They are things to talk about, not a judgment of your ability.</p>
               <ul className="ob-gap-list">
                 {documentLimits.map((item) => <li key={item.id}>{item.name}<span>{item.expected_level.replaceAll("_", " ")}</span></li>)}
-                {!documentLimits.length && <li>Mirror will use the interview to test depth, ownership, and reasoning behind the visible claims.</li>}
+                {!documentLimits.length && <li>Mirror will use the conversation to hear more about depth, ownership, and the thinking behind your work.</li>}
               </ul>
             </section>
           </div>
@@ -783,11 +783,11 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
       return (
         <section className="ob-step" aria-busy={busy === "plan"}>
           <StepHeader
-            eyebrow="Depth of inquiry"
-            title="Decide where Mirror should probe deepest."
-            description="Choose where questioning should go deeper. The evaluation standard remains the same."
+            eyebrow="Your focus"
+            title="How deep should we go?"
+            description="Choose where you'd like the conversation to spend more time."
           />
-          <div className="ob-inquiry-list" role="group" aria-label="Depth of inquiry">
+          <div className="ob-inquiry-list" role="group" aria-label="Where to spend more time">
             {depthOptions.map((option, index) => {
               const selected = selectedDepth.includes(option.value);
               return (
@@ -800,18 +800,18 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
               );
             })}
           </div>
-          <WhyMirror>Your selection becomes part of the planner's typed candidate context. It changes emphasis while the deterministic interview engine continues to enforce overall coverage and probe limits.</WhyMirror>
+          <WhyMirror>Your choice shapes which topics get more time. Mirror still covers the main areas and keeps follow-up questions to a sensible number.</WhyMirror>
           {busy === "plan" && (
             <div className="ob-analysis ob-compact" role="status" aria-live="polite">
-              <p className="ob-index">Constructing the inquiry plan</p>
+              <p className="ob-index">Preparing your conversation plan</p>
               <h2>{planStages[stageIndex]}</h2>
-              <p>Mirror is using the saved role benchmark, reviewed claims, and your requested depth to prepare the evidence interview.</p>
+              <p>Mirror is using your target role, your experience, and your choice to prepare your conversation.</p>
             </div>
           )}
           <ActionRow>
             <BackButton onClick={() => void goBack(3)} disabled={busy !== null} />
             <button type="button" className="button-primary" disabled={!selectedDepth.length || busy !== null} onClick={() => void prepareInterviewThesis()}>
-              {busy === "plan" ? planStages[stageIndex] : "Build my interview thesis"} <ArrowRight size={18} />
+              {busy === "plan" ? planStages[stageIndex] : "Prepare my conversation"} <ArrowRight size={18} />
             </button>
           </ActionRow>
         </section>
@@ -821,43 +821,43 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
     return (
       <section className="ob-step ob-thesis" aria-busy={busy === "complete"}>
         <StepHeader
-          eyebrow="Interview thesis"
-          title="Mirror has built your interview thesis."
-          description="Your role, evidence, and requested depth are now connected in a prepared interview plan."
+          eyebrow="Your conversation plan"
+          title="Your conversation is ready."
+          description="Your role, your experience, and your focus are now shaped into a plan for the conversation."
         />
         <div className="ob-thesis-grid">
           <section>
-            <p>What you claim</p>
-            <h2>The experience and achievements your resume presents.</h2>
+            <p>What you've shared</p>
+            <h2>The experience and achievements on your resume.</h2>
             <ul>{claimsWorthExamining.slice(0, 3).map((claim) => <li key={claim.id}>{claimDisplayText(claim)}</li>)}</ul>
           </section>
           <section>
-            <p>What the role demands</p>
-            <h2>The capabilities and depth expected for your target.</h2>
+            <p>What the role looks for</p>
+            <h2>The skills and depth expected for your target role.</h2>
             <ul>{(roleAnalysis?.competencies ?? []).slice(0, 4).map((item) => <li key={item.id}>{item.name}</li>)}</ul>
           </section>
           <section>
-            <p>What remains unproven</p>
-            <h2>The areas where documents alone cannot establish readiness.</h2>
+            <p>What's still to explore</p>
+            <h2>Areas where a resume alone can't say much.</h2>
             <ul>
               {unprovenObjectives.map((item) => <li key={item.objective_id}>{item.objective}</li>)}
               {!unprovenObjectives.length && documentLimits.slice(0, 3).map((item) => <li key={item.id}>{item.name}</li>)}
-              {!unprovenObjectives.length && !documentLimits.length && <li>Depth, ownership, and decision reasoning behind the visible claims</li>}
+              {!unprovenObjectives.length && !documentLimits.length && <li>Depth, ownership, and the thinking behind your work</li>}
             </ul>
           </section>
         </div>
         <div className="ob-thesis-convergence">
           <span aria-hidden="true" />
           <div>
-            <p className="ob-index">The evidence interview</p>
-            <h2>Mirror will now test the gaps between them.</h2>
-            <p>Your questions will not follow a fixed script. Convincing evidence moves the interview forward; incomplete or ambiguous evidence leads to a deeper probe.</p>
+            <p className="ob-index">Your conversation</p>
+            <h2>Mirror will now ask about the spaces in between.</h2>
+            <p>Your questions won't follow a fixed script. When something comes through clearly, we move on. When there's more to explore, we'll ask a gentle follow-up.</p>
           </div>
         </div>
         <ActionRow>
           <span />
           <button type="button" className="button-primary" disabled={!sessionReady || busy !== null} onClick={() => void beginInterview()}>
-            {busy === "complete" ? "Opening interview" : "Begin the evidence interview"} <ArrowRight size={18} />
+            {busy === "complete" ? "Opening conversation" : "Begin the conversation"} <ArrowRight size={18} />
           </button>
         </ActionRow>
       </section>
@@ -868,15 +868,15 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
     <main id="main-content" className="ob-workspace" data-step={step}>
       <div className="ob-main">
         <div className="ob-progress" aria-label={`Step ${step} of 5`}>
-          <span>Building your diagnostic</span>
+          <span>Preparing your session</span>
           <span>{String(step).padStart(2, "0")} / 05</span>
           <div><span style={{ transform: `scaleX(${step / 5})` }} /></div>
         </div>
         {hydrating ? (
           <div className="ob-restore" role="status">
-            <p className="ob-eyebrow">Restoring diagnostic context</p>
+            <p className="ob-eyebrow">Getting your session ready</p>
             <h1>Reconnecting your saved work.</h1>
-            <p>Mirror is loading the role, documents, and analysis already attached to this diagnostic.</p>
+            <p>Mirror is loading the role and documents already attached to this session.</p>
           </div>
         ) : (
           <div key={step} className={`ob-step-enter${stepDirection === "back" ? " ob-step-enter--back" : ""}`}>

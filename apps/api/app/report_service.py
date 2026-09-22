@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any, Protocol
 from uuid import UUID
 
+from .config import get_settings
 from .claims_models import ClaimRead, ClaimStatus, EvidenceDirection
+from .copy_guard import clean_or_fallback
 from .claims_repository import CLAIM_COLUMNS, ClaimsGraphUnavailable, SupabaseClaimsGraphRepository, _claim
 from .report_models import (
     ReportClaim,
@@ -21,6 +23,36 @@ from .schemas import SessionEventRead, SessionRead, SessionStatus
 from .repository import SESSION_READ_COLUMNS
 from .specialist_assessor_models import SpecialistAssessmentOutput
 from .verdict_models import VerdictCode
+from .verdict_service import SAFE_CONFIDENCE_NOTE, SAFE_SUMMARY
+
+SAFE_SKILL_NOTE = "This part of your conversation had something worth noting, and there is a little more to say as you practice."
+
+
+# A conversation counts as "ended early" when the end was requested while
+# elapsed time was under this share of the total time budget.
+EARLY_END_FRACTION = 0.6
+
+
+def is_shorter_conversation(
+    *, answered_turns: int | None, duration_seconds: int, total_budget_seconds: int,
+    events: list[SessionEventRead], min_answers: int, min_seconds: int,
+) -> bool:
+    """Deterministic rule, no LLM. True when any of:
+    - fewer than `min_answers` answered candidate turns (skipped when unknown),
+    - fewer than `min_seconds` seconds of conversation,
+    - SESSION_END_REQUESTED was recorded with elapsed < 60% of the total budget.
+    """
+    if answered_turns is not None and answered_turns < min_answers:
+        return True
+    if duration_seconds < min_seconds:
+        return True
+    for event in events:
+        if event.event_type.upper() != "SESSION_END_REQUESTED":
+            continue
+        elapsed = _int_or_none(event.payload.get("elapsed_seconds"))
+        if elapsed is not None and elapsed < EARLY_END_FRACTION * total_budget_seconds:
+            return True
+    return False
 
 
 class ReportNotFound(Exception):
@@ -110,6 +142,15 @@ class SupabaseReportRepository(SupabaseClaimsGraphRepository):
             "limit": "30",
         })
 
+    async def count_candidate_turns(self, session_id: UUID, user_id: UUID) -> int:
+        sessions = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": "id", "limit": "1"})
+        if not sessions:
+            return 0
+        rows = await self._get("turns", {
+            "session_id": f"eq.{session_id}", "speaker": "eq.candidate", "select": "id", "limit": "200",
+        })
+        return len(rows)
+
     async def list_events(self, session_id: UUID, user_id: UUID) -> list[SessionEventRead]:
         rows = await self._get("session_events", {
             "session_id": f"eq.{session_id}", "user_id": f"eq.{user_id}",
@@ -144,6 +185,19 @@ class ReportService:
         except ClaimsGraphUnavailable as exc:
             raise ReportUnavailable from exc
         evidence_by_claim = self._evidence_by_claim(evidence_rows, events)
+        answered: int | None = None
+        counter = getattr(self._repository, "count_candidate_turns", None)
+        if counter is not None:
+            try:
+                answered = await counter(session_id, user_id)
+            except ClaimsGraphUnavailable:
+                answered = None
+        settings = get_settings()
+        shorter = is_shorter_conversation(
+            answered_turns=answered, duration_seconds=self._duration(session),
+            total_budget_seconds=session.total_time_budget_seconds, events=events,
+            min_answers=settings.report_short_min_answers, min_seconds=settings.report_short_min_seconds,
+        )
 
         confidence = _number(result.get("assessment_confidence"), 0.0)
         session_view = ReportSession(
@@ -158,7 +212,9 @@ class ReportService:
         verdict = ReportVerdict(
             code=verdict_code,
             label=_verdict_label(verdict_code),
-            summary=str(result.get("summary") or "Your result reflects the evidence available in this interview."),
+            summary=clean_or_fallback(
+                str(result.get("summary") or ""), SAFE_SUMMARY, field="report.summary",
+            ),
         )
         audit = self._audit(claims, evidence_by_claim)
         return ReportResponse(
@@ -174,6 +230,7 @@ class ReportService:
                 outcome_validation_status="NOT_VALIDATED",
             ),
             prescription=None,
+            shorter_conversation=shorter,
         )
 
     @staticmethod
@@ -195,11 +252,13 @@ class ReportService:
         high = _int_or_none(result.get(f"{prefix}_readiness_high"))
         if low is None or high is None:
             low = high = None
-            label = "Not enough signal"
+            label = "Not enough to say yet"
         else:
             label = "Available"
         signal = str(result.get(f"{prefix}_signal_strength") or result.get("availability_status") or _signal_label(confidence))
-        note = str(result.get("confidence_note") or "This range reflects the amount and quality of evidence collected.")
+        note = clean_or_fallback(
+            str(result.get("confidence_note") or ""), SAFE_CONFIDENCE_NOTE, field="report.confidence_note",
+        )
         return ReportReadiness(low=low, high=high, label=label, signal_strength=signal, confidence_note=note)
 
     @classmethod
@@ -260,7 +319,7 @@ class ReportService:
                 output.append(ReportSkillAssessment(
                     skill=domain.domain, status=domain.status.value,
                     signal_strength=domain.signal_strength.value, evidence=quotes,
-                    explanation=domain.reason_summary,
+                    explanation=clean_or_fallback(domain.reason_summary, SAFE_SKILL_NOTE, field="report.skill_note"),
                 ))
         return output
 
@@ -279,11 +338,11 @@ class ReportService:
                 continue
             turn_id = _uuid(event.payload.get("turn_id"))
             quote = event.payload.get("quote")
-            moments.append(ReportSessionMoment(type=kind, turn_id=turn_id, quote=str(quote) if quote else None, explanation=str(event.payload.get("explanation") or "Recorded during the interview.")))
+            moments.append(ReportSessionMoment(type=kind, turn_id=turn_id, quote=str(quote) if quote else None, explanation=clean_or_fallback(str(event.payload.get("explanation") or ""), "From your conversation.", field="report.moment")))
         for row in evidence_rows:
             if str(row.get("strength", "")).upper() != "STRONG" or not row.get("quote_text"):
                 continue
-            moments.append(ReportSessionMoment(type=SessionMomentType.STRONG_EVIDENCE, turn_id=_uuid(row.get("turn_id")), quote=str(row["quote_text"]), explanation="Strong supporting evidence was recorded."))
+            moments.append(ReportSessionMoment(type=SessionMomentType.STRONG_EVIDENCE, turn_id=_uuid(row.get("turn_id")), quote=str(row["quote_text"]), explanation="This part of your answer came through strongly."))
         return moments[:50]
 
 
@@ -317,16 +376,16 @@ def _signal_label(confidence: float) -> str:
 
 
 def _verdict_label(code: VerdictCode) -> str:
-    return {VerdictCode.NOT_READY_YET: "Not ready yet", VerdictCode.DEVELOPING: "Developing", VerdictCode.NEAR_READY: "Near ready", VerdictCode.READY: "Ready", VerdictCode.STRONG: "Strong"}[code]
+    return {VerdictCode.NOT_READY_YET: "Still growing", VerdictCode.DEVELOPING: "Developing", VerdictCode.NEAR_READY: "Nearly there", VerdictCode.READY: "Ready", VerdictCode.STRONG: "Strong"}[code]
 
 
 def _claim_explanation(status: ClaimStatus) -> str:
     return {
-        ClaimStatus.CORROBORATED: "Supported by the available interview evidence.",
-        ClaimStatus.PARTIALLY_HELD: "Some parts were supported, while other details remained incomplete.",
-        ClaimStatus.WALKED_BACK: "You narrowed or corrected this claim during the interview.",
-        ClaimStatus.CONTRADICTED: "The available evidence conflicted with this claim.",
-        ClaimStatus.INSUFFICIENT_EVIDENCE: "There was not enough evidence to evaluate this claim.",
-        ClaimStatus.UNVERIFIED: "This claim was not tested enough in the interview.",
+        ClaimStatus.CORROBORATED: "This came through clearly in your conversation.",
+        ClaimStatus.PARTIALLY_HELD: "Parts of this came through clearly, and a few details could use a little more.",
+        ClaimStatus.WALKED_BACK: "You refined this during the conversation, which helped make it clearer.",
+        ClaimStatus.CONTRADICTED: "This one is worth revisiting. Some of what you said pointed in different directions.",
+        ClaimStatus.INSUFFICIENT_EVIDENCE: "There wasn't quite enough to say yet about this one.",
+        ClaimStatus.UNVERIFIED: "This didn't come up, so there's nothing to say yet.",
     }[status]
 

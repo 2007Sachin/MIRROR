@@ -2,6 +2,9 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader } from "@/components/loader";
+import { loading, voiceRoom } from "@/lib/copy";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 import {
   Keyboard,
   Microphone,
@@ -15,10 +18,13 @@ import {
 import {
   ApiError,
   mirrorApi,
+  pauseOnPageExit,
   uploadVoiceTurn,
   type PublicInterviewTurn,
   type VoiceTurnResult,
 } from "@/lib/api";
+import { lifecycleCopy } from "@/lib/copy-lifecycle";
+import { useLifecycle } from "@/lib/use-lifecycle";
 
 type RoomState =
   | "PREPARING"
@@ -63,21 +69,24 @@ type SpeechRecognitionWindow = Window & {
 const VOICE_START_THRESHOLD = 0.032;
 const VOICE_CONTINUE_THRESHOLD = 0.018;
 const SPEECH_CONFIRMATION_MS = 220;
-const END_OF_TURN_SILENCE_MS = 1150;
+// How long a student may stay quiet before the answer counts as finished. Students pause to
+// think, so this is generous; set NEXT_PUBLIC_VOICE_SILENCE_MS to change it.
+const configuredSilence = Number(process.env.NEXT_PUBLIC_VOICE_SILENCE_MS);
+const END_OF_TURN_SILENCE_MS = Number.isFinite(configuredSilence) && configuredSilence >= 800 ? configuredSilence : 2500;
 const MINIMUM_TURN_MS = 650;
 const MAXIMUM_TURN_MS = 120_000;
 
 const stateLabels: Record<RoomState, string> = {
   PREPARING: "Preparing the room",
   PREJOIN: "Ready to join",
-  CONNECTING: "Joining the interview",
+  CONNECTING: "Joining the conversation",
   INTERVIEWER_SPEAKING: "Mirror is speaking",
   LISTENING: "Listening",
   CANDIDATE_SPEAKING: "You are speaking",
   PROCESSING: "Mirror is considering your answer",
   PAUSED: "Microphone muted",
-  ERROR: "Needs attention",
-  COMPLETE: "Interview complete",
+  ERROR: "Needs a moment",
+  COMPLETE: "Conversation complete",
 };
 
 function formatTime(total: number) {
@@ -130,6 +139,10 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const joinedRef = useRef(false);
   const mutedRef = useRef(false);
   const closingRef = useRef(false);
+  const accessTokenRef = useRef<string | undefined>(undefined);
+  const [stepAway, setStepAway] = useState<"closed" | "menu" | "confirm">("closed");
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [welcomeLine, setWelcomeLine] = useState<string | null>(null);
   const roomStateRef = useRef<RoomState>("PREPARING");
   const submitInFlightRef = useRef(false);
   const completionInFlightRef = useRef(false);
@@ -320,7 +333,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
           return;
         }
         if (session.status !== "READY" && session.status !== "ACTIVE") {
-          setError("This interview room is not ready yet.");
+          setError("This room isn't ready yet. Please try again in a moment.");
           transition("ERROR");
           return;
         }
@@ -331,6 +344,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
         if (session.status === "ACTIVE") {
           const result = await mirrorApi.startVoiceInterview(sessionId);
           if (!active) return;
+          await playWelcome(result);
           await presentQuestion(result, false);
           await refreshTranscript();
         } else {
@@ -341,7 +355,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
         setError(
           caught instanceof ApiError
             ? caught.message
-            : "Mirror could not prepare this interview room.",
+            : "We couldn't get this room ready just now. Please try again in a moment.",
         );
         transition("ERROR");
       }
@@ -420,7 +434,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     player.onerror = () => {
       if (!mountedRef.current) return;
       setAudioFailed(true);
-      setError("Mirror's audio is unavailable. The question remains visible.");
+      setError("Mirror's voice isn't available right now. You can still read the question and answer as usual.");
       if (navigateAfter) void completeInterview();
       else if (!mutedRef.current) beginListening();
     };
@@ -525,7 +539,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       recorderRef.current = null;
       stopVad();
       if (!mountedRef.current) return;
-      setError("The microphone stopped unexpectedly. Select the microphone to reconnect.");
+      setError("Your microphone paused unexpectedly. Select the microphone to reconnect.");
       transition("ERROR");
     };
     recorder.onstop = () => {
@@ -580,7 +594,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       setError(
         apiError?.code === "TRANSCRIPTION_FAILED"
           ? "I couldn't hear that clearly. When you're ready, say your answer again."
-          : apiError?.message ?? "The conversation was interrupted. Try that answer again.",
+          : apiError?.message ?? "The conversation was interrupted. Whenever you're ready, please try that answer again.",
       );
       setLiveCaption("");
       transition("ERROR");
@@ -597,7 +611,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     let stream: MediaStream | null = null;
     try {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-        throw new Error("Voice capture is not supported by this browser.");
+        throw new Error("This browser can't use voice. You can type your answer instead.");
       }
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -613,7 +627,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       streamRef.current = stream;
       const AudioContextConstructor = window.AudioContext
         ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioContextConstructor) throw new Error("Audio analysis is not supported.");
+      if (!AudioContextConstructor) throw new Error("Audio features aren't supported in this browser.");
       const context = new AudioContextConstructor();
       audioContextRef.current = context;
       await context.resume();
@@ -628,6 +642,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       setPermission("granted");
       const result = await mirrorApi.startVoiceInterview(sessionId);
       await refreshTranscript();
+      await playWelcome(result);
       await presentQuestion(result, true);
     } catch (caught) {
       stream?.getTracks().forEach((track) => track.stop());
@@ -644,7 +659,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
         setError(
           caught instanceof ApiError
             ? caught.message
-            : "Mirror could not connect your microphone. Check the device and try again.",
+            : "We couldn't connect your microphone. Please check your device and try again.",
         );
       }
       transition("ERROR");
@@ -714,7 +729,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       await presentQuestion(voicedResult, true);
     } catch (caught) {
       if (!mountedRef.current) return;
-      setError(caught instanceof ApiError ? caught.message : "Mirror could not send that answer.");
+      setError(caught instanceof ApiError ? caught.message : "We couldn't send that answer just now. Please try again.");
       transition("ERROR");
     } finally {
       submitInFlightRef.current = false;
@@ -731,7 +746,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       await presentQuestion(result, true);
     } catch (caught) {
       if (!mountedRef.current) return;
-      setError(caught instanceof ApiError ? caught.message : "Mirror's audio is still unavailable.");
+      setError(caught instanceof ApiError ? caught.message : "Mirror's voice still isn't available. You can read the question above.");
       transition("ERROR");
     }
   }
@@ -757,7 +772,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       router.replace("/dashboard");
     } catch (caught) {
       if (!mountedRef.current) return;
-      setError(caught instanceof ApiError ? caught.message : "Mirror could not end the interview.");
+      setError(caught instanceof ApiError ? caught.message : "We couldn't end the conversation just now. Please try again.");
       closingRef.current = false;
       setClosing(false);
       transition("ERROR");
@@ -766,8 +781,86 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     }
   }
 
+  // A resumed conversation opens with a short welcome before the last question is asked again.
+  async function playWelcome(result: VoiceTurnResult) {
+    if (!result.welcome_back || !result.welcome_text) return;
+    setWelcomeLine(result.welcome_text);
+    const url = result.welcome_audio_url;
+    if (url) {
+      await new Promise<void>((resolve) => {
+        const clip = new Audio(url);
+        clip.onended = () => resolve();
+        clip.onerror = () => resolve();
+        void clip.play().catch(() => resolve());
+      });
+    }
+    if (mountedRef.current) setWelcomeLine(null);
+  }
+
   async function endInterview() {
+    setStepAway("closed");
     await completeInterview();
+  }
+
+  function openStepAway() {
+    stopCapture(true);
+    audioRef.current?.pause();
+    setStepAway("menu");
+  }
+
+  function stayInConversation() {
+    setStepAway("closed");
+    resumeConversation();
+  }
+
+  async function saveAndContinueLater() {
+    setSavingDraft(true);
+    try {
+      await mirrorApi.pauseSession(sessionId);
+      releaseMedia();
+      router.replace("/dashboard");
+    } catch {
+      setError(voiceRoom.stepAway.saveFailed);
+      setSavingDraft(false);
+      setStepAway("closed");
+    }
+  }
+
+  useLifecycle(sessionId, joined, {
+    onOpenElsewhere: () => {
+      releaseMedia();
+      setError(lifecycleCopy.openElsewhere);
+    },
+    onConnectionLost: () => setError(lifecycleCopy.connectionDropped),
+  });
+
+  // Closing or leaving the tab saves the place instead of losing it.
+  useEffect(() => {
+    const refresh = () => {
+      void getSupabaseBrowserClient().auth.getSession().then(({ data }) => {
+        accessTokenRef.current = data.session?.access_token;
+      });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 4 * 60 * 1000);
+    const onPageHide = () => {
+      if (joinedRef.current && !completionInFlightRef.current && roomStateRef.current !== "COMPLETE") {
+        pauseOnPageExit(sessionId, accessTokenRef.current);
+      }
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [sessionId]);
+
+  if (roomState === "PREPARING") {
+    return (
+      <main className="interview-room interview-room--preparing">
+        <Loader page label={loading.room.label} note={loading.room.note} />
+      </main>
+    );
   }
 
   const transcriptTurns = transcript.slice(-8);
@@ -779,8 +872,8 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
         <div className="interview-room-brand">
           <span className="interview-room-mark">M</span>
           <div>
-            <strong>Mirror interview</strong>
-            <span>Private practice room</span>
+            <strong>Mirror conversation</strong>
+            <span>Take your time</span>
           </div>
         </div>
         <div className="interview-room-meta">
@@ -802,11 +895,11 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
             </div>
           </div>
           <div className="interview-prejoin-copy">
-            <p className="mono">Your private interview room</p>
+            <p className="mono">Your private practice room</p>
             <h1 id="prejoin-title" className="display">Ready to meet Mirror?</h1>
             <p>
               This works like a live call. Mirror asks a question, listens while you answer,
-              and responds when you finish speaking—no recording or submit buttons.
+              and responds when you finish speaking. There are no trick questions, and you can mute or stop whenever you like.
             </p>
             {error ? <p role="alert" className="interview-inline-error">{error}</p> : null}
             <button
@@ -846,6 +939,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                       ? "Mirror is speaking"
                       : greeting ? "Welcome" : "Current question"}
                   </span>
+                  {welcomeLine ? <p className="interview-greeting" role="status">{welcomeLine}</p> : null}
                   {greeting ? <p className="interview-greeting">{greeting}</p> : null}
                   <h1 className="display">{questionBody || "Preparing the next question…"}</h1>
                 </div>
@@ -854,7 +948,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
               <article className="interview-participant interview-participant--candidate">
                 <div className="interview-participant-label">
                   <span>You</span>
-                  <small>{muted ? "Muted" : "Candidate"}</small>
+                  <small>{muted ? "Muted" : "Microphone on"}</small>
                 </div>
                 <div ref={meterRef} className="interview-voice-meter" aria-hidden="true">
                   {Array.from({ length: 13 }, (_, index) => <i key={index} />)}
@@ -865,7 +959,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                     <p>{liveCaption}</p>
                   </div>
                 ) : (
-                  <p>{roomState === "CANDIDATE_SPEAKING" ? "Keep going—Mirror is listening." : stateLabels[roomState]}</p>
+                  <p>{roomState === "CANDIDATE_SPEAKING" ? "Take your time. Mirror is listening." : stateLabels[roomState]}</p>
                 )}
               </article>
             </section>
@@ -984,7 +1078,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                   onClick={() => audioFailed ? void retryAudio() : void playQuestion()}
                   disabled={processing}
                   title={audioFailed
-                    ? "Mirror could not speak this question. You can read it above and answer normally."
+                    ? "Mirror's voice isn't available for this question. You can read it above and answer as usual."
                     : "Hear the question again"}
                 >
                   {audioFailed ? <SpeakerSlash size={21} /> : <SpeakerHigh size={21} />}
@@ -992,19 +1086,60 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                 </button>
               ) : null}
             </div>
+            {roomState === "CANDIDATE_SPEAKING" ? (
+              <button type="button" className="interview-done-button" onClick={() => stopCapture(false)}>
+                <span>{voiceRoom.doneAnswering}</span>
+              </button>
+            ) : null}
             <button
               type="button"
               className="interview-leave-button"
-              onClick={() => void endInterview()}
+              onClick={openStepAway}
               disabled={processing || roomState === "CANDIDATE_SPEAKING" || closing}
               title={roomState === "CANDIDATE_SPEAKING" ? "Pause briefly so Mirror can save your final answer" : undefined}
             >
               <X size={20} />
-              <span>End interview</span>
+              <span>{voiceRoom.stepAway.button}</span>
             </button>
           </footer>
         </>
       )}
+      {stepAway !== "closed" ? (
+        <div className="interview-dialog-backdrop" role="presentation">
+          <div className="interview-dialog" role="dialog" aria-modal="true" aria-labelledby="step-away-title">
+            {stepAway === "menu" ? (
+              <>
+                <h2 id="step-away-title">{voiceRoom.stepAway.title}</h2>
+                <p>{voiceRoom.stepAway.body}</p>
+                <div className="interview-dialog-actions">
+                  <button type="button" className="is-primary" disabled={savingDraft} onClick={() => void saveAndContinueLater()}>
+                    {savingDraft ? voiceRoom.stepAway.saving : voiceRoom.stepAway.save}
+                  </button>
+                  <button type="button" disabled={savingDraft} onClick={() => setStepAway("confirm")}>
+                    {voiceRoom.stepAway.end}
+                  </button>
+                  <button type="button" className="is-quiet" disabled={savingDraft} onClick={stayInConversation}>
+                    {voiceRoom.stepAway.stay}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 id="step-away-title">{voiceRoom.stepAway.end}</h2>
+                <p>{voiceRoom.endConfirm.body}</p>
+                <div className="interview-dialog-actions">
+                  <button type="button" className="is-primary" onClick={() => void endInterview()}>
+                    {voiceRoom.endConfirm.confirm}
+                  </button>
+                  <button type="button" className="is-quiet" onClick={() => setStepAway("menu")}>
+                    {voiceRoom.endConfirm.cancel}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -19,7 +19,7 @@ def create_planner_agent(
         output_schema=InterviewPlanDraft,
         prompt_version=PLANNER_PROMPT_VERSION,
         allowed_tools=(),
-        timeout_seconds=45,
+        timeout_seconds=120,
         max_retries=2,
     )
 

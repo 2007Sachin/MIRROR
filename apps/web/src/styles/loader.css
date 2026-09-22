@@ -1,0 +1,78 @@
+/* Loader: letters rise into view one after another ("hide and seek").
+   Uses the site's colours and display font, so it sits on any page background. */
+.mr-loader {
+  --mr-delay: 70ms;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  justify-content: center;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+
+.mr-loader.is-page {
+  min-height: 60vh;
+}
+
+.mr-loader-word {
+  align-items: flex-end;
+  color: var(--ink);
+  display: flex;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 7vw, 3.4rem);
+  font-weight: 600;
+  justify-content: center;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.mr-loader-letter {
+  display: inline-block;
+  height: 1.3em;
+  overflow: hidden;
+}
+
+.mr-loader-letter > span {
+  animation: mrHideAndSeek 1s alternate infinite cubic-bezier(0.86, 0, 0.07, 1);
+  animation-delay: calc(var(--mr-delay) * var(--i, 0));
+  display: block;
+  transform: translateY(100%);
+}
+
+.mr-loader-letter.is-accent > span {
+  color: var(--pulse);
+}
+
+.mr-loader-gap {
+  display: inline-block;
+  width: 0.35em;
+}
+
+.mr-loader-note {
+  color: var(--silver);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+@keyframes mrHideAndSeek {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Gentle for people who prefer less motion: the word simply shows. */
+@media (prefers-reduced-motion: reduce) {
+  .mr-loader-letter > span {
+    animation: none;
+    transform: none;
+  }
+}
+
+/* Inside the dark interview room the loader uses the room's own colours. */
+.interview-room .mr-loader-word { color: var(--room-text); }
+.interview-room .mr-loader-letter.is-accent > span { color: var(--room-accent); }
+.interview-room .mr-loader-note { color: var(--room-muted); }

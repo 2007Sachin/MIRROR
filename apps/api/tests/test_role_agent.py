@@ -129,6 +129,10 @@ class MemoryRoles:
         profile = self.profiles.get(profile_id)
         return profile if profile and profile.user_id == user_id else None
 
+    async def list_profiles(self, user_id: UUID) -> list[RoleProfileRead]:
+        owned = [item for item in self.profiles.values() if item.user_id == user_id]
+        return sorted(owned, key=lambda item: item.updated_at, reverse=True)
+
     async def begin(
         self,
         profile_id: UUID,
@@ -462,3 +466,29 @@ def test_role_profiles_and_competencies_are_owner_scoped(
     )
     assert client.get(f"/api/v1/roles/{profile_id}").status_code == 401
 
+
+
+def test_role_list_is_owner_scoped_and_shows_one_entry_per_role(
+    role_client: tuple[TestClient, MemoryRoles],
+) -> None:
+    client, _ = role_client
+    for _ in range(2):
+        # Preparing the same role twice creates a second profile behind the scenes.
+        assert client.post(
+            "/api/v1/roles/analyze",
+            headers={"Authorization": "Bearer role-a"},
+            json={"target_role": "Software Engineer"},
+        ).status_code == 200
+    assert client.post(
+        "/api/v1/roles/analyze",
+        headers={"Authorization": "Bearer role-a"},
+        json={"target_role": "Data Analyst"},
+    ).status_code == 200
+
+    listed = client.get("/api/v1/roles", headers={"Authorization": "Bearer role-a"})
+    assert listed.status_code == 200
+    assert sorted(item["target_role"] for item in listed.json()) == ["Data Analyst", "Software Engineer"]
+
+    other = client.get("/api/v1/roles", headers={"Authorization": "Bearer role-b"})
+    assert other.status_code == 200 and other.json() == []
+    assert client.get("/api/v1/roles").status_code == 401

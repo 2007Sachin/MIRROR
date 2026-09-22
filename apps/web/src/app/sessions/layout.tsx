@@ -9,7 +9,7 @@ export default async function SessionsLayout({ children }: { children: React.Rea
   if (result.status === "unavailable") {
     return (
       <main id="main-content" className="shell py-20">
-        <p role="alert" className="text-sm text-[var(--silver)]">Mirror could not verify your setup. Refresh to try again.</p>
+        <p role="alert" className="text-sm text-[var(--silver)]">We couldn't check your setup just now. Please refresh and try again.</p>
       </main>
     );
   }

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from .repository import SessionRepository
@@ -244,6 +246,80 @@ class InterviewStateMachine:
             completion_pct=95,
         )
 
+    @staticmethod
+    def is_paused(session: SessionRead) -> bool:
+        """A saved conversation is ACTIVE with its clock stopped (`started_at` cleared)."""
+        return session.status == SessionStatus.ACTIVE and session.started_at is None
+
+    async def pause(self, session_id: UUID, user_id: UUID) -> SessionRead:
+        """Freeze the clock. Time away never counts against the interview."""
+        session = await self._active(session_id, user_id)
+        if self.is_paused(session):
+            return session
+        elapsed = self._elapsed(session)
+        phase_elapsed = max(0, int((self._clock() - session.phase_started_at).total_seconds()))
+        return await self._apply(
+            session,
+            {"started_at": None, "elapsed_seconds": elapsed},
+            "SESSION_PAUSED",
+            {"elapsed_seconds": elapsed, "phase_elapsed_seconds": phase_elapsed},
+        )
+
+    async def credit_idle_time(
+        self, session_id: UUID, user_id: UUID, *, idle_seconds: int
+    ) -> SessionRead:
+        """Give back time spent away when the tab closed without saving (crash, closed laptop, API restart).
+
+        If nothing has happened in a running conversation for longer than `idle_seconds`, the extra
+        gap is not counted, so coming back never finds the interview already out of time.
+        """
+        session = await self._active(session_id, user_id)
+        if self.is_paused(session) or session.started_at is None:
+            return session
+        events = await self._repository.list_events(session_id, user_id)
+        if not events:
+            return session
+        now = self._clock()
+        last_activity = max(event.created_at for event in events)
+        gap = int((now - last_activity).total_seconds())
+        if gap <= idle_seconds:
+            return session
+        # The whole gap is given back: both clocks continue from where the conversation stopped.
+        spent = max(0, int((last_activity - session.started_at).total_seconds()))
+        phase_spent = max(0, int((last_activity - session.phase_started_at).total_seconds()))
+        phase_spent = min(phase_spent, session.phase_time_budget_seconds - 1)
+        return await self._apply(
+            session,
+            {
+                "started_at": now - timedelta(seconds=spent),
+                "phase_started_at": now - timedelta(seconds=phase_spent),
+            },
+            "SESSION_IDLE_CREDITED",
+            {"credited_seconds": gap},
+        )
+
+    async def resume(self, session_id: UUID, user_id: UUID) -> SessionRead:
+        """Restart the clock from the frozen time, with the phase clock where it stopped."""
+        session = await self._active(session_id, user_id)
+        if not self.is_paused(session):
+            return session
+        phase_elapsed = 0
+        for event in reversed(await self._repository.list_events(session_id, user_id)):
+            if event.event_type == "SESSION_PAUSED":
+                phase_elapsed = int(event.payload.get("phase_elapsed_seconds") or 0)
+                break
+        phase_elapsed = max(0, min(phase_elapsed, session.phase_time_budget_seconds - 1))
+        now = self._clock()
+        return await self._apply(
+            session,
+            {
+                "started_at": now - timedelta(seconds=session.elapsed_seconds),
+                "phase_started_at": now - timedelta(seconds=phase_elapsed),
+            },
+            "SESSION_RESUMED",
+            {"elapsed_seconds": session.elapsed_seconds},
+        )
+
     async def complete(self, session_id: UUID, user_id: UUID) -> SessionRead:
         session = await self._require(session_id, user_id)
         return await self._transition(
@@ -308,9 +384,14 @@ class InterviewStateMachine:
         return session
 
     async def _require(self, session_id: UUID, user_id: UUID) -> SessionRead:
+        cache = _TURN_SESSIONS.get()
+        if cache is not None and (session_id, user_id) in cache:
+            return cache[(session_id, user_id)]
         session = await self._repository.get(session_id, user_id)
         if session is None:
             raise SessionNotFound
+        if cache is not None:
+            cache[(session_id, user_id)] = session
         return session
 
     async def _transition(
@@ -335,8 +416,13 @@ class InterviewStateMachine:
         updated = await self._repository.apply_state_change(
             session, values, event_type, payload
         )
+        cache = _TURN_SESSIONS.get()
         if updated is None:
+            if cache is not None:
+                cache.pop((session.id, session.user_id), None)  # never trust a stale entry
             raise ConcurrentSessionChange
+        if cache is not None:
+            cache[(session.id, session.user_id)] = updated
         return updated
 
     def _elapsed(self, session: SessionRead) -> int:
@@ -364,3 +450,17 @@ class InterviewStateMachine:
     def _phase_completion(phase: Phase) -> int:
         return round((PHASE_ORDER.index(phase) / len(PHASE_ORDER)) * 90)
 
+
+
+# Session reads inside one voice turn (flag: VOICE_SESSION_CACHE). Every state change goes through
+# `_apply`, which keeps the entry current and drops it when the optimistic-concurrency check fails.
+_TURN_SESSIONS: ContextVar[dict | None] = ContextVar("turn_sessions", default=None)
+
+
+@contextmanager
+def turn_session_cache(enabled: bool = True) -> Iterator[None]:
+    token = _TURN_SESSIONS.set({} if enabled else None)
+    try:
+        yield
+    finally:
+        _TURN_SESSIONS.reset(token)

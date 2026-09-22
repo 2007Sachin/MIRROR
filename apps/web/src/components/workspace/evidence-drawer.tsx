@@ -34,7 +34,7 @@ function MirrorUnderstanding({ detail }: { detail: EvidenceDetail }) {
   const projects = analysis?.output?.projects?.slice(0, 3).map((project) => project.project_name) ?? [];
   const excerpt = document.raw_text?.trim().slice(0, 900);
   if (!analysis && !excerpt) {
-    return <p className="ws-muted-copy">Mirror has not extracted a candidate-facing summary from this version yet.</p>;
+    return <p className="ws-muted-copy">Mirror hasn't put together a summary of this version yet.</p>;
   }
   return (
     <div className="ws-understanding">
@@ -71,7 +71,7 @@ export function EvidenceDrawer({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const replacementInput = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState(initialMode);
-  const [title, setTitle] = useState(detail.document.title || detail.document.original_filename || "Professional evidence");
+  const [title, setTitle] = useState(detail.document.title || detail.document.original_filename || "Your work");
   const [category, setCategory] = useState<EvidenceCategory>(evidenceCategory(detail.document));
   const [context, setContext] = useState(detail.document.context_note || "");
   const { document, usage } = detail;
@@ -96,14 +96,14 @@ export function EvidenceDrawer({
     <dialog ref={dialogRef} className="ws-drawer" onCancel={(event) => { event.preventDefault(); onClose(); }}>
       <div className="ws-drawer-shell">
         <header>
-          <div><p className="ws-eyebrow">Evidence record</p><h2 className="display">{document.title || document.original_filename || "Professional evidence"}</h2></div>
-          <button type="button" onClick={onClose} aria-label="Close evidence details"><X size={20} /></button>
+          <div><p className="ws-eyebrow">Your work</p><h2 className="display">{document.title || document.original_filename || "Your work"}</h2></div>
+          <button type="button" onClick={onClose} aria-label="Close details"><X size={20} /></button>
         </header>
 
         {usage.active_diagnostic_count ? (
           <div className="ws-callout">
-            <strong>This evidence is part of an active diagnostic.</strong>
-            <p>Changes apply to future diagnostics. The active diagnostic keeps the version it already references.</p>
+            <strong>This is part of a session in progress.</strong>
+            <p>Changes will apply to future sessions. The session in progress keeps the version it already uses.</p>
           </div>
         ) : null}
 
@@ -112,14 +112,14 @@ export function EvidenceDrawer({
             <dl className="ws-fact-grid">
               <div><dt>Type</dt><dd>{evidenceCategoryLabel(evidenceCategory(document))}</dd></div>
               <div><dt>Updated</dt><dd>{formatWorkspaceDate(updated)}</dd></div>
-              <div><dt>Original file</dt><dd>{document.original_filename || "Text evidence"}</dd></div>
+              <div><dt>Original file</dt><dd>{document.original_filename || "Text you added"}</dd></div>
               <div><dt>Version</dt><dd>{document.version_number}</dd></div>
             </dl>
 
             <section className="ws-drawer-section"><h3>Context for Mirror</h3><p className={document.context_note ? "" : "ws-muted-copy"}>{document.context_note || "No additional context has been added."}</p></section>
             <section className="ws-drawer-section"><h3>What Mirror extracted</h3><MirrorUnderstanding detail={detail} /></section>
             <section className="ws-drawer-section">
-              <h3>Used in diagnostics</h3>
+              <h3>Used in sessions</h3>
               {usage.diagnostics.length ? (
                 <div className="ws-usage-list">
                   {usage.diagnostics.map((diagnostic) => (
@@ -129,14 +129,14 @@ export function EvidenceDrawer({
                     </a>
                   ))}
                 </div>
-              ) : <p className="ws-muted-copy">This version has not been linked to a diagnostic.</p>}
+              ) : <p className="ws-muted-copy">This version hasn't been used in a session yet.</p>}
             </section>
           </div>
         ) : (
           <form className="ws-edit-form" onSubmit={submit}>
-            <label><span>Evidence title</span><input className="field" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} required autoFocus={mode === "edit"} /></label>
-            <label><span>Evidence category</span><select className="field" value={category} onChange={(event) => setCategory(event.target.value as EvidenceCategory)} autoFocus={mode === "category"}>{EVIDENCE_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-            <label><span>Context for Mirror</span><textarea className="field" value={context} onChange={(event) => setContext(event.target.value)} maxLength={4000} rows={7} autoFocus={mode === "context"} placeholder="Add ownership, scope, chronology, or outcomes that the document does not make clear." /><small>{context.length}/4000 · Used only in future diagnostics.</small></label>
+            <label><span>Title</span><input className="field" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} required autoFocus={mode === "edit"} /></label>
+            <label><span>Category</span><select className="field" value={category} onChange={(event) => setCategory(event.target.value as EvidenceCategory)} autoFocus={mode === "category"}>{EVIDENCE_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <label><span>Context for Mirror</span><textarea className="field" value={context} onChange={(event) => setContext(event.target.value)} maxLength={4000} rows={7} autoFocus={mode === "context"} placeholder="Add what you led, how big the work was, when it happened, or what came of it." /><small>{context.length}/4000 · Used only in future sessions.</small></label>
             <div className="ws-form-actions"><button type="button" className="button-secondary" onClick={() => setMode("view")}>Cancel</button><button type="submit" className="button-primary" disabled={busy || !title.trim()}>{busy ? <SpinnerGap className="interview-spinner" size={17} /> : null} Save changes</button></div>
           </form>
         )}

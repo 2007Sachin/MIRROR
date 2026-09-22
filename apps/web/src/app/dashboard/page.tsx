@@ -15,5 +15,5 @@ export default async function DashboardPage() {
     return <WorkspaceUnavailable />;
   }
   if (!result.onboarding.onboarding_completed) redirect("/onboarding");
-  return <EvidenceDashboard />;
+  return <EvidenceDashboard initialOnboarding={result.onboarding} />;
 }

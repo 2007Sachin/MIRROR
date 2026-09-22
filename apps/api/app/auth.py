@@ -98,7 +98,7 @@ async def get_current_user(
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
+            detail="Please sign in to continue.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -107,13 +107,13 @@ async def get_current_user(
     except InvalidAccessToken as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired access token",
+            detail="Your session has ended. Please sign in again.",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
     except AuthenticationUnavailable as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication service is temporarily unavailable",
+            detail="Sign-in isn't available right now. Please try again in a moment.",
         ) from exc
 
 

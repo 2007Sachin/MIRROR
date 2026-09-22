@@ -13,6 +13,7 @@ from .role_models import (
     RoleAgentOutput,
     RoleAnalysisResponse,
     RoleAnalyzeRequest,
+    RoleProfileRead,
     RoleSourceType,
     StoredRoleCompetency,
 )
@@ -130,6 +131,24 @@ class RoleAnalysisService:
         if result is None:
             raise RoleProfileNotFoundForUser
         return result
+
+    async def list_profiles(self, user_id: UUID) -> list[RoleProfileRead]:
+        """Every role this person set up, newest first, one entry per role name.
+
+        `analyze` creates a fresh profile each time a role is prepared without an
+        explicit profile id, so the same role name can appear more than once. The
+        newest profile carries the latest understanding of that role, so earlier
+        ones are folded away here rather than shown twice.
+        """
+        seen: set[str] = set()
+        unique: list[RoleProfileRead] = []
+        for profile in await self._analyses.list_profiles(user_id):
+            key = profile.target_role.casefold().strip()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(profile)
+        return unique
 
     async def competencies(
         self, profile_id: UUID, user_id: UUID

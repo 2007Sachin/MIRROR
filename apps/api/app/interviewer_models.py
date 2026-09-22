@@ -128,6 +128,15 @@ class InterviewerDecision(InterviewerModel):
     requested_phase_transition: Phase | None = None
     used_flag_id: UUID | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def ignore_phase_request_unless_transition(cls, data):
+        """Strict output forces every field to be filled, so models often name a phase on a normal
+        question. Only a transition may request a phase; anywhere else the request is dropped."""
+        if isinstance(data, dict) and str(data.get("action", "")).upper() != "TRANSITION":
+            data = {**data, "requested_phase_transition": None}
+        return data
+
     @model_validator(mode="after")
     def action_matches_turn_type(self) -> InterviewerDecision:
         permitted = {
@@ -213,4 +222,6 @@ class InterviewStartResponse(InterviewerModel):
     phase: Phase
     turn_type: InterviewerTurnType
     remaining_time_seconds: int = Field(ge=0)
+    welcome_back: bool = False
+    welcome_text: str | None = None
 

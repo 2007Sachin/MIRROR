@@ -7,6 +7,8 @@ from uuid import UUID
 
 import httpx
 
+from .http_pool import pooled
+
 from .config import Settings
 from .voice_models import (
     OwnedVoiceTurn,
@@ -77,7 +79,7 @@ class SupabaseInterviewAudioStorage:
         self, path: str, content: bytes, mime_type: str, *, upsert: bool = False
     ) -> None:
         try:
-            async with httpx.AsyncClient(timeout=45) as client:
+            async with pooled(45) as client:
                 response = await client.post(
                     f"{self._url}/storage/v1/object/{self.bucket}/{quote(path, safe='/')}",
                     headers={
@@ -93,7 +95,7 @@ class SupabaseInterviewAudioStorage:
 
     async def delete(self, path: str) -> None:
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with pooled(15) as client:
                 response = await client.delete(
                     f"{self._url}/storage/v1/object/{self.bucket}/{quote(path, safe='/')}",
                     headers=self._headers,
@@ -105,7 +107,7 @@ class SupabaseInterviewAudioStorage:
 
     async def signed_url(self, path: str, expires_seconds: int) -> str:
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with pooled(15) as client:
                 response = await client.post(
                     f"{self._url}/storage/v1/object/sign/{self.bucket}/{quote(path, safe='/')}",
                     headers={**self._headers, "Content-Type": "application/json"},
@@ -273,7 +275,7 @@ class SupabaseVoiceRepository:
         if prefer:
             headers["Prefer"] = prefer
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with pooled(20) as client:
                 response = await client.request(
                     method, f"{self._url}/rest/v1/{resource}", headers=headers,
                     params=params, json=json,

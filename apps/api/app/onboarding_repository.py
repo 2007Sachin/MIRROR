@@ -5,6 +5,8 @@ from uuid import UUID
 
 import httpx
 
+from .http_pool import pooled
+
 from .config import Settings
 from .schemas import OnboardingRead
 
@@ -40,7 +42,7 @@ class SupabaseOnboardingRepository:
 
     async def get(self, user_id: UUID) -> OnboardingRead:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/profiles",
                     headers=self._headers,
@@ -64,7 +66,7 @@ class SupabaseOnboardingRepository:
             for key, value in values.items()
         }
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.patch(
                     f"{self._url}/rest/v1/profiles",
                     headers={**self._headers, "Prefer": "return=representation"},

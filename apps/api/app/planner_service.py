@@ -302,7 +302,7 @@ class InterviewPlanningService:
                     phase=Phase.INTRO,
                     objective="Establish the candidate's current context and interview goals.",
                     priority=ObjectivePriority.MEDIUM,
-                    initial_question="To begin, could you briefly describe your recent experience and what you hope to demonstrate today?",
+                    initial_question="To begin, could you tell me a little about your recent experience, and what you would like from today?",
                     question_intent="Establish context before collecting role-specific evidence.",
                     expected_signal=["clear professional context"],
                     time_budget_seconds=max(30, self._intro_reserve),
@@ -318,7 +318,7 @@ class InterviewPlanningService:
                     phase=Phase.CLOSING,
                     objective="Give the candidate a final opportunity to add relevant evidence.",
                     priority=ObjectivePriority.MEDIUM,
-                    initial_question="Before we finish, is there any relevant experience or context you would like to add?",
+                    initial_question="Before we finish, is there anything else you would like to add?",
                     question_intent="Capture relevant evidence not reached by earlier objectives.",
                     expected_signal=["additional relevant context"],
                     time_budget_seconds=max(30, self._closing_reserve),
@@ -371,7 +371,7 @@ class InterviewPlanningService:
                 if missing_competency_coverage
                 else []
             ),
-            initial_question="Choose a relevant example and explain your decisions, personal contribution, and outcome.",
+            initial_question="Choose an example you feel comfortable with, and tell me about the choices you made, what you did yourself, and how it turned out.",
             question_intent="Ensure the interview collects evidence for a role-critical area.",
             expected_signal=["specific decisions", "personal ownership", "outcome"],
             time_budget_seconds=180,

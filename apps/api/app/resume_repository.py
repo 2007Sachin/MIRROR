@@ -6,6 +6,8 @@ from uuid import UUID
 
 import httpx
 
+from .http_pool import pooled
+
 from .config import Settings
 from .resume_models import (
     ClaimCorrectionCreate,
@@ -104,7 +106,7 @@ class SupabaseResumeAnalysisRepository:
         latest = await self._get_analysis_row(document_id, user_id)
         version = (latest.version if latest else 0) + 1
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/resume_analyses",
                     headers={**self._headers, "Prefer": "return=representation"},
@@ -136,7 +138,7 @@ class SupabaseResumeAnalysisRepository:
         output: ResumeAgentOutput,
     ) -> ResumeAnalysisResponse:
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with pooled(15) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/rpc/complete_resume_analysis",
                     headers=self._headers,
@@ -170,7 +172,7 @@ class SupabaseResumeAnalysisRepository:
             "completed_at": datetime.now(UTC).isoformat(),
         }
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.patch(
                     f"{self._url}/rest/v1/resume_analyses",
                     headers={**self._headers, "Prefer": "return=representation"},
@@ -201,7 +203,7 @@ class SupabaseResumeAnalysisRepository:
         correction: ClaimCorrectionCreate,
     ) -> ResumeAnalysisResponse:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/rpc/create_resume_claim_correction",
                     headers=self._headers,
@@ -252,7 +254,7 @@ class SupabaseResumeAnalysisRepository:
 
     async def _query_one(self, params: dict[str, str]) -> ResumeAnalysisRecord | None:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/resume_analyses",
                     headers=self._headers,
@@ -268,7 +270,7 @@ class SupabaseResumeAnalysisRepository:
         if analysis.status != "COMPLETED":
             return ResumeAnalysisResponse(**analysis.model_dump(), claims=[])
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 claims_response = await client.get(
                     f"{self._url}/rest/v1/claims",
                     headers=self._headers,

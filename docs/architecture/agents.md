@@ -17,7 +17,7 @@ Agents reason and produce validated data. Application code retains control of au
 1. Resolve the definition and validate input with its Pydantic schema.
 2. Load the versioned system prompt.
 3. Construct a provider-neutral request containing the output JSON Schema and permitted tool specifications.
-4. Ask Groq for strict structured JSON within the agent timeout.
+4. Ask the language model (Sarvam) for strict structured JSON within the agent timeout.
 5. Validate the decoded JSON with the output Pydantic schema.
 6. Retry only malformed JSON or schema-invalid model output, up to the definition's limit.
 7. Return an `AgentExecutionResult` containing execution identity, model and prompt metadata, latency, retry count, optional token usage, output, and a normalized error type.

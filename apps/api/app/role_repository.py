@@ -6,6 +6,8 @@ from uuid import UUID
 
 import httpx
 
+from .http_pool import pooled
+
 from .config import Settings
 from .role_models import (
     RoleAgentOutput,
@@ -51,6 +53,8 @@ class RoleAnalysisRepository(Protocol):
     async def get_profile(
         self, profile_id: UUID, user_id: UUID
     ) -> RoleProfileRead | None: ...
+
+    async def list_profiles(self, user_id: UUID) -> list[RoleProfileRead]: ...
 
     async def begin(
         self,
@@ -110,7 +114,7 @@ class SupabaseRoleAnalysisRepository:
         source_document_id: UUID | None,
     ) -> RoleProfileRead:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/role_profiles",
                     headers={**self._headers, "Prefer": "return=representation"},
@@ -133,7 +137,7 @@ class SupabaseRoleAnalysisRepository:
         self, profile_id: UUID, user_id: UUID
     ) -> RoleProfileRead | None:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/role_profiles",
                     headers=self._headers,
@@ -146,6 +150,25 @@ class SupabaseRoleAnalysisRepository:
                 response.raise_for_status()
                 rows = response.json()
                 return RoleProfileRead.model_validate(rows[0]) if rows else None
+        except (httpx.HTTPError, TypeError, ValueError) as exc:
+            raise RoleAnalysisUnavailable from exc
+
+    async def list_profiles(self, user_id: UUID) -> list[RoleProfileRead]:
+        """Every role this person has set up, newest first."""
+        try:
+            async with pooled(10) as client:
+                response = await client.get(
+                    f"{self._url}/rest/v1/role_profiles",
+                    headers=self._headers,
+                    params={
+                        "user_id": f"eq.{user_id}",
+                        "select": PROFILE_COLUMNS,
+                        "order": "updated_at.desc",
+                        "limit": "50",
+                    },
+                )
+                response.raise_for_status()
+                return [RoleProfileRead.model_validate(row) for row in response.json()]
         except (httpx.HTTPError, TypeError, ValueError) as exc:
             raise RoleAnalysisUnavailable from exc
 
@@ -165,7 +188,7 @@ class SupabaseRoleAnalysisRepository:
             return processing, False
         latest = await self._get_version(profile_id, user_id)
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/role_analysis_versions",
                     headers={**self._headers, "Prefer": "return=representation"},
@@ -203,7 +226,7 @@ class SupabaseRoleAnalysisRepository:
         output: RoleAgentOutput,
     ) -> RoleAnalysisResponse:
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with pooled(15) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/rpc/complete_role_analysis",
                     headers=self._headers,
@@ -231,7 +254,7 @@ class SupabaseRoleAnalysisRepository:
         error_type: str,
     ) -> RoleAnalysisResponse:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.patch(
                     f"{self._url}/rest/v1/role_analysis_versions",
                     headers={**self._headers, "Prefer": "return=representation"},
@@ -298,7 +321,7 @@ class SupabaseRoleAnalysisRepository:
         if status:
             params["status"] = f"eq.{status}"
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/role_analysis_versions",
                     headers=self._headers,
@@ -314,7 +337,7 @@ class SupabaseRoleAnalysisRepository:
         self, profile_id: UUID, version_id: UUID, user_id: UUID
     ) -> list[StoredRoleCompetency]:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.get(
                     f"{self._url}/rest/v1/role_competencies",
                     headers=self._headers,

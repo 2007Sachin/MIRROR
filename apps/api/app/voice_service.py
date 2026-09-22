@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass
@@ -7,7 +8,9 @@ from time import perf_counter
 from uuid import UUID
 
 from .audio_validation import AudioValidator
-from .interview_engine import InterviewFlowRejected, InterviewStateMachine
+from .config import get_settings
+from .deferred_writes import get_deferred_writes
+from .interview_engine import InterviewFlowRejected, InterviewStateMachine, turn_session_cache
 from .interviewer_models import StoredInterviewTurn, TextTurnRequest, TurnSpeaker
 from .interviewer_repository import InterviewTurnRepository
 from .interviewer_service import TextInterviewService
@@ -123,9 +126,78 @@ class VoiceInterviewService:
                 tts_model=tts.model,
             )
         )
-        return self._response(owned, started.remaining_time_seconds, tts)
+        response = self._response(owned, started.remaining_time_seconds, tts)
+        if started.welcome_back and started.welcome_text:
+            welcome_url = await self._welcome_audio(owned, started.welcome_text)
+            response = response.model_copy(
+                update={
+                    "welcome_back": True,
+                    "welcome_text": started.welcome_text,
+                    "welcome_audio_url": welcome_url,
+                }
+            )
+        return response
+
+    async def _welcome_audio(self, turn: OwnedVoiceTurn, text: str) -> str | None:
+        """Speak the welcome line through the TTS cache without storing a turn."""
+        normalized = " ".join(text.split())
+        cache_key = hashlib.sha256(
+            (
+                f"{turn.session_id}\0{self._tts.provider_name}\0{normalized}\0{self._tts_voice}\0"
+                f"{self._tts_model}\0{self._tts_language}"
+            ).encode("utf-8")
+        ).hexdigest()
+        try:
+            cached = await self._repository.get_cache(cache_key, turn.user_id, turn.session_id)
+            if cached:
+                return await self._storage.signed_url(cached.storage_path, self._signed_url_seconds)
+            result = await self._tts.synthesize(normalized, self._tts_language)
+            extension = {
+                "audio/wav": "wav", "audio/mpeg": "mp3", "audio/ogg": "ogg",
+                "audio/webm": "webm", "audio/mp4": "m4a",
+            }.get(result.mime_type)
+            if extension is None:
+                return None
+            path = (
+                f"interviews/{turn.user_id}/{turn.session_id}/mirror/"
+                f"welcome-{cache_key[:12]}.{extension}"
+            )
+            await self._storage.upload(path, result.audio_bytes, result.mime_type, upsert=True)
+            await self._repository.save_cache(
+                TtsCacheRecord(
+                    cache_key=cache_key, user_id=turn.user_id, session_id=turn.session_id,
+                    provider=result.provider, model=result.model, voice=result.voice,
+                    language=result.language, storage_path=path, mime_type=result.mime_type,
+                ),
+                hashlib.sha256(normalized.encode("utf-8")).hexdigest(),
+            )
+            return await self._storage.signed_url(path, self._signed_url_seconds)
+        except (SynthesisProviderFailure, VoicePersistenceUnavailable):
+            return None
 
     async def submit(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        *,
+        content: bytes,
+        claimed_mime_type: str | None,
+        client_turn_id: UUID,
+        recorded_duration_ms: int | None,
+        audio_upload_ms: int,
+    ) -> VoiceTurnResponse:
+        with turn_session_cache(get_settings().voice_session_cache):
+            return await self._submit(
+                session_id,
+                user_id,
+                content=content,
+                claimed_mime_type=claimed_mime_type,
+                client_turn_id=client_turn_id,
+                recorded_duration_ms=recorded_duration_ms,
+                audio_upload_ms=audio_upload_ms,
+            )
+
+    async def _submit(
         self,
         session_id: UUID,
         user_id: UUID,
@@ -164,18 +236,33 @@ class VoiceInterviewService:
             f"interviews/{user_id}/{session_id}/candidate/"
             f"{request.id}.{audio.extension}"
         )
+        parallel = get_settings().voice_parallel_context
         storage_started = perf_counter()
-        await self._storage.upload(
-            candidate_path, audio.content, audio.mime_type, upsert=True
-        )
-        storage_ms = self._elapsed(storage_started)
-        await self._repository.set_request_audio(
-            request.id, user_id, candidate_path, audio.mime_type
-        )
+
+        async def store_candidate_audio() -> int:
+            await self._storage.upload(
+                candidate_path, audio.content, audio.mime_type, upsert=True
+            )
+            elapsed = self._elapsed(storage_started)
+            await self._repository.set_request_audio(
+                request.id, user_id, candidate_path, audio.mime_type
+            )
+            return elapsed
+
+        if parallel:
+            # Storing the recording does not need the transcript, so it overlaps speech-to-text.
+            store_task = asyncio.ensure_future(store_candidate_audio())
+        else:
+            storage_ms = await store_candidate_audio()
 
         try:
             stt_result = await self._stt.transcribe(audio.content, audio.mime_type)
+            if parallel:
+                storage_ms = await store_task
         except TranscriptionProviderFailure as exc:
+            if parallel:
+                await asyncio.gather(store_task, return_exceptions=True)
+                storage_ms = 0
             await self._transcription_failed(
                 request.id,
                 user_id,
@@ -199,6 +286,8 @@ class VoiceInterviewService:
                 and stt_result.confidence < self._minimum_confidence
             )
         ):
+            if parallel:
+                await asyncio.gather(store_task, return_exceptions=True)
             await self._transcription_failed(
                 request.id,
                 user_id,
@@ -240,6 +329,7 @@ class VoiceInterviewService:
             user_id,
             TextTurnRequest(text=transcript, client_turn_id=client_turn_id),
             on_candidate_ready=persist_candidate_audio,
+            session=session if parallel else None,
         )
         text_pipeline_ms = self._elapsed(interview_started)
         candidate = candidate_holder[0] if candidate_holder else None
@@ -262,7 +352,7 @@ class VoiceInterviewService:
         response = self._response(
             owned_interviewer, text_response.remaining_time_seconds, tts
         )
-        await self._repository.complete_request(
+        complete = lambda: self._repository.complete_request(  # noqa: E731
             request.id,
             user_id,
             candidate.id,
@@ -273,7 +363,7 @@ class VoiceInterviewService:
         interviewer_ms = interviewer.latency_ms or text_pipeline_ms
         context_build_ms = max(0, text_pipeline_ms - interviewer_ms)
         total_ms = audio_upload_ms + self._elapsed(total_started)
-        await self._safe_metrics(
+        metrics_value = (
             VoiceLatencyMetrics(
                 session_id=session_id,
                 user_id=user_id,
@@ -294,7 +384,8 @@ class VoiceInterviewService:
                 tts_model=tts.model,
             )
         )
-        await self._state.record_event(
+        metrics = lambda: self._safe_metrics(metrics_value)  # noqa: E731
+        completed_event = lambda: self._state.record_event(  # noqa: E731
             session_id,
             user_id,
             "VOICE_TURN_COMPLETED",
@@ -305,6 +396,19 @@ class VoiceInterviewService:
                 "total_turn_ms": total_ms,
             },
         )
+        if get_settings().voice_async_persist:
+            # Reply first; these writes are ordered and retried in the background.
+            writer = get_deferred_writes()
+            key = str(client_turn_id)
+            writer.enqueue(session_id, f"{key}:complete", complete)
+            writer.enqueue(session_id, f"{key}:metrics", metrics)
+            writer.enqueue(session_id, f"{key}:event", completed_event)
+        elif parallel:
+            await asyncio.gather(complete(), metrics(), completed_event())
+        else:
+            await complete()
+            await metrics()
+            await completed_event()
         logger.info(
             "voice turn completed",
             extra={

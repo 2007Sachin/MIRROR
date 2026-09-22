@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from uuid import UUID
 
+from .config import get_settings
 from .flag_activation import FlagEligibilityService
 from .interview_engine import InterviewStateMachine
 from .interviewer_models import (
@@ -12,7 +14,7 @@ from .interviewer_models import (
 from .interviewer_repository import InterviewTurnRepository
 from .planner_models import InterviewObjective, InterviewPlan
 from .planner_repository import InterviewPlanRepository
-from .schemas import SessionStatus
+from .schemas import SessionRead, SessionStatus
 
 
 class InterviewPlanUnavailableForSession(Exception):
@@ -47,26 +49,40 @@ class InterviewerContextBuilder:
         return self._ordered(plan)[0]
 
     async def build(
-        self, session_id: UUID, user_id: UUID, current_turn_index: int
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        current_turn_index: int,
+        *,
+        session: SessionRead | None = None,
+        plan_task: "asyncio.Future[InterviewPlan] | None" = None,
     ) -> InterviewerContext:
-        session = await self._state.get_state(session_id, user_id)
-        plan = await self.get_plan(session_id, user_id)
-        turns = await self._turns.list_turns(session_id, limit=6)
-        objective = self._current_objective(plan, session.current_primary_question_id)
-        claims = await self._turns.get_claims(user_id, objective.target_claim_ids)
-        competencies = await self._turns.get_competencies(
-            user_id, objective.target_competency_ids
-        )
-        remaining_phase, remaining_total = self._state.remaining_times(session)
-        pending_flag = None
-        if self._flags:
-            pending_flag = await self._flags.select(
-                session_id,
-                user_id,
-                current_turn_index,
-                session_active=session.status == SessionStatus.ACTIVE,
-                probe_count=session.current_probe_count,
-                relevant_claim_ids=objective.target_claim_ids,
+        if get_settings().voice_parallel_context:
+            # Independent reads run together: one wave for state and plan, one for the rest.
+            session, plan = await asyncio.gather(
+                self._state.get_state(session_id, user_id) if session is None else _done(session),
+                plan_task if plan_task is not None else self.get_plan(session_id, user_id),
+            )
+            objective = self._current_objective(plan, session.current_primary_question_id)
+            turns, claims, competencies, pending_flag = await asyncio.gather(
+                self._turns.list_turns(session_id, limit=6),
+                self._turns.get_claims(user_id, objective.target_claim_ids),
+                self._turns.get_competencies(user_id, objective.target_competency_ids),
+                self._select_flag(session, session_id, user_id, current_turn_index, objective),
+            )
+            remaining_phase, remaining_total = self._state.remaining_times(session)
+        else:
+            session = await self._state.get_state(session_id, user_id)
+            plan = await self.get_plan(session_id, user_id)
+            turns = await self._turns.list_turns(session_id, limit=6)
+            objective = self._current_objective(plan, session.current_primary_question_id)
+            claims = await self._turns.get_claims(user_id, objective.target_claim_ids)
+            competencies = await self._turns.get_competencies(
+                user_id, objective.target_competency_ids
+            )
+            remaining_phase, remaining_total = self._state.remaining_times(session)
+            pending_flag = await self._select_flag(
+                session, session_id, user_id, current_turn_index, objective
             )
         return InterviewerContext(
             session_id=session_id,
@@ -109,6 +125,18 @@ class InterviewerContextBuilder:
             pending_flag=pending_flag,
         )
 
+    async def _select_flag(self, session, session_id, user_id, current_turn_index, objective):
+        if not self._flags:
+            return None
+        return await self._flags.select(
+            session_id,
+            user_id,
+            current_turn_index,
+            session_active=session.status == SessionStatus.ACTIVE,
+            probe_count=session.current_probe_count,
+            relevant_claim_ids=objective.target_claim_ids,
+        )
+
     @staticmethod
     def ordered_objectives(plan: InterviewPlan) -> list[InterviewObjective]:
         return InterviewerContextBuilder._ordered(plan)
@@ -140,3 +168,7 @@ class InterviewerContextBuilder:
                     return objective
         return ordered[0]
 
+
+
+async def _done(value):
+    return value

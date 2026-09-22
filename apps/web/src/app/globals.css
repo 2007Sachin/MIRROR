@@ -1697,3 +1697,15 @@ body:has(.workspace-unavailable-page) .site-header { display: none; }
   .evidence-workspace-row, .evidence-upload-progress i { transition: none; }
 }
 
+
+/* Step-away dialog and the "done answering" button in the voice room */
+.interview-dialog-backdrop { align-items: center; background: rgba(20, 22, 26, .55); display: flex; inset: 0; justify-content: center; padding: 1rem; position: fixed; z-index: 60; }
+.interview-dialog { background: var(--paper, #fbfaf6); border-radius: 1rem; box-shadow: 0 20px 60px rgba(0, 0, 0, .25); color: var(--ink, #1e2126); max-width: 27rem; padding: 1.6rem; width: 100%; }
+.interview-dialog h2 { font-size: 1.3rem; margin: 0 0 .5rem; }
+.interview-dialog p { color: var(--silver, #5b6068); line-height: 1.6; margin: 0 0 1.2rem; }
+.interview-dialog-actions { display: grid; gap: .6rem; }
+.interview-dialog-actions button { background: transparent; border: 1px solid rgba(0, 0, 0, .18); border-radius: .7rem; cursor: pointer; font: inherit; padding: .75rem 1rem; }
+.interview-dialog-actions button.is-primary { background: var(--pulse, #2f6b5a); border-color: transparent; color: #fff; }
+.interview-dialog-actions button.is-quiet { border-color: transparent; color: var(--silver, #5b6068); }
+.interview-dialog-actions button:disabled { cursor: not-allowed; opacity: .5; }
+.interview-done-button { background: transparent; border: 1px solid currentColor; border-radius: 999px; cursor: pointer; font: inherit; padding: .55rem 1rem; }

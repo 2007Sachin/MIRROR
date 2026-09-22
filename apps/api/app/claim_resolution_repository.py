@@ -5,6 +5,8 @@ from uuid import UUID
 
 import httpx
 
+from .http_pool import pooled
+
 from .claim_resolution_models import ClaimResolutionRecord, ResolutionTriggerType
 from .claims_models import ClaimRead, ClaimStatus
 from .claims_repository import SupabaseClaimsGraphRepository, _claim
@@ -39,7 +41,7 @@ class SupabaseClaimResolutionRepository(SupabaseClaimsGraphRepository):
         trigger_type: ResolutionTriggerType, confidence: float,
     ) -> tuple[ClaimRead, ClaimResolutionRecord]:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with pooled(10) as client:
                 response = await client.post(
                     f"{self._url}/rest/v1/rpc/resolve_claim_state",
                     headers=self._headers,

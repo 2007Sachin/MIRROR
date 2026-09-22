@@ -4,9 +4,9 @@ export function WorkspaceUnavailable() {
   return (
     <main id="main-content" className="app-shell ws-unavailable-page">
       <section className="fade-in-once">
-        <p className="ws-eyebrow">Workspace unavailable</p>
-        <h1 className="display">Mirror could not restore your evidence workspace.</h1>
-        <p>Your completed interviews remain saved. Refresh this page to try the secure connection again.</p>
+        <p className="ws-eyebrow">Your space is unavailable for now</p>
+        <h1 className="display">We couldn't bring back your space just now.</h1>
+        <p>Your completed interviews remain saved. Please refresh this page to try again.</p>
       </section>
     </main>
   );

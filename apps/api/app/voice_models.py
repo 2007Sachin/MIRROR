@@ -57,6 +57,9 @@ class VoiceTurnResponse(VoiceModel):
     phase: Phase
     turn_type: InterviewerTurnType
     remaining_time_seconds: int = Field(ge=0)
+    welcome_back: bool = False
+    welcome_text: str | None = None
+    welcome_audio_url: str | None = None
 
 
 class VoiceRequestRecord(VoiceModel):

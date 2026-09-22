@@ -44,9 +44,9 @@ export function AnimatedEnergyMesh({ energized = false, variant = "default" }: A
         <circle cx="108" cy="104" r="6" className={`mirror-mesh-node${energized ? " is-active" : ""}`} />
       </svg>
       <ul className="mirror-mesh-legend">
-        <li>Claim source</li>
+        <li>Your resume</li>
         <li>Target role</li>
-        <li>Interview evidence</li>
+        <li>Your answers</li>
       </ul>
     </div>
   );

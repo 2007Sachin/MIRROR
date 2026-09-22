@@ -38,13 +38,13 @@ function DiagnosticBody({
 }) {
   return (
     <div className="ob-diagnostic-body">
-      <p className="ob-diagnostic-kicker">Mirror is learning</p>
-      <h2>Diagnostic context</h2>
+      <p className="ob-diagnostic-kicker">Mirror is getting to know you</p>
+      <h2>Your session so far</h2>
 
       <dl className="ob-diagnostic-context">
         <div>
-          <dt>Benchmark</dt>
-          <dd>{targetRole || "Waiting for a target role"}</dd>
+          <dt>Target role</dt>
+          <dd>{targetRole || "Waiting for your target role"}</dd>
         </div>
         {targetCompany && (
           <div>
@@ -54,7 +54,7 @@ function DiagnosticBody({
         )}
         {resumeName && (
           <div>
-            <dt>Starting evidence</dt>
+            <dt>Your resume</dt>
             <dd>{resumeName}</dd>
           </div>
         )}
@@ -72,8 +72,8 @@ function DiagnosticBody({
 
       <p className="ob-diagnostic-live" aria-live="polite">
         {busyLabel || (sessionReady
-          ? "The inquiry plan is ready."
-          : "Each input changes what Mirror can investigate next.")}
+          ? "Your conversation plan is ready."
+          : "Each thing you share helps shape your questions.")}
       </p>
     </div>
   );
@@ -93,27 +93,27 @@ export function DiagnosticPanel({
 }: DiagnosticPanelProps) {
   const rows: Array<{ label: string; state: BuildState }> = [
     {
-      label: targetRole ? "Role identified" : "Role benchmark",
+      label: targetRole ? "Role identified" : "Your target role",
       state: roleReady ? "complete" : step === 1 ? "active" : "waiting",
     },
     {
-      label: roleBriefSkipped ? "Role expectations inferred" : "Role brief analysed",
+      label: roleBriefSkipped ? "Role expectations noted" : "Role brief read",
       state: roleReady ? "complete" : roleBriefReady ? "active" : "waiting",
     },
     {
-      label: "Evidence mapping",
+      label: "Your experience at a glance",
       state: evidenceReady ? "complete" : step === 2 && Boolean(resumeName) ? "active" : "waiting",
     },
     {
-      label: "Evidence gaps",
+      label: "What to explore",
       state: step >= 3 && evidenceReady ? "complete" : step === 3 ? "active" : "waiting",
     },
     {
-      label: "Lines of inquiry",
+      label: "Areas to explore",
       state: sessionReady ? "complete" : step === 4 ? "active" : "waiting",
     },
     {
-      label: "Interview thesis",
+      label: "Your conversation plan",
       state: sessionReady ? "complete" : step === 5 ? "active" : "waiting",
     },
   ];
@@ -124,7 +124,7 @@ export function DiagnosticPanel({
         <DiagnosticBody rows={rows} targetRole={targetRole} targetCompany={targetCompany} resumeName={resumeName} sessionReady={sessionReady} busyLabel={busyLabel} />
       </div>
       <details className="ob-diagnostic-mobile">
-        <summary><span>Diagnostic context</span><span>{step} of 5</span></summary>
+        <summary><span>Your session so far</span><span>{step} of 5</span></summary>
         <DiagnosticBody rows={rows} targetRole={targetRole} targetCompany={targetCompany} resumeName={resumeName} sessionReady={sessionReady} busyLabel={busyLabel} />
       </details>
     </aside>

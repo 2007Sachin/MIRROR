@@ -13,12 +13,12 @@ export default async function OnboardingPage() {
       <main id="main-content" className="ob-workspace">
         <section className="ob-main">
           <div className="ob-restore">
-            <p className="ob-eyebrow">Diagnostic unavailable</p>
-            <h1>Mirror could not restore your saved context.</h1>
-            <p role="alert">Your completed work has not been removed. Refresh the page to try the secure connection again.</p>
+            <p className="ob-eyebrow">Session unavailable for now</p>
+            <h1>We couldn't bring back your saved session just now.</h1>
+            <p role="alert">Your completed work has not been removed. Please refresh the page to try again.</p>
           </div>
         </section>
-        <aside className="ob-diagnostic" aria-hidden="true"><div className="ob-diagnostic-body"><p className="ob-diagnostic-kicker">Mirror is building</p><h2>Your diagnostic</h2></div></aside>
+        <aside className="ob-diagnostic" aria-hidden="true"><div className="ob-diagnostic-body"><p className="ob-diagnostic-kicker">Mirror is preparing</p><h2>Your session</h2></div></aside>
       </main>
     );
   }

@@ -1,8 +1,10 @@
+import { Loader } from "@/components/loader";
+import { loading } from "@/lib/copy";
+
 export default function AppLoading() {
   return (
-    <main id="main-content" className="shell py-20 text-sm text-[var(--silver)]" role="status" aria-live="polite">
-      Loading Mirror…
+    <main id="main-content" className="shell">
+      <Loader page label={loading.app.label} note={loading.app.note} />
     </main>
   );
 }
-

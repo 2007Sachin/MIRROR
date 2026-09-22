@@ -9,7 +9,7 @@ export default async function AppPage() {
   if (result.status === "unavailable") {
     return (
       <main id="main-content" className="shell py-20">
-        <p role="alert" className="text-sm text-[var(--silver)]">Mirror could not load your onboarding status. Refresh to try again.</p>
+        <p role="alert" className="text-sm text-[var(--silver)]">We couldn't load where you left off just now. Please refresh and try again.</p>
       </main>
     );
   }

@@ -11,19 +11,20 @@ import {
   maximumFileSizeMb,
 } from "@/lib/documents";
 import { Reveal } from "@/components/motion/reveal";
+import { briefHref } from "@/lib/practice-view";
 import "@/styles/sessions.css";
 
 /**
- * Preparing a diagnostic needs role intelligence and resume intelligence in place
+ * Preparing a practice session needs role intelligence and resume intelligence in place
  * before the planner will accept the session, so this page runs the same pipeline
  * the onboarding flow does rather than creating a session the planner must reject.
  */
 const pipelineStages = [
   "Reading the job description",
-  "Benchmarking the role",
+  "Getting to know the role",
   "Uploading your resume",
-  "Mapping your evidence",
-  "Preparing your diagnostic",
+  "Putting your experience at a glance",
+  "Preparing your session",
 ] as const;
 
 type StageIndex = 0 | 1 | 2 | 3 | 4;
@@ -35,10 +36,14 @@ export default function NewSessionPage() {
   const [stage, setStage] = useState<StageIndex | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [targetRole, setTargetRole] = useState("");
+  // Carried through from Practice so the chosen focus survives setup.
+  const [focus, setFocus] = useState<string | null>(null);
 
   useEffect(() => {
-    const role = new URLSearchParams(window.location.search).get("role");
+    const query = new URLSearchParams(window.location.search);
+    const role = query.get("role");
     if (role) setTargetRole(role);
+    setFocus(query.get("focus"));
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -50,7 +55,7 @@ export default function NewSessionPage() {
     const jdText = String(form.get("jd_text")).trim();
 
     if (!(resume instanceof File) || resume.size === 0) {
-      setError("Choose a PDF or DOCX resume.");
+      setError("Please choose a PDF or DOCX resume.");
       return;
     }
     const rejection = describeFileRejection(resume, "resume");
@@ -77,7 +82,7 @@ export default function NewSessionPage() {
         throw new PipelineError(friendlyAnalysisError(reason, "role"), reason);
       }
       if (roleAnalysis.latest_analysis?.status !== "COMPLETED") {
-        throw new PipelineError("Mirror could not finish the role benchmark. Try again in a moment.");
+        throw new PipelineError("We couldn't finish getting to know the role just now. Please try again in a moment.");
       }
 
       // Resume intelligence: the session-scoped upload only stores a file, so the
@@ -103,23 +108,23 @@ export default function NewSessionPage() {
       if (resumeAnalysis.status === "FAILED") {
         throw new PipelineError(
           resumeAnalysis.error_type === "document_parsing_failure"
-            ? "Mirror could not extract enough text from this resume. Try a text-based PDF or DOCX file."
-            : "Mirror could not build the evidence map from this resume. Try again in a moment.",
+            ? "We couldn't read enough text from this resume. Please try a text-based PDF or DOCX file."
+            : "We couldn't put your experience together just now. Please try again in a moment.",
         );
       }
       if (resumeAnalysis.status !== "COMPLETED") {
-        throw new PipelineError("Evidence mapping is still in progress. Try again in a moment.");
+        throw new PipelineError("This is still in progress. Please try again in a moment.");
       }
 
       setStage(4);
       const session = await mirrorApi.createSession(role, jdText);
       await mirrorApi.linkSessionDocuments(session.id, [resumeDocument.id, roleBrief.id]);
       await mirrorApi.prepare(session.id);
-      router.push(`/sessions/${session.id}/brief`);
+      router.push(briefHref(session.id, focus));
     } catch (caught) {
       if (caught instanceof PipelineError) setError(caught.message);
       else if (caught instanceof ApiError && caught.status === 401) setError("Your session expired. Please sign in again.");
-      else setError(caught instanceof Error ? caught.message : "The session could not be created.");
+      else setError(caught instanceof Error ? caught.message : "We couldn't create your session just now. Please try again.");
       setBusy(false);
       setStage(null);
       setUploadProgress(null);
@@ -130,12 +135,12 @@ export default function NewSessionPage() {
     <main id="main-content" className="shell py-12 sm:py-16">
       <div className="grid gap-12 lg:grid-cols-[.72fr_1.28fr]">
         <Reveal as="section">
-          <p className="text-sm text-[var(--silver)]">New diagnostic</p>
-          <h1 className="display mt-4 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">Give Mirror the evidence it needs.</h1>
-          <p className="mt-6 max-w-[42ch] leading-7 text-[var(--silver)]">Your resume sets the claims to examine. The job description sets the competencies to investigate.</p>
+          <p className="text-sm text-[var(--silver)]">New practice session</p>
+          <h1 className="display mt-4 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">Share a little about your experience.</h1>
+          <p className="mt-6 max-w-[42ch] leading-7 text-[var(--silver)]">Your resume tells us your story. The job description tells us what the role is looking for.</p>
           <div className="sn-intro-note">
             <LockKey size={20} className="mt-0.5 shrink-0 text-[var(--pulse)]" />
-            <p>Resumes and interview data are isolated per candidate and are not intentionally used to train third-party models.</p>
+            <p>Your resume and conversations are kept private to you, and are not intentionally used to train third-party models.</p>
           </div>
         </Reveal>
 
@@ -168,7 +173,7 @@ export default function NewSessionPage() {
                 </span>
               </div>
               <p className="sn-pipeline-note">
-                Mirror is benchmarking the role and mapping your evidence against it. This usually takes under a minute.
+                Mirror is getting to know the role and lining it up with your experience. This usually takes under a minute.
               </p>
               <ol className="sn-pipeline-stages">
                 {pipelineStages.map((label, index) => (
@@ -192,7 +197,7 @@ export default function NewSessionPage() {
 
           {error ? <p role="alert" className="border-l-2 border-red-400 pl-3 text-sm text-red-200">{error}</p> : null}
           <button className="button-primary w-full sm:w-auto" disabled={busy}>
-            {busy ? "Preparing diagnostic..." : "Continue to pre-brief"} {!busy && <ArrowRight size={18} />}
+            {busy ? "Preparing your session…" : "Continue"} {!busy && <ArrowRight size={18} />}
           </button>
         </form>
       </div>

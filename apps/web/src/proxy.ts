@@ -45,7 +45,9 @@ export async function proxy(request: NextRequest) {
     const { data } = await supabase.auth.getClaims();
     isAuthenticated = Boolean(data?.claims.sub);
   } catch {
-    return isAuthPage ? response : redirectWithCookies(request, response, "/login", "network");
+    // The auth service could not be reached. That is not the same as being signed out, so the
+    // request goes on: each page checks the real session and only a genuine 401 sends anyone to sign in.
+    return response;
   }
   if (!isAuthenticated && !isAuthPage) return redirectWithCookies(request, response, "/login");
   if (isAuthenticated && isAuthPage) return redirectWithCookies(request, response, "/dashboard");
@@ -56,9 +58,15 @@ export const config = {
   matcher: [
     "/app/:path*",
     "/dashboard/:path*",
+    "/practice/:path*",
+    "/experience/:path*",
+    "/stories/:path*",
+    // The routes Practice and My Experience used to live at.
     "/diagnostics/:path*",
     "/evidence/:path*",
     "/roles/:path*",
+    "/progress/:path*",
+    "/help/:path*",
     "/settings/:path*",
     "/onboarding",
     "/sessions/:path*",
@@ -66,4 +74,3 @@ export const config = {
     "/signup",
   ],
 };
-

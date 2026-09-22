@@ -139,7 +139,7 @@ class SupabaseAssessmentPipelineRepository(SupabaseSkepticRepository):
             "prescribed_fix": language.root_cause_explanation, "summary": language.verdict_summary,
             "root_cause_explanation": language.root_cause_explanation, "confidence_note": language.confidence_note,
             "assessment_confidence": aggregate.overall_signal_confidence,
-            "replay_markers": [], "model_provider": "groq", "model_name": model, "model_version": model,
+            "replay_markers": [], "model_provider": "sarvam", "model_name": model, "model_version": model,
             "prompt_version": prompt_version, "rubric_version": "v1",
         }, prefer="resolution=merge-duplicates,return=minimal")
 

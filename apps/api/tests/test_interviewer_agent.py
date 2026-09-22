@@ -317,7 +317,7 @@ def test_accusatory_skeptic_wording_is_rejected_without_consumption():
     result = asyncio.run(
         service.submit(session_id, USER_A, TextTurnRequest(text="I integrated APIs."))
     )
-    assert result.turn_type == InterviewerTurnType.DEPTH_PROBE
+    assert result.turn_type == InterviewerTurnType.RECOVERY  # was DEPTH_PROBE, which re-asked the same question
     assert repository.consumed == []
 
 
@@ -411,7 +411,7 @@ def test_malformed_output_retries_then_falls_back_and_keeps_candidate():
         setup_service(malformed, malformed, malformed)
     )
     result = asyncio.run(service.submit(session_id, USER_A, TextTurnRequest(text="My answer")))
-    assert result.question_text == "Tell me about a recent project."
+    assert result.question_text == "What shaped your role in that work?"  # moves on instead of repeating the opening question
     assert len(provider.requests) == 3
     assert [turn.speaker for turn in turns.turns[session_id]][-2:] == [
         TurnSpeaker.CANDIDATE, TurnSpeaker.INTERVIEWER
@@ -748,7 +748,7 @@ def test_interviewer_failure_uses_existing_deterministic_fallback():
         setup_voice(malformed, malformed, malformed)
     )
     result = submit_voice(voice, session_id)
-    assert result.question_text == "Tell me about a recent project."
+    assert result.question_text == "What shaped your role in that work?"  # moves on instead of repeating the opening question
     assert len(turns.turns[session_id]) == 3
 
 
@@ -940,7 +940,7 @@ def test_opening_greeting_degrades_without_a_name_or_role():
         full_name=None, target_role=None, total_time_budget_seconds=600
     )
 
-    assert greeting.startswith("Hi, thanks")
+    assert greeting.startswith("Hi, I'm Mirror")
     assert "10 minutes" in greeting
     # An absent name must never leave a dangling placeholder.
     assert "None" not in greeting
@@ -953,7 +953,7 @@ def test_opening_greeting_rejects_unusable_names():
         greeting = compose_opening_greeting(
             full_name=unusable, target_role="Analyst", total_time_budget_seconds=1200
         )
-        assert greeting.startswith("Hi, thanks"), unusable
+        assert greeting.startswith("Hi, I'm Mirror"), unusable
 
 
 def test_opening_turn_carries_greeting_then_question():

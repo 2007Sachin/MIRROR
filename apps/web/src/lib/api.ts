@@ -56,6 +56,19 @@ export type DashboardResponse = {
   previous: DashboardDiagnostic[];
 };
 
+export type DashboardSummary = {
+  latest_review: null | {
+    session_id: string;
+    target_role: string;
+    completed_at: string;
+    counts: null | { clear: number; could_be_stronger: number; worth_revisiting: number };
+    dimensions: Array<{ key: string; label: string; state: string; note: string }>;
+    improvements: Array<{ title: string; note: string; from_label: string | null }>;
+    next_step: { title: string; body: string };
+    shorter_conversation: boolean;
+  };
+};
+
 export type Profile = {
   id: string;
   full_name: string | null;
@@ -186,7 +199,7 @@ export type ResumeAnalysis = {
       claimed_outcomes: string[];
       source_reference: string;
     }>;
-    work_experience: unknown[];
+    work_experience: Array<{ organization: string; role: string }>;
     education: unknown[];
     tools: unknown[];
     achievements: unknown[];
@@ -235,9 +248,13 @@ export type RoleAnalysis = {
     analysis_version: string;
     error_type: string | null;
     output: null | {
+      canonical_role: string;
+      seniority: RoleAnalysis["seniority"];
       interview_themes: string[];
       must_have_skills: string[];
       nice_to_have_skills: string[];
+      behavioural_expectations: string[];
+      domain_expectations: string[];
     };
   };
   competencies: RoleCompetency[];
@@ -303,6 +320,8 @@ export type InterviewStart = {
   phase: string;
   turn_type: InterviewTurnType;
   remaining_time_seconds: number;
+  welcome_back?: boolean;
+  welcome_text?: string | null;
 };
 
 export type TextTurnResult = InterviewStart & {
@@ -319,6 +338,9 @@ export type VoiceTurnResult = {
   phase: string;
   turn_type: InterviewTurnType;
   remaining_time_seconds: number;
+  welcome_back?: boolean;
+  welcome_text?: string | null;
+  welcome_audio_url?: string | null;
 };
 
 export type ReportEvidence = {
@@ -357,6 +379,136 @@ export type ReportResponse = {
   root_cause: string;
   trust_and_limitations: { ai_assessments_can_make_mistakes: boolean; candidate_may_dispute_assessments: boolean; skills_may_have_insufficient_signal: boolean; evaluates_this_interview_evidence: boolean; outcome_validation_status: string };
   prescription: Record<string, unknown> | null;
+  shorter_conversation?: boolean;
+};
+
+export type RoleProfileSummary = {
+  id: string;
+  user_id: string;
+  target_role: string;
+  canonical_role: string | null;
+  seniority: RoleAnalysis["seniority"];
+  source_type: RoleAnalysis["source_type"];
+  source_document_id: string | null;
+  current_analysis_version_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProgressDirection = "IMPROVING" | "STEADY" | "NEEDS_MORE_PRACTICE";
+
+export type ProgressExcerpt = { quote: string; note: string };
+
+export type ProgressDimension = {
+  key: string;
+  label: string;
+  state: string;
+  note: string;
+  direction: ProgressDirection | null;
+  excerpts: ProgressExcerpt[];
+};
+
+export type ProgressChange = { kind: "IMPROVED" | "WATCH"; text: string };
+
+export type SessionReview = NonNullable<DashboardSummary["latest_review"]>;
+
+export type ProgressPractice = SessionReview;
+
+export type ProgressResponse = {
+  roles: string[];
+  role: string | null;
+  practices: ProgressPractice[];
+  comparable_count: number;
+  dimensions: ProgressDimension[];
+  changes: ProgressChange[];
+  headline: { title: string; body: string } | null;
+};
+
+export type MapCoverage = "PREPARED" | "EXPERIENCE" | "MENTIONED" | "MISSING";
+export type MapAreaAction = "FIND_STORY" | "PRESSURE_TEST" | "PRACTICE" | "ADD_EXPERIENCE";
+
+export type InterviewMap = {
+  role_profile_id: string;
+  target_role: string;
+  state: "READY" | "ROLE_PREPARING" | "ROLE_UNREADABLE";
+  experience_state: "READY" | "MISSING" | "READING" | "UNREADABLE";
+  role_from_job_description: boolean;
+  themes: Array<{
+    key: string;
+    name: string;
+    category: RoleCompetency["category"];
+    from_job_description: boolean;
+    source_text: string | null;
+    coverage: MapCoverage;
+    matches: Array<{ kind: string; label: string; text: string }>;
+  }>;
+  preparation_areas: Array<{
+    key: string;
+    title: string;
+    body: string;
+    action: MapAreaAction;
+    theme_key: string | null;
+    focus: string | null;
+  }>;
+  questions: Array<{ text: string; theme_key: string | null; why: string }>;
+  also_expected: string[];
+};
+
+export type StoryOrigin = "MANUAL" | "PRESSURE_TEST" | "FIND_A_STORY" | "EXPERIENCE";
+export type StoryPart =
+  | "situation" | "ownership" | "actions" | "reasoning" | "trade_offs"
+  | "outcome" | "measurable_result" | "learning" | "do_differently";
+
+export type StoryFields = Partial<Record<StoryPart, string | null>>;
+
+export type Story = Record<StoryPart, string | null> & {
+  id: string;
+  user_id: string;
+  title: string;
+  themes: string[];
+  role_profile_id: string | null;
+  source_claim_id: string | null;
+  source_document_id: string | null;
+  source_text: string | null;
+  origin: StoryOrigin;
+  created_at: string;
+  updated_at: string;
+  completeness: "READY" | "DEVELOPING" | "STARTED";
+  missing_parts: StoryPart[];
+};
+
+export type StoryInput = StoryFields & {
+  title: string;
+  themes?: string[];
+  role_profile_id?: string | null;
+  source_claim_id?: string | null;
+  source_document_id?: string | null;
+  source_text?: string | null;
+  origin?: StoryOrigin;
+};
+
+export type PressureQuestionKind =
+  | "OWNERSHIP" | "MEASURE" | "SOURCE_OF_NUMBER" | "OUTCOME" | "DECISION" | "ALTERNATIVE" | "USAGE";
+export type PressureReadiness = "CAN_EXPLAIN" | "NEEDS_PREPARATION";
+
+export type PressureTest = {
+  role_profile_id: string;
+  target_role: string;
+  state: "READY" | "NO_RESUME" | "READING" | "UNREADABLE";
+  items: Array<{
+    claim_id: string;
+    statement: string;
+    where: string;
+    related_theme: string | null;
+    questions: Array<{ kind: PressureQuestionKind; text: string; why: string; story_part: StoryPart }>;
+    readiness: PressureReadiness | null;
+    story_id: string | null;
+  }>;
+};
+
+export type AnswerChecks = {
+  checks: Array<{ key: string; present: boolean; text: string }>;
+  follow_up: string | null;
 };
 
 export class ApiError extends Error {
@@ -390,7 +542,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const detail = body.detail;
     throw new ApiError(
       response.status,
-      typeof detail === "string" ? detail : detail?.message ?? "Mirror could not complete that request.",
+      typeof detail === "string" ? detail : detail?.message ?? "We couldn't complete that just now. Please try again in a moment.",
       typeof detail === "object" ? detail.code : undefined,
     );
   }
@@ -408,13 +560,13 @@ export async function uploadVoiceTurn(
   signal?: AbortSignal,
 ): Promise<VoiceTurnResult> {
   const { data } = await getSupabaseBrowserClient().auth.getSession();
-  if (!data.session?.access_token) throw new ApiError(401, "Authentication required");
+  if (!data.session?.access_token) throw new ApiError(401, "Please sign in to continue.");
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const abort = () => xhr.abort();
     if (signal?.aborted) {
-      reject(new DOMException("The upload was cancelled.", "AbortError"));
+      reject(new DOMException("The upload was stopped.", "AbortError"));
       return;
     }
     signal?.addEventListener("abort", abort, { once: true });
@@ -429,9 +581,9 @@ export async function uploadVoiceTurn(
       if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
     };
     xhr.upload.onload = onUploaded;
-    xhr.onerror = () => settle(reject, new ApiError(0, "Mirror could not reach the voice service."));
-    xhr.ontimeout = () => settle(reject, new ApiError(0, "That answer took too long to process. Try again."));
-    xhr.onabort = () => settle(reject, new DOMException("The upload was cancelled.", "AbortError"));
+    xhr.onerror = () => settle(reject, new ApiError(0, "We couldn't reach the voice service just now. Please check your connection and try again."));
+    xhr.ontimeout = () => settle(reject, new ApiError(0, "That answer took a little too long to process. Please try again."));
+    xhr.onabort = () => settle(reject, new DOMException("The upload was stopped.", "AbortError"));
     xhr.onload = () => {
       let body: VoiceTurnResult | {
         detail?: string | { code?: string; message?: string };
@@ -446,7 +598,7 @@ export async function uploadVoiceTurn(
       } | null)?.detail;
       settle(reject, new ApiError(
         xhr.status,
-        typeof detail === "string" ? detail : detail?.message ?? "Mirror could not process that recording.",
+        typeof detail === "string" ? detail : detail?.message ?? "We couldn't process that recording just now. Please try again.",
         typeof detail === "object" ? detail.code : undefined,
       ));
     };
@@ -465,7 +617,7 @@ export async function uploadResumeDocument(
   onProgress: (percentage: number) => void,
 ): Promise<MirrorDocument> {
   const { data } = await getSupabaseBrowserClient().auth.getSession();
-  if (!data.session?.access_token) throw new ApiError(401, "Authentication required");
+  if (!data.session?.access_token) throw new ApiError(401, "Please sign in to continue.");
 
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
@@ -474,7 +626,7 @@ export async function uploadResumeDocument(
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
     };
-    request.onerror = () => reject(new ApiError(0, "Mirror could not reach the document service."));
+    request.onerror = () => reject(new ApiError(0, "We couldn't reach the document service just now. Please check your connection and try again."));
     request.onload = () => {
       let body: MirrorDocument | { detail?: string } | null = null;
       try { body = JSON.parse(request.responseText) as MirrorDocument | { detail?: string }; } catch { /* Use safe fallback. */ }
@@ -484,7 +636,7 @@ export async function uploadResumeDocument(
         return;
       }
       const detail = body && "detail" in body ? body.detail : undefined;
-      reject(new ApiError(request.status, detail ?? "Mirror could not upload that resume."));
+      reject(new ApiError(request.status, detail ?? "We couldn't upload that resume just now. Please try again."));
     };
     const form = new FormData();
     form.set("resume", file);
@@ -497,7 +649,7 @@ export async function uploadRoleBriefDocument(
   onProgress: (percentage: number) => void,
 ): Promise<MirrorDocument> {
   const { data } = await getSupabaseBrowserClient().auth.getSession();
-  if (!data.session?.access_token) throw new ApiError(401, "Authentication required");
+  if (!data.session?.access_token) throw new ApiError(401, "Please sign in to continue.");
 
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
@@ -506,7 +658,7 @@ export async function uploadRoleBriefDocument(
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
     };
-    request.onerror = () => reject(new ApiError(0, "Mirror could not reach the document service."));
+    request.onerror = () => reject(new ApiError(0, "We couldn't reach the document service just now. Please check your connection and try again."));
     request.onload = () => {
       let body: MirrorDocument | { detail?: string } | null = null;
       try { body = JSON.parse(request.responseText) as MirrorDocument | { detail?: string }; } catch { /* Use safe fallback. */ }
@@ -516,7 +668,7 @@ export async function uploadRoleBriefDocument(
         return;
       }
       const detail = body && "detail" in body ? body.detail : undefined;
-      reject(new ApiError(request.status, detail ?? "Mirror could not upload that role brief."));
+      reject(new ApiError(request.status, detail ?? "We couldn't upload that role brief just now. Please try again."));
     };
     const form = new FormData();
     form.set("role_brief", file);
@@ -536,7 +688,7 @@ export async function uploadEvidenceDocument(
   replaceDocumentId?: string,
 ): Promise<EvidenceDetail> {
   const { data } = await getSupabaseBrowserClient().auth.getSession();
-  if (!data.session?.access_token) throw new ApiError(401, "Authentication required");
+  if (!data.session?.access_token) throw new ApiError(401, "Please sign in to continue.");
 
   return new Promise((resolve, reject) => {
     const upload = new XMLHttpRequest();
@@ -548,7 +700,7 @@ export async function uploadEvidenceDocument(
     upload.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
     };
-    upload.onerror = () => reject(new ApiError(0, "Mirror could not reach the evidence service."));
+    upload.onerror = () => reject(new ApiError(0, "We couldn't reach the library just now. Please check your connection and try again."));
     upload.onload = () => {
       let body: EvidenceDetail | { detail?: string | { message?: string; code?: string } } | null = null;
       try { body = JSON.parse(upload.responseText) as typeof body; } catch { /* Safe fallback below. */ }
@@ -566,7 +718,7 @@ export async function uploadEvidenceDocument(
       const code = detail && typeof detail === "object" ? detail.code : undefined;
       reject(new ApiError(
         upload.status,
-        message ?? "Mirror could not update that evidence.",
+        message ?? "We couldn't update that just now. Please try again.",
         code,
       ));
     };
@@ -585,7 +737,7 @@ export async function downloadEvidenceDocument(
 ): Promise<{ blob: Blob; filename: string }> {
   const client = getSupabaseBrowserClient();
   let { data } = await client.auth.getSession();
-  if (!data.session?.access_token) throw new ApiError(401, "Authentication required");
+  if (!data.session?.access_token) throw new ApiError(401, "Please sign in to continue.");
   let response = await fetch(`${apiUrl}/api/v1/documents/${id}/download`, {
     headers: { Authorization: `Bearer ${data.session.access_token}` },
   });
@@ -598,7 +750,7 @@ export async function downloadEvidenceDocument(
       });
     }
   }
-  if (!response.ok) throw new ApiError(response.status, "Mirror could not download the original file.");
+  if (!response.ok) throw new ApiError(response.status, "We couldn't download the original file just now. Please try again.");
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? "evidence";
   return { blob: await response.blob(), filename };
@@ -709,10 +861,61 @@ export const mirrorApi = {
       body: JSON.stringify({ text, client_turn_id: clientTurnId }),
     }),
   endInterview: (id: string) => request<SessionCompletion>(`/api/v1/sessions/${id}/end`, { method: "POST" }),
+  pauseSession: (id: string) =>
+    request<{ paused: boolean; remaining_time_seconds: number }>(`/api/v1/sessions/${id}/pause`, { method: "POST" }),
+  heartbeat: (id: string, leaseId: string) => request<{ ok: boolean }>(`/api/v1/sessions/${id}/heartbeat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lease_id: leaseId }),
+  }),
   assessmentStatus: (id: string) => request<AssessmentPipelineState>(`/api/v1/sessions/${id}/assessment`),
   retryAssessment: (id: string) => request<AssessmentPipelineState>(`/api/v1/sessions/${id}/assessment/retry`, { method: "POST" }),
   dashboard: () => request<DashboardResponse>("/api/v1/dashboard"),
+  dashboardSummary: () => request<DashboardSummary>("/api/v1/dashboard/summary"),
+  progress: (role?: string) => request<ProgressResponse>(
+    `/api/v1/progress${role ? `?role=${encodeURIComponent(role)}` : ""}`,
+  ),
+  roles: () => request<RoleProfileSummary[]>("/api/v1/roles"),
+  interviewMap: (roleProfileId: string) => request<InterviewMap>(`/api/v1/roles/${roleProfileId}/interview-map`),
+  pressureTest: (roleProfileId: string) => request<PressureTest>(`/api/v1/roles/${roleProfileId}/pressure-test`),
+  setPressureReadiness: (claimId: string, readiness: PressureReadiness) => request<{ claim_id: string; readiness: PressureReadiness }>(
+    `/api/v1/pressure-test/${claimId}`,
+    { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ readiness }) },
+  ),
+  answerChecks: (kind: PressureQuestionKind, answer: string) => request<AnswerChecks>("/api/v1/answer-checks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, answer }),
+  }),
+  stories: () => request<Story[]>("/api/v1/stories"),
+  story: (id: string) => request<Story>(`/api/v1/stories/${id}`),
+  createStory: (values: StoryInput) => request<Story>("/api/v1/stories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  }),
+  updateStory: (id: string, values: Partial<StoryInput>) => request<Story>(`/api/v1/stories/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  }),
+  deleteStory: (id: string) => request<void>(`/api/v1/stories/${id}`, { method: "DELETE" }),
   retryTurnAudio: (turnId: string) => request<VoiceTurnResult>(`/api/v1/turns/${turnId}/audio/retry`, { method: "POST" }),
   report: (id: string) => request<ReportResponse>(`/api/v1/sessions/${id}/report`),
+  sessionReview: (id: string) => request<SessionReview>(`/api/v1/sessions/${id}/review`),
 };
 
+
+/** Saves the conversation when the tab is closing. `keepalive` lets the request outlive the page. */
+export function pauseOnPageExit(sessionId: string, accessToken: string | undefined) {
+  if (!accessToken) return;
+  try {
+    void fetch(`${apiUrl}/api/v1/sessions/${sessionId}/pause`, {
+      method: "POST",
+      keepalive: true,
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  } catch {
+    /* nothing more can be done while the page is closing */
+  }
+}

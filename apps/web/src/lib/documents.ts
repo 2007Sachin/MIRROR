@@ -15,7 +15,7 @@ export type AnalysisKind = "resume" | "role";
 
 /** Returns an empty string when the file is acceptable, otherwise the reason it is not. */
 export function describeFileRejection(file: File, kind: DocumentKind): string {
-  if (!allowedMimeTypes.has(file.type)) return `Choose a PDF or DOCX ${kind} file.`;
+  if (!allowedMimeTypes.has(file.type)) return `Please choose a PDF or DOCX ${kind} file.`;
   if (file.size > maximumFileSize) return `The ${kind} is larger than the ${maximumFileSizeMb} MB limit.`;
   return "";
 }
@@ -23,18 +23,18 @@ export function describeFileRejection(file: File, kind: DocumentKind): string {
 export function friendlyDocumentError(reason: unknown, kind: DocumentKind) {
   if (reason instanceof ApiError) {
     if (reason.status === 413) return `The ${kind} is larger than the ${maximumFileSizeMb} MB limit.`;
-    if (reason.status === 415) return `Choose a genuine PDF or DOCX ${kind} file.`;
-    if (reason.status === 422 && kind === "role brief") return "Mirror could not extract text from that role brief. Try a text-based PDF or DOCX file.";
+    if (reason.status === 415) return `Please choose a PDF or DOCX ${kind} file that opens normally.`;
+    if (reason.status === 422 && kind === "role brief") return "We couldn't read text from that role brief. Please try a text-based PDF or DOCX file.";
     if (reason.status === 401) return "Your session expired. Please sign in again.";
   }
-  return `Mirror could not upload your ${kind}. Check your connection and try again.`;
+  return `We couldn't upload your ${kind} just now. Please check your connection and try again.`;
 }
 
 export function friendlyAnalysisError(reason: unknown, kind: AnalysisKind) {
   if (reason instanceof ApiError) {
-    if (reason.status === 409) return `Mirror could not use the selected ${kind} context. Review it and try again.`;
-    if (reason.status === 422) return `Mirror could not read enough usable ${kind} information. Review the source and try again.`;
-    if (reason.status === 503) return `${kind === "resume" ? "Evidence mapping" : "Role analysis"} is temporarily unavailable. Your saved information is safe.`;
+    if (reason.status === 409) return `We couldn't use the ${kind} you selected just now. Please have a look and try again.`;
+    if (reason.status === 422) return `We couldn't find enough to work with in your ${kind}. Please check it and try again.`;
+    if (reason.status === 503) return `${kind === "resume" ? "Reading your resume" : "Getting to know the role"} is unavailable for a moment. What you saved is still here.`;
   }
-  return `Mirror could not complete the ${kind} analysis. Check your connection and try again.`;
+  return `We couldn't finish reading your ${kind} just now. Please check your connection and try again.`;
 }

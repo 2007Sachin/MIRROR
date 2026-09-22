@@ -412,3 +412,7 @@
   .dg-root-cause { margin-inline: calc(var(--space-4) * -1); padding-inline: var(--space-4); }
   .dg-trust { grid-template-columns: 1fr; }
 }
+
+/* Reflection: small weekly plan and closing note */
+.dg-plan { margin-top: 1rem; padding-left: 1.25rem; display: grid; gap: 0.6rem; line-height: 1.7; color: var(--silver); }
+.dg-closing { padding-bottom: 1rem; }

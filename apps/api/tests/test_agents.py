@@ -24,7 +24,7 @@ from app.agents.errors import (
     UnknownAgentError,
 )
 from app.agents.prompts import PromptLoader
-from app.agents.providers import GroqProvider
+from app.agents.providers import ChatCompletionsProvider
 from app.agents.registry import AgentRegistry
 from app.agents.runner import AgentRunner
 from app.agents.testing import create_framework_test_agent
@@ -165,7 +165,7 @@ def test_provider_failure_is_classified_without_retry() -> None:
     assert result.retry_count == 0
 
 
-def test_groq_provider_normalizes_strict_schema_and_validates_failed_generation() -> None:
+def test_chat_provider_normalizes_strict_schema_and_validates_failed_generation() -> None:
     captured: dict[str, Any] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -181,7 +181,7 @@ def test_groq_provider_normalizes_strict_schema_and_validates_failed_generation(
         )
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    provider = GroqProvider("test-key", client=client)
+    provider = ChatCompletionsProvider("test-key", client=client)
     request = ProviderRequest(
         model="test-model",
         temperature=0,
@@ -294,7 +294,7 @@ def _rate_limit_request() -> ProviderRequest:
     )
 
 
-def test_groq_provider_retries_rate_limit_and_honours_retry_after() -> None:
+def test_chat_provider_retries_rate_limit_and_honours_retry_after() -> None:
     statuses = [429, 429, 200]
     slept: list[float] = []
 
@@ -320,7 +320,7 @@ def test_groq_provider_retries_rate_limit_and_honours_retry_after() -> None:
         slept.append(seconds)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    provider = GroqProvider("test-key", client=client, sleep=fake_sleep)
+    provider = ChatCompletionsProvider("test-key", client=client, sleep=fake_sleep)
     response = asyncio.run(provider.complete(_rate_limit_request(), timeout_seconds=1))
     asyncio.run(client.aclose())
 
@@ -328,7 +328,7 @@ def test_groq_provider_retries_rate_limit_and_honours_retry_after() -> None:
     assert response.content == '{"normalized_text":"ok"}'
 
 
-def test_groq_provider_gives_up_on_sustained_rate_limiting() -> None:
+def test_chat_provider_gives_up_on_sustained_rate_limiting() -> None:
     slept: list[float] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -342,7 +342,7 @@ def test_groq_provider_gives_up_on_sustained_rate_limiting() -> None:
         slept.append(seconds)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    provider = GroqProvider(
+    provider = ChatCompletionsProvider(
         "test-key", client=client, sleep=fake_sleep, max_rate_limit_retries=2
     )
     with pytest.raises(ProviderFailureError):
@@ -352,7 +352,7 @@ def test_groq_provider_gives_up_on_sustained_rate_limiting() -> None:
     assert slept == [1.0, 1.0]
 
 
-def test_groq_provider_stops_retrying_past_the_wait_budget() -> None:
+def test_chat_provider_stops_retrying_past_the_wait_budget() -> None:
     slept: list[float] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -366,7 +366,7 @@ def test_groq_provider_stops_retrying_past_the_wait_budget() -> None:
         slept.append(seconds)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    provider = GroqProvider(
+    provider = ChatCompletionsProvider(
         "test-key", client=client, sleep=fake_sleep, max_rate_limit_wait_seconds=30.0
     )
     with pytest.raises(ProviderFailureError):
