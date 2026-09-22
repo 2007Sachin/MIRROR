@@ -24,6 +24,9 @@ class DashboardDiagnostic(DashboardModel):
     completed_at: datetime | None = None
     assessment: AssessmentPipelineState | None = None
     diagnostic_available: bool = False
+    practice_mode: str = "FULL_INTERVIEW"
+    practice_focus: str | None = None
+    practice_theme: str | None = None
 
 
 class DashboardResponse(DashboardModel):

@@ -7,7 +7,7 @@
  * Nothing here plans or changes a conversation; it calls the same endpoints the
  * setup flow has always called, in the same order.
  */
-import { mirrorApi, type Onboarding } from "@/lib/api";
+import { mirrorApi, type Onboarding, type PracticeChoice } from "@/lib/api";
 
 export function canStartDirectly(role: string, onboarding: Onboarding) {
   const wanted = role.trim().toLocaleLowerCase();
@@ -15,11 +15,14 @@ export function canStartDirectly(role: string, onboarding: Onboarding) {
   return Boolean(onboarding.onboarding_resume_document_id && onboarding.onboarding_role_profile_id);
 }
 
-/** Creates a prepared practice for the role that is already set up. */
-export async function createPractice(role: string, onboarding: Onboarding): Promise<string> {
+/**
+ * Creates a prepared practice for the role that is already set up. A focused practice or
+ * quick drill is planned on the server from fixed questions, so preparing it is quick.
+ */
+export async function createPractice(role: string, onboarding: Onboarding, choice?: PracticeChoice): Promise<string> {
   const resumeId = onboarding.onboarding_resume_document_id;
   if (!resumeId) throw new Error("no resume is set up for this role");
-  const session = await mirrorApi.createSession(role, "");
+  const session = await mirrorApi.createSession(role, "", choice);
   const documentIds = [resumeId, onboarding.onboarding_role_brief_document_id].filter(
     (value): value is string => Boolean(value),
   );

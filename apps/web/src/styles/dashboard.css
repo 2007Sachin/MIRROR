@@ -378,3 +378,7 @@ a.dh-role-name:hover { color: var(--dh-cobalt-dark); }
 .dh-drill .dh-answer-note { border-top: 1px solid var(--dh-line); margin-top: var(--space-5); padding-top: var(--space-5); }
 .dh-primary-action.is-danger { background: var(--danger); border-color: var(--danger); }
 .dh-primary-action.is-danger:hover { filter: brightness(.92); }
+
+/* ------------------------------------------------------------------ practice modes */
+
+.dh-focus-tag.is-quiet { background: var(--paper-sunken); color: var(--slate); font-weight: 600; }

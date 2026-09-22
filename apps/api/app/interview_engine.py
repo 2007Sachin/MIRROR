@@ -70,11 +70,18 @@ class InterviewStateMachine:
     async def create_session_state(
         self, user_id: UUID, payload: SessionCreate
     ) -> SessionRead:
+        from .practice_modes import PracticeMode, budgets_for
+
+        total, phase = budgets_for(
+            PracticeMode(payload.practice_mode),
+            full_total=self._total_time_budget_seconds,
+            full_phase=self._phase_time_budget_seconds,
+        )
         return await self._repository.create(
             user_id,
             payload,
-            total_time_budget_seconds=self._total_time_budget_seconds,
-            phase_time_budget_seconds=self._phase_time_budget_seconds,
+            total_time_budget_seconds=total,
+            phase_time_budget_seconds=phase,
         )
 
     async def prepare(self, session_id: UUID, user_id: UUID) -> SessionRead:

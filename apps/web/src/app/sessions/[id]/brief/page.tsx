@@ -1,21 +1,11 @@
 import { ArrowRight, Check } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import { Reveal } from "@/components/motion/reveal";
-import { practiceFocus } from "@/lib/copy";
-import { focusFor, isFocusKey } from "@/lib/practice-view";
+import { PracticeBriefNote } from "@/components/practice/practice-brief-note";
 import "@/styles/sessions.css";
 
-export default async function PreBriefPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ focus?: string }>;
-}) {
+export default async function PreBriefPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { focus } = await searchParams;
-  // A focus is the person's own reminder. It never changes the conversation.
-  const chosenFocus = isFocusKey(focus) && focus !== "full" ? focusFor(focus) : null;
   const points = [
     "Questions are based on your resume, target role, and answers.",
     "Mirror may return to something you said earlier. That's just curiosity, never a sign that anything went badly.",
@@ -31,13 +21,7 @@ export default async function PreBriefPage({
         <p className="mt-7 text-lg leading-8 text-[var(--silver)]">
           There are no trick questions here. You can pause, take your time, or stop whenever you need to.
         </p>
-        {chosenFocus ? (
-          <div className="sb-focus">
-            <p>{practiceFocus.reminderLabel}</p>
-            <strong>{chosenFocus.title}</strong>
-            <span>{chosenFocus.body}</span>
-          </div>
-        ) : null}
+        <PracticeBriefNote sessionId={id} />
         <div className="sb-points">
           {points.map((point) => (
             <div key={point} className="sb-point">

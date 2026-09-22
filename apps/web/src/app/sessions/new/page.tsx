@@ -3,7 +3,7 @@
 import { ArrowRight, Check, FileText, LockKey } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { ApiError, mirrorApi, uploadResumeDocument } from "@/lib/api";
+import { ApiError, mirrorApi, uploadResumeDocument, type PracticeChoice } from "@/lib/api";
 import {
   describeFileRejection,
   friendlyAnalysisError,
@@ -11,7 +11,7 @@ import {
   maximumFileSizeMb,
 } from "@/lib/documents";
 import { Reveal } from "@/components/motion/reveal";
-import { briefHref } from "@/lib/practice-view";
+import { briefHref, choiceFrom, choiceIsComplete } from "@/lib/practice-view";
 import "@/styles/sessions.css";
 
 /**
@@ -36,14 +36,14 @@ export default function NewSessionPage() {
   const [stage, setStage] = useState<StageIndex | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [targetRole, setTargetRole] = useState("");
-  // Carried through from Practice so the chosen focus survives setup.
-  const [focus, setFocus] = useState<string | null>(null);
+  // Carried through from Practice so the chosen way to practise survives setup.
+  const [choice, setChoice] = useState<PracticeChoice | undefined>(undefined);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const role = query.get("role");
     if (role) setTargetRole(role);
-    setFocus(query.get("focus"));
+    setChoice(choiceFrom(query.get("mode"), query.get("focus"), query.get("theme")));
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -117,10 +117,11 @@ export default function NewSessionPage() {
       }
 
       setStage(4);
-      const session = await mirrorApi.createSession(role, jdText);
+      const practiceChoice = choice && choiceIsComplete(choice) ? choice : undefined;
+      const session = await mirrorApi.createSession(role, jdText, practiceChoice);
       await mirrorApi.linkSessionDocuments(session.id, [resumeDocument.id, roleBrief.id]);
       await mirrorApi.prepare(session.id);
-      router.push(briefHref(session.id, focus));
+      router.push(briefHref(session.id));
     } catch (caught) {
       if (caught instanceof PipelineError) setError(caught.message);
       else if (caught instanceof ApiError && caught.status === 401) setError("Your session expired. Please sign in again.");

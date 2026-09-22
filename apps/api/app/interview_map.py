@@ -18,6 +18,7 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -135,8 +136,10 @@ _SUFFIXES = ("ations", "ation", "ings", "ing", "ment", "ments", "ies", "ers", "e
 def _stem(word: str) -> str:
     for suffix in _SUFFIXES:
         if word.endswith(suffix) and len(word) - len(suffix) >= 4:
-            return word[: -len(suffix)]
-    return word
+            word = word[: -len(suffix)]
+            break
+    # "manage" and "managed" should meet at "manag"; "price" and "pricing" at "pric".
+    return word[:-1] if word.endswith("e") and len(word) > 4 else word
 
 
 def words(text: str) -> frozenset[str]:
@@ -146,6 +149,66 @@ def words(text: str) -> frozenset[str]:
 
 def _overlaps(needle: frozenset[str], text: str) -> bool:
     return bool(needle) and not needle.isdisjoint(words(text))
+
+
+class MatchStrength(StrEnum):
+    NONE = "NONE"
+    WEAK = "WEAK"      # shares a word with the theme, not enough to say it is the same thing
+    USEFUL = "USEFUL"  # most of the theme's words, or a known alias, appear
+
+
+# A few common equivalents, written as plain words and stemmed once below.
+# Deliberately small: each entry must be obvious to a reader.
+_ALIAS_WORDS: dict[str, tuple[str, ...]] = {
+    "stakeholder": ("client", "cross-functional", "partner"),
+    "communication": ("presented", "presentation", "explained", "storytelling"),
+    "analysis": ("analytics", "analytical", "insights"),
+    "experimentation": ("hypothesis", "pilot", "a/b"),
+    "sql": ("query", "database", "postgres", "mysql"),
+    "leadership": ("led", "lead", "mentored", "managed"),
+    "forecasting": ("projection", "predicted"),
+}
+_ALIASES: dict[str, frozenset[str]] = {
+    _stem(key): frozenset(stem for value in values for stem in words(value))
+    for key, values in _ALIAS_WORDS.items()
+}
+
+
+def _normalise(text: str) -> str:
+    return text.replace("&", " and ").replace("/", " / ")
+
+
+class ThemeMatcher(Protocol):
+    """How strongly a piece of the candidate's text speaks to one role theme.
+
+    The interface a semantic matcher would implement later; nothing else in this
+    module depends on how the strength is decided.
+    """
+
+    def strength(self, theme: str, text: str) -> MatchStrength: ...
+
+
+class WordMatcher:
+    """Deterministic, explainable word overlap with light stemming and a few aliases."""
+
+    def strength(self, theme: str, text: str) -> MatchStrength:
+        needle = words(_normalise(theme))
+        if not needle:
+            return MatchStrength.NONE
+        haystack = words(_normalise(text))
+        covered = {
+            stem for stem in needle
+            if stem in haystack
+            or not _ALIASES.get(stem, frozenset()).isdisjoint(haystack)
+        }
+        if not covered:
+            return MatchStrength.NONE
+        # Short themes ("Data analysis") need every word; longer ones need at least half.
+        enough = len(covered) == len(needle) if len(needle) <= 2 else len(covered) * 2 >= len(needle)
+        return MatchStrength.USEFUL if enough else MatchStrength.WEAK
+
+
+DEFAULT_MATCHER: ThemeMatcher = WordMatcher()
 
 
 def slug(text: str) -> str:
@@ -197,30 +260,52 @@ def coverage_for(
     name: str,
     output: ResumeAgentOutput | None,
     stories: Sequence[StoryEvidence],
+    matcher: ThemeMatcher = DEFAULT_MATCHER,
 ) -> tuple[Coverage, list[CoverageMatch]]:
-    """Strongest thing the candidate's own material shows for one theme."""
-    needle = words(name)
+    """Strongest thing the candidate's own material shows for one theme.
+
+    A story counts when the candidate tagged it with the theme (or a close wording).
+    Work counts as useful experience only on a USEFUL match; a WEAK overlap with work,
+    or a skill named on the resume, is "mentioned, not yet shown".
+    """
     story_hits = [
         story for story in stories
         if any(theme.casefold() == name.casefold() for theme in story.themes)
-        or _overlaps(needle, " ".join(story.themes))
+        or matcher.strength(name, " ".join(story.themes)) != MatchStrength.NONE
     ]
     if story_hits:
         return Coverage.PREPARED, [
             CoverageMatch(kind="STORY", label=story.title, text=_excerpt(story.text or story.title))
-            for story in story_hits[:2]
+            for story in _unique(story_hits, lambda story: story.title)[:2]
         ]
-    used = [item for item in _used(output) if _overlaps(needle, item.text)]
-    if used:
+    graded = [(item, matcher.strength(name, item.text)) for item in _used(output)]
+    useful = [item for item, strength in graded if strength == MatchStrength.USEFUL]
+    if useful:
         return Coverage.EXPERIENCE, [
-            CoverageMatch(kind=item.kind, label=item.label, text=_excerpt(item.text)) for item in used[:2]
+            CoverageMatch(kind=item.kind, label=item.label, text=_excerpt(item.text))
+            for item in _unique(useful, lambda item: item.label)[:2]
         ]
-    named = [item for item in _named(output) if _overlaps(needle, item.text)]
-    if named:
+    weak = [item for item, strength in graded if strength == MatchStrength.WEAK]
+    named = [item for item in _named(output) if matcher.strength(name, item.text) != MatchStrength.NONE]
+    if named or weak:
+        mentioned = _unique([*named, *weak], lambda item: item.label)
         return Coverage.MENTIONED, [
-            CoverageMatch(kind=item.kind, label=item.label, text=item.text) for item in named[:2]
+            CoverageMatch(kind=item.kind, label=item.label, text=_excerpt(item.text)) for item in mentioned[:2]
         ]
     return Coverage.MISSING, []
+
+
+def _unique(items, key):
+    """Drop repeats (the same project listed twice, the same skill twice) keeping order."""
+    seen: set[str] = set()
+    kept = []
+    for item in items:
+        marker = " ".join(key(item).casefold().split())
+        if marker in seen:
+            continue
+        seen.add(marker)
+        kept.append(item)
+    return kept
 
 
 # ------------------------------------------------------------------ questions

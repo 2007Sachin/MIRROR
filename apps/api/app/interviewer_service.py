@@ -453,6 +453,10 @@ class TextInterviewService:
             )
         if decision.turn_type not in PROBE_TYPES:
             raise InterviewerOutputRejected
+        # The plan can allow fewer follow-ups than the engine's global cap (a quick
+        # drill allows one). The model is told the limit; this makes it binding.
+        if context.probe_count >= context.objective.max_probes:
+            return await self._move_on(candidate, context, execution, user_id, recovery=True)
         if not await self._state.can_ask_question(
             candidate.session_id, user_id, probe=True
         ):

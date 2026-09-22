@@ -179,6 +179,7 @@ from .dashboard_summary import (
 from .progress_summary import ProgressResponse, ProgressService
 from .interview_map import InterviewMap
 from .readiness_service import ClaimNotFoundForUser, ReadinessService
+from .practice_recommendation import RecommendationResponse
 from .pressure_test import (
     AnswerCheckRequest,
     AnswerChecks,
@@ -1215,6 +1216,21 @@ async def run_answer_checks(
 ) -> AnswerChecks:
     """What a practice answer contains. Nothing is stored and nothing is graded."""
     return check_answer(payload)
+
+
+@app.get("/api/v1/roles/{role_profile_id}/practice-recommendation", response_model=RecommendationResponse)
+async def read_practice_recommendation(
+    role_profile_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    readiness: ReadinessService = Depends(get_readiness_service),
+) -> RecommendationResponse:
+    """One quick drill worth doing next, from the role's preparation areas or latest review. Can be empty."""
+    try:
+        return RecommendationResponse(recommendation=await readiness.practice_recommendation(role_profile_id, user.id))
+    except RoleProfileNotFoundForUser as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
+    except (RoleAnalysisUnavailable, DocumentUnavailable, StoriesUnavailable, DashboardUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="Your practice suggestion isn't available right now. Please try again in a moment.") from exc
 
 
 @app.get("/api/v1/stories", response_model=list[StoryView])

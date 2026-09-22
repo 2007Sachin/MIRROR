@@ -44,5 +44,9 @@ def test_my_stories_is_navigable_and_guarded() -> None:
 
 
 def test_candidate_copy_frames_the_pressure_test_as_explaining_not_proving() -> None:
-    assert "digs deeper" in COPY
+    # Shown to people as "Dig Deeper"; the internal name stays pressure_test.
+    assert "Dig deeper into your resume" in COPY
+    assert "See where an interviewer may ask you to explain more." in COPY
+    for old in ('"Pressure-test"', '"Pressure-test me"', '"Pressure-test your resume"', '"Pressure-test my resume"'):
+        assert old not in COPY
     assert not re.search(r"prove", COPY, re.IGNORECASE)

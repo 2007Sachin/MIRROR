@@ -36,6 +36,9 @@ SESSION_READ_COLUMNS = ",".join(
         "current_probe_count",
         "total_questions",
         "recovery_count",
+        "practice_mode",
+        "practice_focus",
+        "practice_theme",
     )
 )
 
@@ -101,6 +104,9 @@ class MemorySessionRepository:
             current_probe_count=0,
             total_questions=0,
             recovery_count=0,
+            practice_mode=payload.practice_mode,
+            practice_focus=payload.practice_focus,
+            practice_theme=payload.practice_theme,
         )
         self.sessions[session.id] = session
         await self.record_event(session.id, user_id, "SESSION_CREATED", {})

@@ -34,7 +34,7 @@ class SupabaseDashboardRepository(SupabaseSkepticRepository):
                 "sessions",
                 {
                     "user_id": f"eq.{user_id}",
-                    "select": "id,target_role,status,phase,created_at,updated_at,completed_at",
+                    "select": "id,target_role,status,phase,created_at,updated_at,completed_at,practice_mode,practice_focus,practice_theme",
                     "order": "updated_at.desc",
                     "limit": str(limit),
                 },
@@ -99,6 +99,9 @@ class SupabaseDashboardRepository(SupabaseSkepticRepository):
                         else None
                     ),
                     diagnostic_available=session_id in result_ids,
+                    practice_mode=row.get("practice_mode") or "FULL_INTERVIEW",
+                    practice_focus=row.get("practice_focus"),
+                    practice_theme=row.get("practice_theme"),
                 )
             )
         return diagnostics

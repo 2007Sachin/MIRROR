@@ -4,7 +4,7 @@ import logging
 from collections import Counter
 from datetime import UTC, datetime
 from math import ceil
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from .agents.definitions import AgentExecutionContext
 from .agents.planner import (
@@ -28,6 +28,13 @@ from .planner_models import (
     PublicInterviewPlan,
 )
 from .planner_repository import InterviewPlanRepository
+from .practice_modes import (
+    PRACTICE_PLANNER_MODEL,
+    PRACTICE_PLANNING_VERSION,
+    PracticeFocus,
+    PracticeMode,
+    build_practice_plan,
+)
 from .repository import SessionRepository
 from .schemas import Phase, SessionStatus
 
@@ -88,6 +95,8 @@ class InterviewPlanningService:
             target_role=session.target_role,
             duration_seconds=session.total_time_budget_seconds,
         )
+        if session.practice_mode != PracticeMode.FULL_INTERVIEW:
+            return await self._practice_plan(session, context.planner_input, user_id)
         record, started = await self._plans.begin(
             session_id,
             user_id,
@@ -134,6 +143,25 @@ class InterviewPlanningService:
             normalized.coverage_summary.estimated_duration_seconds,
         )
         return completed
+
+    async def _practice_plan(self, session, source, user_id: UUID) -> InterviewPlanRecord:
+        """A short practice gets a fixed plan for one area; no model call is needed."""
+        record, started = await self._plans.begin(
+            session.id,
+            user_id,
+            model=PRACTICE_PLANNER_MODEL,
+            prompt_version=PRACTICE_PLANNING_VERSION,
+            planning_version=PRACTICE_PLANNING_VERSION,
+        )
+        if not started:
+            return record
+        plan = build_practice_plan(
+            PracticeMode(session.practice_mode),
+            PracticeFocus(session.practice_focus),
+            source,
+            theme=session.practice_theme,
+        )
+        return await self._plans.complete(record.id, user_id, uuid4(), plan)
 
     async def get(self, session_id: UUID, user_id: UUID) -> InterviewPlanRecord:
         if await self._sessions.get(session_id, user_id) is None:

@@ -22,6 +22,9 @@ export type Session = {
   current_probe_count: number;
   total_questions: number;
   recovery_count: number;
+  practice_mode?: PracticeMode;
+  practice_focus?: PracticeFocusKey | null;
+  practice_theme?: string | null;
 };
 
 export type AssessmentPipelineState = {
@@ -49,6 +52,25 @@ export type DashboardDiagnostic = {
   completed_at: string | null;
   assessment: AssessmentPipelineState | null;
   diagnostic_available: boolean;
+  practice_mode: PracticeMode;
+  practice_focus: PracticeFocusKey | null;
+  practice_theme: string | null;
+};
+
+export type PracticeMode = "FULL_INTERVIEW" | "FOCUSED_PRACTICE" | "QUICK_DRILL";
+export type PracticeFocusKey =
+  | "full" | "story" | "project" | "decisions" | "impact" | "disagreement" | "setback" | "analytics" | "role";
+
+export type PracticeChoice = { mode: PracticeMode; focus: PracticeFocusKey | null; theme: string | null };
+
+export type PracticeRecommendation = {
+  role_profile_id: string;
+  target_role: string;
+  mode: PracticeMode;
+  focus: PracticeFocusKey;
+  theme: string | null;
+  reason: string;
+  source: "ROLE_AREA" | "REVIEW" | "MAP_GAP";
 };
 
 export type DashboardResponse = {
@@ -836,8 +858,18 @@ export const mirrorApi = {
   }),
   role: (id: string) => request<RoleAnalysis>(`/api/v1/roles/${id}`),
   roleCompetencies: (id: string) => request<RoleCompetency[]>(`/api/v1/roles/${id}/competencies`),
-  createSession: (target_role: string, jd_text: string) =>
-    request<Session>("/api/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target_role, jd_text }) }),
+  createSession: (target_role: string, jd_text: string, practice?: PracticeChoice) =>
+    request<Session>("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target_role,
+        jd_text,
+        ...(practice
+          ? { practice_mode: practice.mode, practice_focus: practice.focus, practice_theme: practice.theme }
+          : {}),
+      }),
+    }),
   linkSessionDocuments: (id: string, document_ids: string[]) => request<Session>(`/api/v1/sessions/${id}/documents`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -876,6 +908,9 @@ export const mirrorApi = {
     `/api/v1/progress${role ? `?role=${encodeURIComponent(role)}` : ""}`,
   ),
   roles: () => request<RoleProfileSummary[]>("/api/v1/roles"),
+  practiceRecommendation: (roleProfileId: string) => request<{ recommendation: PracticeRecommendation | null }>(
+    `/api/v1/roles/${roleProfileId}/practice-recommendation`,
+  ),
   interviewMap: (roleProfileId: string) => request<InterviewMap>(`/api/v1/roles/${roleProfileId}/interview-map`),
   pressureTest: (roleProfileId: string) => request<PressureTest>(`/api/v1/roles/${roleProfileId}/pressure-test`),
   setPressureReadiness: (claimId: string, readiness: PressureReadiness) => request<{ claim_id: string; readiness: PressureReadiness }>(

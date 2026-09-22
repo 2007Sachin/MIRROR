@@ -359,6 +359,21 @@ class QuestionPlan(ApiModel):
 class SessionCreate(ApiModel):
     target_role: str = Field(min_length=2, max_length=160)
     jd_text: str = Field(default="", max_length=80_000)
+    practice_mode: str = Field(default="FULL_INTERVIEW")
+    practice_focus: str | None = None
+    practice_theme: str | None = Field(default=None, min_length=2, max_length=300)
+
+    @model_validator(mode="after")
+    def practice_is_consistent(self) -> "SessionCreate":
+        from .practice_modes import PracticeFocus, PracticeMode
+
+        mode = PracticeMode(self.practice_mode)  # raises for an unknown mode
+        focus = PracticeFocus(self.practice_focus) if self.practice_focus else None
+        if mode != PracticeMode.FULL_INTERVIEW and focus in (None, PracticeFocus.FULL):
+            raise ValueError("a focused practice or quick drill needs one area to work on")
+        if self.practice_theme and focus != PracticeFocus.ROLE:
+            raise ValueError("a theme can only be chosen for role-specific practice")
+        return self
 
 
 class SessionRead(ApiModel):
@@ -384,6 +399,9 @@ class SessionRead(ApiModel):
     current_probe_count: int = Field(ge=0, le=2)
     total_questions: int = Field(ge=0)
     recovery_count: int = Field(ge=0)
+    practice_mode: str = "FULL_INTERVIEW"
+    practice_focus: str | None = None
+    practice_theme: str | None = None
 
 
 class SessionEventRead(ApiModel):

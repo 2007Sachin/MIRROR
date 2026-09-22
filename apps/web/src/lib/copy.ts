@@ -483,15 +483,17 @@ export const home = {
 export const practice = {
   eyebrow: "Practice",
   title: "Your practice",
-  intro: "Start where you left off, or choose something specific to work on.",
+  intro: "Short, repeatable practice on what matters for your role, or a full interview when you're ready.",
   start: "Start practice",
-  continueTitle: "Continue preparing",
+  recommendedTitle: "Recommended for you",
+  recommendedFallback: "Choose something you'd like to practise.",
+  startDrill: "Start",
+  modesTitle: "Ways to practise",
+  choose: "Choose",
+  continueTitle: "Continue where you left off",
   lastPractised: (day: string) => `Last practised ${day}`,
   neverPractised: "Not practised yet",
-  specificTitle: "Practice something specific",
-  specificBody: "Every practice is a full conversation. Choosing a focus gives you something to keep in mind while you answer.",
   recommended: "Recommended",
-  otherOptions: "Other things to focus on",
   previousTitle: "Previous practice",
   previousEmpty: "Your finished practice will appear here.",
   historyLabel: "Previous practice",
@@ -506,50 +508,64 @@ export const practice = {
   },
 } as const;
 
-/** The two steps of starting a practice: which role, then what to keep in mind. */
+/** Starting a practice: which role, then how and what to practise. */
 export const startPractice = {
   eyebrow: "Start practice",
   back: "Back",
   stepOf: (step: number, total: number) => `Step ${step} of ${total}`,
   roleStep: {
-    title: "What do you want to prepare for?",
+    title: "What are you preparing for?",
     body: "Choose one of your roles, or add a new one.",
     another: "Prepare for another role",
     anotherBody: "Add a role and a job description.",
     empty: "You haven't added a role yet.",
     setupNeeded: "A little setup is needed",
-    ready: "Ready to practice",
+    ready: "Ready to practise",
   },
   focusStep: {
-    title: "What would you like to practice?",
-    body: "Your conversation covers the whole interview either way. A focus is a reminder Mirror shows you before you begin.",
+    title: "What would you like to work on?",
+    body: "Choose how long, then what to focus on.",
+    howLabel: "How would you like to practise?",
+    whatLabel: "What would you like to work on?",
     begin: "Start practice",
     preparing: "Preparing your practice…",
     failed: "We couldn't prepare that practice just now. You can try again without losing anything.",
   },
 } as const;
 
-/**
- * Focus options. Mirror always runs a full interview conversation; a focus is a
- * reminder the person chooses for themselves, never a change to the questions.
- */
+/** The areas a focused practice or quick drill can work on. Keys match the API. */
 export const practiceFocus = {
-  note: "Whichever you choose, the conversation covers your whole interview. Your focus appears as a reminder before you begin.",
-  reminderLabel: "Your focus for this practice",
+  reminderLabel: "What you're practising",
   options: [
-    {
-      key: "full",
-      title: "Full interview practice",
-      body: "A complete conversation about your experience and the role.",
-      recommended: true,
-    },
-    { key: "story", title: "Tell your story", body: "Walk through your background and how you got here." },
+    { key: "story", title: "Tell your story", body: "Walk through your background and why this role." },
     { key: "project", title: "Explain a project", body: "Talk through one piece of work from start to finish." },
     { key: "decisions", title: "Explain your decisions", body: "Say why you chose an approach, and what you weighed up." },
     { key: "impact", title: "Show your impact", body: "Describe what changed because of your work." },
-    { key: "role", title: "Role-specific questions", body: "Focus on what this particular role looks for." },
+    { key: "disagreement", title: "Handle disagreement", body: "Talk about a time you saw things differently from someone." },
+    { key: "setback", title: "Learn from what didn't work", body: "Talk honestly about a setback and what came next." },
+    { key: "analytics", title: "Think with data", body: "Explain how numbers shaped a decision you made." },
+    { key: "role", title: "Role-specific questions", body: "Questions on what this particular role looks for." },
   ],
 } as const;
+
+/** The three ways to practise. Never called "modes" or "sessions" on screen. */
+export const practiceModes = {
+  FULL_INTERVIEW: {
+    title: "Full interview",
+    body: "A realistic end-to-end interview. Your review comes afterwards.",
+    length: "About 20 minutes",
+  },
+  FOCUSED_PRACTICE: {
+    title: "Focused practice",
+    body: "Work on one specific area, with a few follow-up questions.",
+    length: "4 questions · about 9 minutes",
+  },
+  QUICK_DRILL: {
+    title: "Quick drill",
+    body: "Three questions on one area. Short enough to repeat.",
+    length: "3 questions · about 5 minutes",
+  },
+} as Record<string, { title: string; body: string; length: string }>;
 
 /** My Experience: what Mirror draws on when it prepares questions. */
 export const experience = {
@@ -892,7 +908,7 @@ export const interviewMap = {
   } as Record<string, string>,
   actions: {
     FIND_STORY: "Help me find a story",
-    PRESSURE_TEST: "Pressure-test my resume",
+    PRESSURE_TEST: "Dig deeper into your resume",
     PRACTICE: "Practice this",
     ADD_EXPERIENCE: "Add your experience",
   } as Record<string, string>,
@@ -905,15 +921,15 @@ export const interviewMap = {
   errors: {
     load: "We couldn't load your interview map just now. Nothing has been removed.",
   },
-  pressureCta: "Pressure-test my resume",
-  pressureBody: "Make sure you can explain what's on your resume clearly when someone digs deeper.",
+  pressureCta: "Dig deeper",
+  pressureBody: "See where an interviewer may ask you to explain more.",
 } as const;
 
 /** The parts of one role's preparation workspace. */
 export const roleWorkspace = {
   label: "Role preparation",
   map: "Interview Map",
-  pressure: "Pressure-test",
+  pressure: "Dig Deeper",
 } as const;
 
 /** Home's snapshot of the current role, taken from its Interview Map. */
@@ -930,17 +946,17 @@ export const homePreparation = {
   prepareEmpty: "Nothing stands out as missing right now.",
 } as const;
 
-/** Resume Pressure-test: explain what's on your resume clearly when someone digs deeper. */
+/** Dig Deeper (internally the resume pressure test): see where an interviewer may ask you to explain more. */
 export const pressureTest = {
-  eyebrow: "Pressure-test",
-  title: "Pressure-test your resume",
-  intro: "Make sure you can explain what's on your resume clearly when someone digs deeper. Statements most relevant to this role come first.",
+  eyebrow: "Dig Deeper",
+  title: "Dig deeper into your resume",
+  intro: "See where an interviewer may ask you to explain more. Statements most relevant to this role come first.",
   mayAsk: "An interviewer may ask",
   howReady: "How prepared are you to explain this?",
   canExplain: "I can explain this",
   needPrepare: "I need to prepare",
   marked: { CAN_EXPLAIN: "You said you can explain this", NEEDS_PREPARATION: "Marked to prepare" } as Record<string, string>,
-  start: "Pressure-test me",
+  start: "Dig deeper",
   relatedTo: "Relevant to",
   where: "From your resume",
   question: (step: number, total: number) => `Question ${step} of ${total}`,
@@ -982,7 +998,7 @@ export const stories = {
   },
   from: {
     MANUAL: "Written by you",
-    PRESSURE_TEST: "From your resume pressure-test",
+    PRESSURE_TEST: "From Dig Deeper",
     FIND_A_STORY: "Found with Mirror's help",
     EXPERIENCE: "From your experience",
   } as Record<string, string>,

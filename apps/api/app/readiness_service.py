@@ -9,7 +9,9 @@ from __future__ import annotations
 from uuid import UUID
 
 from .document_repository import DocumentRepository
+from .dashboard_summary import LatestReview
 from .interview_map import InterviewMap, StoryEvidence, build_interview_map
+from .practice_recommendation import PracticeRecommendation, recommend_practice
 from .pressure_test import PressureResponse, PressureTest, Readiness, build_pressure_test
 from .progress_summary import ProgressService
 from .resume_models import ResumeAnalysisResponse
@@ -70,18 +72,22 @@ class ReadinessService:
         except ResumeNotFound:
             return document, None  # uploaded but never read
 
-    async def interview_map(self, role_profile_id: UUID, user_id: UUID) -> InterviewMap:
+    async def _map_and_review(self, role_profile_id: UUID, user_id: UUID) -> tuple[InterviewMap, LatestReview | None]:
         role = await self.role(role_profile_id, user_id)
         document, resume = await self.resume(user_id)
         stories = await self._stories.list_for_user(user_id)
         latest = await self._progress.latest(user_id, role.target_role) if self._progress else None
-        return build_interview_map(
+        built = build_interview_map(
             role,
             resume,
             has_resume_document=document is not None,
             stories=[story_evidence(story) for story in stories],
             latest_review=latest,
         )
+        return built, latest
+
+    async def interview_map(self, role_profile_id: UUID, user_id: UUID) -> InterviewMap:
+        return (await self._map_and_review(role_profile_id, user_id))[0]
 
     async def pressure_test(self, role_profile_id: UUID, user_id: UUID) -> PressureTest:
         role = await self.role(role_profile_id, user_id)
@@ -105,3 +111,7 @@ class ReadinessService:
             raise ClaimNotFoundForUser
         updated = await self._responses.upsert(user_id, claim_id, readiness.value)
         return PressureResponse(claim_id=claim_id, readiness=readiness, updated_at=updated)
+
+    async def practice_recommendation(self, role_profile_id: UUID, user_id: UUID) -> PracticeRecommendation | None:
+        """One quick drill worth doing next for this role, or nothing."""
+        return recommend_practice(*await self._map_and_review(role_profile_id, user_id))

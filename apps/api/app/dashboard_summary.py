@@ -66,6 +66,7 @@ class LatestReview(SummaryModel):
     improvements: list[ReviewImprovement]
     next_step: ReviewNextStep
     shorter_conversation: bool = False
+    root_cause: str | None = None  # the review's own growth-area code; used to pick practice
 
 
 class DashboardSummaryResponse(SummaryModel):
@@ -248,6 +249,7 @@ def build_latest_review(session_id: UUID, report: ReportResponse) -> LatestRevie
         improvements=improvements,
         next_step=review_next_step(improvements),
         shorter_conversation=bool(getattr(report, "shorter_conversation", False)),
+        root_cause=report.root_cause or None,
     )
 
 
