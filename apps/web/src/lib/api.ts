@@ -4,6 +4,7 @@ export type Session = {
   id: string;
   user_id: string;
   target_role: string;
+  role_profile_id: string | null;
   resume_url: string | null;
   jd_text: string;
   status: "CREATED" | "PREPARING" | "READY" | "ACTIVE" | "ASSESSING" | "COMPLETED" | "FAILED";
@@ -887,7 +888,7 @@ export const mirrorApi = {
   }),
   role: (id: string) => request<RoleAnalysis>(`/api/v1/roles/${id}`),
   roleCompetencies: (id: string) => request<RoleCompetency[]>(`/api/v1/roles/${id}/competencies`),
-  createSession: (target_role: string, jd_text: string, practice?: PracticeChoice) =>
+  createSession: (target_role: string, jd_text: string, practice?: PracticeChoice, role_profile_id?: string | null) =>
     request<Session>("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -897,6 +898,7 @@ export const mirrorApi = {
         ...(practice
           ? { practice_mode: practice.mode, practice_focus: practice.focus, practice_theme: practice.theme }
           : {}),
+        ...(role_profile_id ? { role_profile_id } : {}),
       }),
     }),
   linkSessionDocuments: (id: string, document_ids: string[]) => request<Session>(`/api/v1/sessions/${id}/documents`, {

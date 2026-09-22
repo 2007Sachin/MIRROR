@@ -17,6 +17,7 @@ SESSION_READ_COLUMNS = ",".join(
         "id",
         "user_id",
         "target_role",
+        "role_profile_id",
         "resume_url",
         "jd_text",
         "status",
@@ -90,6 +91,7 @@ class MemorySessionRepository:
             id=uuid4(),
             user_id=user_id,
             target_role=payload.target_role,
+            role_profile_id=payload.role_profile_id,
             jd_text=payload.jd_text,
             status=SessionStatus.CREATED,
             phase=Phase.INTRO,
@@ -181,7 +183,7 @@ class SupabaseSessionRepository:
     ) -> SessionRead:
         body = {
             "user_id": str(user_id),
-            **payload.model_dump(),
+            **payload.model_dump(mode="json"),
             "phase": "INTRO",
             "status": "CREATED",
             "total_time_budget_seconds": total_time_budget_seconds,

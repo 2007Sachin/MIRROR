@@ -118,7 +118,7 @@ export default function NewSessionPage() {
 
       setStage(4);
       const practiceChoice = choice && choiceIsComplete(choice) ? choice : undefined;
-      const session = await mirrorApi.createSession(role, jdText, practiceChoice);
+      const session = await mirrorApi.createSession(role, jdText, practiceChoice, roleAnalysis.id);
       await mirrorApi.linkSessionDocuments(session.id, [resumeDocument.id, roleBrief.id]);
       await mirrorApi.prepare(session.id);
       router.push(briefHref(session.id));

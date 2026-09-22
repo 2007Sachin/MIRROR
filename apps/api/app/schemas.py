@@ -362,6 +362,9 @@ class SessionCreate(ApiModel):
     practice_mode: str = Field(default="FULL_INTERVIEW")
     practice_focus: str | None = None
     practice_theme: str | None = Field(default=None, min_length=2, max_length=300)
+    # Optional explicit role. When omitted, planning falls back to the account's
+    # mutable profiles.current_role_profile_id (legacy behaviour, unchanged).
+    role_profile_id: UUID | None = None
 
     @model_validator(mode="after")
     def practice_is_consistent(self) -> "SessionCreate":
@@ -380,6 +383,7 @@ class SessionRead(ApiModel):
     id: UUID
     user_id: UUID
     target_role: str
+    role_profile_id: UUID | None = None
     resume_url: str | None = None
     jd_text: str
     status: SessionStatus

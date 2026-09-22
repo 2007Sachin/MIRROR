@@ -89,11 +89,18 @@ class InterviewPlanningService:
             raise PlanNotFound
         if session.status not in (SessionStatus.PREPARING, SessionStatus.READY):
             raise SessionNotPlannable
+        load_context_kwargs: dict = {
+            "target_role": session.target_role,
+            "duration_seconds": session.total_time_budget_seconds,
+        }
+        if session.role_profile_id is not None:
+            # Only pass this when the session has an explicit role, so repositories
+            # (and test doubles) that predate this parameter keep working unchanged.
+            load_context_kwargs["role_profile_id"] = session.role_profile_id
         context = await self._plans.load_context(
             session_id,
             user_id,
-            target_role=session.target_role,
-            duration_seconds=session.total_time_budget_seconds,
+            **load_context_kwargs,
         )
         if session.practice_mode != PracticeMode.FULL_INTERVIEW:
             return await self._practice_plan(session, context.planner_input, user_id)

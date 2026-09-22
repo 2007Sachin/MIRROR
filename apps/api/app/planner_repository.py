@@ -51,6 +51,7 @@ class InterviewPlanRepository(Protocol):
         *,
         target_role: str,
         duration_seconds: int,
+        role_profile_id: UUID | None = None,
     ) -> PlanningContext: ...
 
     async def begin(
@@ -110,6 +111,7 @@ class SupabaseInterviewPlanRepository:
         *,
         target_role: str,
         duration_seconds: int,
+        role_profile_id: UUID | None = None,
     ) -> PlanningContext:
         profile_rows = await self._get(
             "profiles",
@@ -121,10 +123,19 @@ class SupabaseInterviewPlanRepository:
                 ),
             },
         )
-        if not profile_rows or not profile_rows[0].get("current_role_profile_id"):
+        if not profile_rows:
             raise RoleAnalysisRequired
         profile = profile_rows[0]
-        role_profile_id = profile["current_role_profile_id"]
+        # An explicit role_profile_id (passed by the session) takes precedence over
+        # the account's mutable "current role" pointer. Ownership is still verified
+        # below via the user_id filter on role_profiles.
+        resolved_role_profile_id = (
+            str(role_profile_id) if role_profile_id is not None
+            else profile.get("current_role_profile_id")
+        )
+        if not resolved_role_profile_id:
+            raise RoleAnalysisRequired
+        role_profile_id = resolved_role_profile_id
         role_rows = await self._get(
             "role_profiles",
             {

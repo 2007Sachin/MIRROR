@@ -1395,7 +1395,13 @@ async def create_session(
     payload: SessionCreate,
     user_id: UUID = Depends(current_user_id),
     engine: InterviewStateMachine = Depends(get_interview_state_machine),
+    roles: RoleAnalysisService = Depends(get_role_analysis_service),
 ) -> SessionRead:
+    try:
+        if payload.role_profile_id is not None:
+            await roles.get(payload.role_profile_id, user_id)
+    except RoleProfileNotFoundForUser as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
     return await engine.create_session_state(user_id, payload)
 
 
