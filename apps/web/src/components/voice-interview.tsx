@@ -19,6 +19,7 @@ import {
   ApiError,
   mirrorApi,
   pauseOnPageExit,
+  type PracticeMode,
   uploadVoiceTurn,
   type PublicInterviewTurn,
   type VoiceTurnResult,
@@ -29,6 +30,7 @@ import { useLifecycle } from "@/lib/use-lifecycle";
 type RoomState =
   | "PREPARING"
   | "PREJOIN"
+  | "CHECKING_MIC"
   | "CONNECTING"
   | "INTERVIEWER_SPEAKING"
   | "LISTENING"
@@ -38,8 +40,9 @@ type RoomState =
   | "ERROR"
   | "COMPLETE";
 
-type PermissionState = "prompt" | "granted" | "denied";
+type PermissionState = "prompt" | "granted" | "denied" | "unavailable";
 type CaptionSupport = "checking" | "available" | "unavailable";
+type RoomErrorKind = "AUTH" | "NETWORK" | "MIC" | "TRANSCRIPTION" | "TURN" | "SESSION" | "COMPLETION";
 
 type LiveSpeechResult = ArrayLike<{ transcript: string }> & { isFinal: boolean };
 type LiveSpeechEvent = Event & {
@@ -79,6 +82,7 @@ const MAXIMUM_TURN_MS = 120_000;
 const stateLabels: Record<RoomState, string> = {
   PREPARING: "Preparing the room",
   PREJOIN: "Ready to join",
+  CHECKING_MIC: "Checking your microphone",
   CONNECTING: "Joining the conversation",
   INTERVIEWER_SPEAKING: "Mirror is speaking",
   LISTENING: "Listening",
@@ -87,6 +91,12 @@ const stateLabels: Record<RoomState, string> = {
   PAUSED: "Microphone muted",
   ERROR: "Needs a moment",
   COMPLETE: "Conversation complete",
+};
+
+const practiceLabels: Record<PracticeMode, string> = {
+  FULL_INTERVIEW: "Full interview",
+  FOCUSED_PRACTICE: "Focused practice",
+  QUICK_DRILL: "Quick drill",
 };
 
 function formatTime(total: number) {
@@ -146,11 +156,14 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const roomStateRef = useRef<RoomState>("PREPARING");
   const submitInFlightRef = useRef(false);
   const completionInFlightRef = useRef(false);
+  const pendingVoiceRef = useRef<{ blob: Blob; durationMs: number; clientTurnId: string } | null>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const redirectTimerRef = useRef<number | null>(null);
   const deadlineRef = useRef<number | null>(null);
 
   const [phase, setPhase] = useState("INTRO");
+  const [targetRole, setTargetRole] = useState("");
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>("FULL_INTERVIEW");
   const [remaining, setRemaining] = useState(0);
   const [question, setQuestion] = useState("");
   const [turnId, setTurnId] = useState<string | null>(null);
@@ -171,6 +184,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const [joined, setJoined] = useState(false);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState("");
+  const [errorKind, setErrorKind] = useState<RoomErrorKind | null>(null);
   const [showTextFallback, setShowTextFallback] = useState(false);
   const [typedAnswer, setTypedAnswer] = useState("");
   const [closing, setClosing] = useState(false);
@@ -324,12 +338,14 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       try {
         const session = await mirrorApi.session(sessionId);
         if (!active) return;
+        setTargetRole(session.target_role);
+        setPracticeMode(session.practice_mode ?? "FULL_INTERVIEW");
         if (session.status === "COMPLETED") {
-          router.replace("/dashboard");
+          transition("COMPLETE");
           return;
         }
         if (session.status === "ASSESSING") {
-          void completeInterview();
+          transition("COMPLETE");
           return;
         }
         if (session.status !== "READY" && session.status !== "ACTIVE") {
@@ -342,11 +358,8 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
           Math.max(0, session.total_time_budget_seconds - session.elapsed_seconds),
         );
         if (session.status === "ACTIVE") {
-          const result = await mirrorApi.startVoiceInterview(sessionId);
-          if (!active) return;
-          await playWelcome(result);
-          await presentQuestion(result, false);
           await refreshTranscript();
+          transition("PREJOIN");
         } else {
           transition("PREJOIN");
         }
@@ -571,6 +584,8 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     const abortController = new AbortController();
     uploadAbortRef.current = abortController;
     setError("");
+    setErrorKind(null);
+    pendingVoiceRef.current = { blob, durationMs, clientTurnId };
     setUploadProgress(0);
     transition("PROCESSING");
     try {
@@ -585,12 +600,15 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       );
       if (!mountedRef.current) return;
       await refreshTranscript();
+      pendingVoiceRef.current = null;
       setLiveCaption("");
       submitInFlightRef.current = false;
       await presentQuestion(result, true);
     } catch (caught) {
       if (!mountedRef.current || (caught instanceof DOMException && caught.name === "AbortError")) return;
       const apiError = caught instanceof ApiError ? caught : null;
+      setErrorKind(apiError?.status === 401 ? "AUTH" : apiError?.code === "TRANSCRIPTION_FAILED" ? "TRANSCRIPTION" : navigator.onLine ? "TURN" : "NETWORK");
+      if (apiError?.code === "TRANSCRIPTION_FAILED") pendingVoiceRef.current = null;
       setError(
         apiError?.code === "TRANSCRIPTION_FAILED"
           ? "I couldn't hear that clearly. When you're ready, say your answer again."
@@ -605,7 +623,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   }
 
   async function joinInterview() {
-    if (roomStateRef.current === "CONNECTING") return;
+    if (roomStateRef.current === "CONNECTING" || roomStateRef.current === "CHECKING_MIC") return;
     setError("");
     transition("CONNECTING");
     let stream: MediaStream | null = null;
@@ -613,29 +631,14 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
         throw new Error("This browser can't use voice. You can type your answer instead.");
       }
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      stream = streamRef.current ?? await requestMicrophone();
       if (!mountedRef.current) {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
       streamRef.current = stream;
-      const AudioContextConstructor = window.AudioContext
-        ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioContextConstructor) throw new Error("Audio features aren't supported in this browser.");
-      const context = new AudioContextConstructor();
-      audioContextRef.current = context;
-      await context.resume();
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 1024;
-      analyser.smoothingTimeConstant = 0.72;
-      context.createMediaStreamSource(stream).connect(analyser);
-      analyserRef.current = analyser;
+      stopVad();
+      await connectAnalyser(stream);
       configureLiveTranscription();
       joinedRef.current = true;
       setJoined(true);
@@ -654,14 +657,117 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       if (denied) {
         setPermission("denied");
         setShowTextFallback(true);
+        setErrorKind("MIC");
         setError("Microphone access is blocked. Allow it in browser settings to join by voice.");
       } else {
+        setPermission(caught instanceof ApiError ? "granted" : "unavailable");
+        setErrorKind(caught instanceof ApiError && caught.status === 401 ? "AUTH" : "MIC");
         setError(
           caught instanceof ApiError
             ? caught.message
             : "We couldn't connect your microphone. Please check your device and try again.",
         );
       }
+      transition("ERROR");
+    }
+  }
+
+  async function connectAnalyser(stream: MediaStream) {
+    if (analyserRef.current && audioContextRef.current) return;
+    const AudioContextConstructor = window.AudioContext
+      ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) throw new Error("Audio features aren't supported in this browser.");
+    const context = new AudioContextConstructor();
+    audioContextRef.current = context;
+    await context.resume();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.72;
+    context.createMediaStreamSource(stream).connect(analyser);
+    analyserRef.current = analyser;
+  }
+
+  function monitorMicrophonePreview() {
+    const analyser = analyserRef.current;
+    if (!analyser) return;
+    const samples = new Uint8Array(analyser.fftSize);
+    const sample = () => {
+      if (!analyserRef.current || joinedRef.current) return;
+      analyserRef.current.getByteTimeDomainData(samples);
+      let sum = 0;
+      for (const value of samples) {
+        const normalized = (value - 128) / 128;
+        sum += normalized * normalized;
+      }
+      meterRef.current?.style.setProperty("--voice-level", Math.min(1, Math.sqrt(sum / samples.length) * 10).toFixed(3));
+      vadFrameRef.current = requestAnimationFrame(sample);
+    };
+    vadFrameRef.current = requestAnimationFrame(sample);
+  }
+
+  async function requestMicrophone() {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      throw new Error("This browser can't use voice. You can type your answer instead.");
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    const track = stream.getAudioTracks()[0];
+    if (!track) {
+      stream.getTracks().forEach((item) => item.stop());
+      throw new Error("No microphone was found.");
+    }
+    track.onended = () => {
+      if (!mountedRef.current || !joinedRef.current) return;
+      stopCapture(true);
+      setErrorKind("MIC");
+      setError("Mirror can't hear you because the microphone disconnected. Reconnect it, then try again.");
+      transition("ERROR");
+    };
+    return stream;
+  }
+
+  async function testMicrophone() {
+    if (roomStateRef.current === "CHECKING_MIC") return;
+    setError("");
+    setErrorKind(null);
+    transition("CHECKING_MIC");
+    try {
+      const stream = await requestMicrophone();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = stream;
+      await connectAnalyser(stream);
+      monitorMicrophonePreview();
+      setPermission("granted");
+      transition("PREJOIN");
+    } catch (caught) {
+      const denied = caught instanceof DOMException && (caught.name === "NotAllowedError" || caught.name === "SecurityError");
+      setPermission(denied ? "denied" : "unavailable");
+      setErrorKind("MIC");
+      setError(denied
+        ? "Microphone access is blocked. Allow it in browser settings, then check again."
+        : caught instanceof Error ? caught.message : "We couldn't find a working microphone.");
+      transition("ERROR");
+    }
+  }
+
+  async function joinWithTyping() {
+    if (roomStateRef.current === "CONNECTING") return;
+    setError("");
+    setErrorKind(null);
+    transition("CONNECTING");
+    try {
+      const result = await mirrorApi.startVoiceInterview(sessionId);
+      if (!mountedRef.current) return;
+      joinedRef.current = true;
+      setJoined(true);
+      setShowTextFallback(true);
+      await refreshTranscript();
+      await presentQuestion(result, false);
+      transition("PAUSED");
+    } catch (caught) {
+      setErrorKind(caught instanceof ApiError && caught.status === 401 ? "AUTH" : "SESSION");
+      setError(caught instanceof ApiError ? caught.message : "We couldn't open the conversation just now. Please try again.");
       transition("ERROR");
     }
   }
@@ -753,6 +859,12 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
 
   function resumeConversation() {
     setError("");
+    setErrorKind(null);
+    if (pendingVoiceRef.current) {
+      const pending = pendingVoiceRef.current;
+      void submitVoice(pending.blob, pending.durationMs, pending.clientTurnId);
+      return;
+    }
     if (audioUrl && roomStateRef.current === "ERROR" && audioFailed) {
       void playQuestion();
     } else if (joinedRef.current && !mutedRef.current) {
@@ -769,10 +881,11 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     try {
       await mirrorApi.endInterview(sessionId);
       if (!mountedRef.current) return;
-      router.replace("/dashboard");
+      transition("COMPLETE");
     } catch (caught) {
       if (!mountedRef.current) return;
       setError(caught instanceof ApiError ? caught.message : "We couldn't end the conversation just now. Please try again.");
+      setErrorKind(caught instanceof ApiError && caught.status === 401 ? "AUTH" : "COMPLETION");
       closingRef.current = false;
       setClosing(false);
       transition("ERROR");
@@ -829,10 +942,37 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   useLifecycle(sessionId, joined, {
     onOpenElsewhere: () => {
       releaseMedia();
+      setErrorKind("SESSION");
       setError(lifecycleCopy.openElsewhere);
     },
-    onConnectionLost: () => setError(lifecycleCopy.connectionDropped),
+    onConnectionLost: () => {
+      setErrorKind("NETWORK");
+      setError(lifecycleCopy.connectionDropped);
+      transition("ERROR");
+    },
   });
+
+  useEffect(() => {
+    const offline = () => {
+      if (!joinedRef.current) return;
+      stopCapture(true);
+      setErrorKind("NETWORK");
+      setError("Connection interrupted. Your completed answers are saved. Reconnect before continuing.");
+      transition("ERROR");
+    };
+    const online = () => {
+      if (errorKind !== "NETWORK") return;
+      setError("");
+      setErrorKind(null);
+      if (joinedRef.current && !mutedRef.current) beginListening();
+    };
+    window.addEventListener("offline", offline);
+    window.addEventListener("online", online);
+    return () => {
+      window.removeEventListener("offline", offline);
+      window.removeEventListener("online", online);
+    };
+  }, [errorKind]);
 
   // Closing or leaving the tab saves the place instead of losing it.
   useEffect(() => {
@@ -864,7 +1004,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   }
 
   const transcriptTurns = transcript.slice(-8);
-  const processing = roomState === "CONNECTING" || roomState === "PROCESSING";
+  const processing = roomState === "CONNECTING" || roomState === "CHECKING_MIC" || roomState === "PROCESSING";
 
   return (
     <main className={`interview-room interview-room--${roomState.toLowerCase()}`}>
@@ -872,17 +1012,27 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
         <div className="interview-room-brand">
           <span className="interview-room-mark">M</span>
           <div>
-            <strong>Mirror conversation</strong>
-            <span>Take your time</span>
+            <strong>Mirror</strong>
+            <span>{targetRole || "Interview practice"}</span>
           </div>
         </div>
         <div className="interview-room-meta">
           <span className="interview-room-phase">{phase.replaceAll("_", " ")}</span>
-          <time aria-label={`${remaining} seconds remaining`}>{formatTime(remaining)}</time>
+          <time aria-label={`${remaining} seconds remaining`}>{formatTime(remaining)} remaining</time>
         </div>
       </header>
 
-      {!joined ? (
+      {roomState === "COMPLETE" ? (
+        <section className="interview-complete" aria-labelledby="interview-complete-title">
+          <p className="mono">Conversation saved</p>
+          <h1 id="interview-complete-title" className="display">Interview complete</h1>
+          <p>Your answers are safe. Mirror is preparing your review; you can open it now and it will update when ready.</p>
+          <div>
+            <button type="button" onClick={() => router.push(`/app/report/${sessionId}`)}>View review</button>
+            <button type="button" className="is-quiet" onClick={() => router.push("/dashboard")}>Return to Home</button>
+          </div>
+        </section>
+      ) : !joined ? (
         <section className="interview-prejoin" aria-labelledby="prejoin-title">
           <div className="interview-prejoin-preview">
             <div className="interview-presence interview-presence--preview" aria-hidden="true">
@@ -890,30 +1040,48 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
               <i /><i /><i />
             </div>
             <div className="interview-prejoin-device">
-              <span className={`interview-device-dot ${permission === "denied" ? "is-denied" : ""}`} />
-              {permission === "denied" ? "Microphone blocked" : "Microphone ready to connect"}
+              <span className={`interview-device-dot ${permission === "denied" || permission === "unavailable" ? "is-denied" : ""}`} />
+              {permission === "granted" ? "Microphone ready" : permission === "denied" ? "Microphone blocked" : permission === "unavailable" ? "Microphone unavailable" : "Microphone permission required"}
             </div>
+            {permission === "granted" ? (
+              <div ref={meterRef} className="interview-voice-meter interview-voice-meter--preview" aria-label="Live microphone level">
+                {Array.from({ length: 13 }, (_, index) => <i key={index} />)}
+              </div>
+            ) : null}
           </div>
           <div className="interview-prejoin-copy">
-            <p className="mono">Your private practice room</p>
-            <h1 id="prejoin-title" className="display">Ready to meet Mirror?</h1>
+            <p className="mono">{practiceLabels[practiceMode]} · {targetRole || "Interview practice"}</p>
+            <h1 id="prejoin-title" className="display">Ready when you are.</h1>
             <p>
               This works like a live call. Mirror asks a question, listens while you answer,
               and responds when you finish speaking. There are no trick questions, and you can mute or stop whenever you like.
             </p>
             {error ? <p role="alert" className="interview-inline-error">{error}</p> : null}
+            {permission !== "granted" ? <button
+              type="button"
+              className="interview-mic-test-button"
+              onClick={() => void testMicrophone()}
+              disabled={roomState === "CHECKING_MIC"}
+            >
+              {roomState === "CHECKING_MIC" ? <SpinnerGap className="interview-spinner" size={19} /> : <Microphone size={19} />}
+              {roomState === "CHECKING_MIC" ? "Checking microphone…" : "Check microphone"}
+            </button> : null}
             <button
               type="button"
               className="interview-join-button"
               onClick={() => void joinInterview()}
-              disabled={roomState === "CONNECTING"}
+              disabled={processing || permission !== "granted"}
             >
               {roomState === "CONNECTING" ? <SpinnerGap className="interview-spinner" size={19} /> : <Microphone size={19} />}
-              {roomState === "CONNECTING" ? "Joining…" : "Join interview"}
+              {roomState === "CONNECTING" ? "Joining…" : permission === "granted" ? "Start interview" : "Enable microphone first"}
             </button>
+            {permission === "denied" || permission === "unavailable" ? (
+              <button type="button" className="interview-text-entry-button" onClick={() => void joinWithTyping()} disabled={processing}>
+                Continue with typing
+              </button>
+            ) : null}
             <small>
-              Live captions use your browser&apos;s speech service when supported. Mirror&apos;s
-              confirmed server transcript remains the interview record.
+              Your interview audio and confirmed transcript are saved for your review. Live captions use your browser&apos;s speech service when supported and are not the interview record.
             </small>
           </div>
         </section>
@@ -968,7 +1136,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
               <div className="interview-transcript-heading">
                 <div>
                   <span className="mono">Conversation</span>
-                  <h2 className="display">Live transcript</h2>
+                  <h2 className="display">Conversation</h2>
                 </div>
                 <span className={`interview-live-dot ${!captionsEnabled || captionSupport !== "available" ? "is-off" : ""}`}>
                   {captionSupport === "available"
@@ -1024,7 +1192,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
 
           {error ? (
             <div className="interview-error-banner" role="alert">
-              <span>{error}</span>
+              <span><strong>{errorKind === "NETWORK" ? "Connection interrupted. " : errorKind === "MIC" ? "Microphone unavailable. " : ""}</strong>{error}</span>
               {!processing && !closing ? <button type="button" onClick={resumeConversation}>Continue</button> : null}
             </div>
           ) : null}

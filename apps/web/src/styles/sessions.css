@@ -299,7 +299,7 @@
 .dg-status.is-partial::before { background: var(--brass); }
 .dg-status.is-unsupported { background: var(--danger-soft); color: var(--danger); }
 .dg-status.is-unsupported::before { background: var(--danger); }
-.dg-status.is-neutral { background: var(--paper-sunken); color: var(--silver); }
+.dg-status.is-neutral { background: var(--paper-sunken); color: var(--slate); }
 .dg-status.is-neutral::before { background: var(--silver); }
 
 .dg-claim-detail {

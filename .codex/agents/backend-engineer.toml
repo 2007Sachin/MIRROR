@@ -1,0 +1,7 @@
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+sandbox_mode = "workspace-write"
+
+developer_instructions = """
+Own Mirror FastAPI changes, API contracts, async jobs, orchestration, retries, idempotency, and worker boundaries. Preserve deterministic lifecycle and failure handling; agents do not own SQL or canonical state. Add focused tests.
+"""

@@ -1,0 +1,103 @@
+/*
+ * Practice, the pre-practice check, the reflection after a practice, and Reflect.
+ * Only the shared tokens: action (ink-dark), ink/slate/silver, line, paper,
+ * success/caution/danger. Every control is at least 44px tall.
+ */
+
+/* ------------------------------------------------------------------ practice home */
+.pr-draft-list { border-top: 1px solid var(--line); list-style: none; margin: var(--space-4) 0 0; padding: 0; }
+.pr-draft-list > li {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  justify-content: space-between;
+  padding: var(--space-4) 0;
+}
+.pr-draft-copy { display: grid; gap: .2rem; min-width: 0; }
+.pr-draft-copy strong { color: var(--ink); overflow-wrap: anywhere; }
+.pr-draft-copy small { color: var(--slate); font-size: var(--text-sm); }
+.pr-draft-actions { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.pr-draft-actions > a,
+.pr-draft-actions > button { min-height: 44px; }
+
+.pr-discard { color: var(--slate); min-height: 44px; }
+.pr-discard:hover { color: var(--danger); }
+
+.pr-confirm {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--danger);
+  border-radius: .5rem;
+  display: grid;
+  gap: var(--space-3);
+  max-width: 34rem;
+  padding: var(--space-4);
+}
+.pr-confirm:focus { outline: none; }
+.pr-confirm:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+.pr-confirm p { color: var(--ink); font-size: var(--text-sm); line-height: 1.55; margin: 0; }
+.pr-confirm-actions { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.pr-confirm-actions button { min-height: 44px; }
+.dh-primary-action.pr-danger { border-color: var(--danger); color: var(--danger); }
+.dh-primary-action.pr-danger:hover { background: var(--paper); border-color: var(--danger); }
+
+.pr-formats { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); margin: var(--space-4) 0 0; }
+.pr-formats > div { background: var(--paper-raised); border: 1px solid var(--line); border-radius: .5rem; padding: var(--space-4); }
+.pr-formats dt { color: var(--ink); font-weight: 650; }
+.pr-formats dd { color: var(--slate); font-size: var(--text-sm); line-height: 1.55; margin: var(--space-2) 0 0; }
+.pr-formats .pr-format-length { color: var(--ink); font-weight: 600; }
+
+.pr-suggestion { border-left: 3px solid var(--action); padding: .1rem 0 .1rem var(--space-4); }
+.pr-suggestion h2 { color: var(--ink); font-size: 1.5rem; margin: var(--space-2) 0 0; overflow-wrap: anywhere; }
+.pr-suggestion .dh-text-action { min-height: 44px; }
+
+/* ------------------------------------------------------------------ pre-practice check */
+.dh-choice-add { color: var(--ink); }
+.dh-choice-add strong { align-items: center; display: inline-flex; gap: .35rem; }
+.dh-practice-story { display: grid; gap: var(--space-2); }
+
+.pr-check { background: var(--paper-raised); border: 1px solid var(--line); border-radius: .5rem; margin-top: var(--space-5, 1.5rem); padding: var(--space-4); }
+.pr-check h2 { color: var(--ink); font-size: 1.1rem; margin: 0; }
+.pr-check > p { color: var(--slate); font-size: var(--text-sm); margin: var(--space-2) 0 0; }
+.pr-check dl { display: grid; gap: var(--space-3) var(--space-4); grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); margin: var(--space-4) 0 0; }
+.pr-check dt { color: var(--slate); font-size: var(--text-sm); }
+.pr-check dd { color: var(--ink); font-weight: 600; margin: .15rem 0 0; overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------------ reflection after a practice */
+.pr-reflection-list { display: grid; gap: var(--space-4); list-style: none; margin: var(--space-4) 0 0; padding: 0; }
+.pr-reflection-list > li,
+.pr-reflection-list > div { border-left: 3px solid var(--success); display: grid; gap: var(--space-2); padding-left: var(--space-4); }
+div.pr-reflection-list > div { border-left-color: var(--caution); }
+.pr-reflection-list p { color: var(--ink); line-height: 1.6; margin: 0; max-width: 62ch; }
+.pr-need { font-weight: 600; }
+.pr-need span { color: var(--slate); font-size: var(--text-sm); font-weight: 500; margin-right: .35rem; }
+
+.pr-from-answer { background: var(--paper-raised); border: 1px solid var(--line); border-radius: .5rem; padding: var(--space-3) var(--space-4); }
+.pr-from-answer p { color: var(--slate); font-size: var(--text-sm); }
+.pr-from-answer blockquote { border-left: 2px solid var(--silver); color: var(--ink); margin: var(--space-2) 0 0; padding-left: var(--space-3); }
+
+.pr-repeat { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); list-style: none; margin: var(--space-4) 0 0; padding: 0; }
+.pr-repeat a {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  color: var(--ink);
+  display: grid;
+  gap: .2rem;
+  height: 100%;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  text-decoration: none;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.pr-repeat a:hover { background: var(--action-soft); border-color: var(--action); }
+.pr-repeat a:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+.pr-repeat strong { color: var(--ink); }
+.pr-repeat a:hover strong { color: var(--action-hover); }
+.pr-repeat small { color: var(--slate); font-size: var(--text-sm); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-repeat a { transition: none; }
+}

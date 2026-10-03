@@ -1,0 +1,126 @@
+/*
+ * Home. Built from the shared tokens (`--dh-*`, `--ink`, `--paper`): warm background, thin
+ * neutral borders, ink primary actions, small uppercase eyebrows. No gradients, no heavy
+ * shadows, no charts. Density comes from tight rhythm, not from cramming.
+ */
+.hm { --hm-card: color-mix(in srgb, var(--paper-raised) 78%, var(--paper)); --hm-amber-soft: color-mix(in srgb, var(--dh-amber) 8%, var(--paper-raised)); }
+
+.hm-header { padding: var(--space-2) 0 var(--space-5); }
+.hm-sub { color: var(--slate); font-size: var(--text-base); line-height: 1.5; margin: var(--space-2) 0 0; max-width: 60ch; }
+.hm-role { align-items: center; color: var(--slate); display: inline-flex; font-size: var(--text-sm); gap: .35rem; margin: var(--space-2) 0 0; }
+.hm-role strong { color: var(--ink); font-weight: 650; }
+.hm-select { align-items: center; display: inline-flex; position: relative; }
+.hm-select select {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: .4rem;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  field-sizing: content;
+  min-height: 2rem;
+  padding: .2rem 1.5rem .2rem .35rem;
+}
+.hm-select select:hover { border-color: var(--dh-line); }
+.hm-select svg { color: var(--slate); pointer-events: none; position: absolute; right: .45rem; }
+
+.hm-stack { display: grid; gap: var(--space-5); min-width: 0; }
+
+/* ------------------------------------------------------------------ the one dominant card */
+.hm-card {
+  align-items: center;
+  background: var(--hm-card);
+  border: 1px solid var(--dh-line);
+  border-radius: .85rem;
+  display: flex;
+  gap: var(--space-6);
+  justify-content: space-between;
+  padding: var(--space-5) var(--space-6);
+}
+.hm-card.is-attention { background: var(--hm-amber-soft); border-color: color-mix(in srgb, var(--dh-amber) 30%, var(--dh-line)); }
+.hm-card-main { display: grid; flex: 1; gap: var(--space-2); min-width: 0; }
+.hm-card-icon { align-items: center; background: var(--dh-action-soft); border-radius: .7rem; color: var(--ink); display: inline-flex; flex: none; height: 5.25rem; justify-content: center; width: 5.25rem; }
+.hm-eyebrow-row { align-items: center; display: flex; gap: var(--space-3); justify-content: space-between; }
+.hm-badge { background: var(--dh-action-soft); border-radius: 999px; color: var(--ink); font-size: var(--text-xs); font-weight: 650; padding: .15rem .6rem; white-space: nowrap; }
+.hm-title { font-size: var(--text-xl); font-weight: 620; letter-spacing: -.02em; line-height: 1.15; margin: 0; overflow-wrap: anywhere; }
+.hm-meta { color: var(--slate); font-size: var(--text-sm); line-height: 1.5; margin: 0; }
+.hm-body { color: var(--slate); font-size: var(--text-base); line-height: 1.55; margin: 0; max-width: 62ch; }
+.hm-progress-row { color: var(--slate); display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); justify-content: space-between; margin-top: var(--space-1); }
+.hm-progress { appearance: none; background: var(--paper-sunken); border: 0; border-radius: 999px; display: block; height: .35rem; overflow: hidden; width: 100%; }
+.hm-progress::-webkit-progress-bar { background: var(--paper-sunken); }
+.hm-progress::-webkit-progress-value { background: var(--dh-action); border-radius: 999px; }
+.hm-progress::-moz-progress-bar { background: var(--dh-action); border-radius: 999px; }
+
+/* ------------------------------------------------------------------ actions */
+.hm-actions { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-5); margin-top: var(--space-3); }
+.hm-primary-action, .hm-secondary-action, .hm-text-action {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  gap: .4rem;
+  justify-content: center;
+  min-height: 2.5rem;
+}
+.hm-primary-action { background: var(--dh-action); border: 1px solid var(--dh-action); border-radius: .5rem; color: #fff; padding: .55rem 1.05rem; }
+.hm-primary-action:hover { background: var(--dh-action-hover); border-color: var(--dh-action-hover); }
+.hm-primary-action.is-small { min-height: 2.25rem; padding: .4rem .85rem; }
+.hm-primary-action:disabled, .hm-secondary-action:disabled, .hm-text-action:disabled { cursor: not-allowed; opacity: .55; }
+.hm-secondary-action { background: var(--paper-raised); border: 1px solid var(--dh-line); border-radius: .5rem; color: var(--ink); padding: .5rem 1rem; }
+.hm-secondary-action:hover { border-color: var(--line-strong); }
+.hm-secondary-action.is-strong { border-color: var(--ink); }
+.hm-text-action { background: transparent; border: 0; color: var(--ink); padding: .25rem 0; }
+.hm-text-action:hover { text-decoration: underline; text-underline-offset: 3px; }
+.hm-confirm { background: var(--paper-raised); border: 1px solid var(--dh-line); border-radius: .6rem; flex-basis: 100%; padding: var(--space-3) var(--space-4); }
+.hm-confirm p { color: var(--slate); font-size: var(--text-sm); line-height: 1.5; margin: 0; }
+.hm-confirm strong { color: var(--ink); }
+.hm-confirm .hm-actions { margin-top: var(--space-2); }
+.hm-error { color: var(--danger); font-size: var(--text-xs); margin: var(--space-2) 0 0; }
+
+/* ------------------------------------------------------------------ secondary sections */
+.hm-section { border-top: 1px solid var(--dh-line); display: grid; gap: var(--space-2); padding-top: var(--space-5); }
+.hm-section-title { font-size: var(--text-md); font-weight: 620; letter-spacing: -.01em; margin: 0; }
+.hm-section .hm-actions { margin-top: var(--space-1); }
+.hm-section > .hm-text-action { justify-self: end; }
+
+.hm-insights { display: grid; gap: var(--space-5); grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; margin: var(--space-2) 0 var(--space-1); padding: 0; }
+.hm-insights li { border-left: 3px solid var(--dh-line); display: grid; gap: .2rem; padding-left: var(--space-3); }
+.hm-insights li.is-more { border-left-color: var(--dh-green); }
+.hm-insights li.is-less { border-left-color: var(--dh-amber); }
+.hm-insights strong { font-size: var(--text-sm); font-weight: 650; line-height: 1.35; }
+.hm-insights span { color: var(--slate); font-size: var(--text-sm); line-height: 1.5; }
+
+.hm-prep { display: grid; gap: var(--space-4); grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: var(--space-1); }
+.hm-prep-card { background: var(--hm-card); border: 1px solid var(--dh-line); border-radius: .7rem; display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-4); }
+.hm-prep-card h3 { font-size: var(--text-sm); font-weight: 650; margin: 0; }
+.hm-prep-card p { color: var(--slate); flex: 1; font-size: var(--text-sm); line-height: 1.5; margin: 0; }
+.hm-prep-card .hm-text-action { justify-content: flex-start; margin-top: var(--space-1); }
+
+.hm-activity { list-style: none; margin: var(--space-1) 0 0; padding: 0; }
+.hm-activity li { align-items: center; border-top: 1px solid var(--dh-line); display: grid; gap: var(--space-4); grid-template-columns: 5.5rem minmax(0, 1fr) max-content; padding: var(--space-2) 0; }
+.hm-activity li:last-child { border-bottom: 1px solid var(--dh-line); }
+.hm-date { color: var(--slate); font-size: var(--text-sm); }
+.hm-activity-text { font-size: var(--text-sm); line-height: 1.45; overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------------ smaller screens */
+@media (max-width: 900px) {
+  .hm-prep, .hm-insights { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .hm-card { align-items: flex-start; padding: var(--space-4); }
+  .hm-card-icon { display: none; }
+  .hm-actions > .hm-primary-action, .hm-actions > .hm-secondary-action { flex: 1 1 100%; }
+  .hm-activity li { gap: var(--space-1) var(--space-3); grid-template-columns: minmax(0, 1fr) max-content; }
+  .hm-date { grid-column: 1 / -1; }
+  .hm-section > .hm-text-action { justify-self: start; }
+}
+
+/* ------------------------------------------------------------------ interview coming up (secondary) */
+.hm-upcoming { align-items: center; border: 1px solid var(--dh-line); border-radius: .6rem; color: var(--slate); display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-4); }
+.hm-upcoming p { flex: 1 1 16rem; font-size: var(--text-sm); line-height: 1.5; margin: 0; min-width: 0; }
+.hm-upcoming svg { color: var(--dh-action-hover); flex: none; }

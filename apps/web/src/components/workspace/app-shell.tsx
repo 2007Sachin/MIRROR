@@ -3,16 +3,15 @@
 import {
   BookOpenText,
   CaretDown,
-  ChartLineUp,
   ChatCircleText,
   Compass,
   FileText,
   Gear,
   House,
   List,
+  MapTrifold,
+  Notebook,
   Question,
-  SignOut,
-  User,
   X,
 } from "@phosphor-icons/react";
 import Image from "next/image";
@@ -22,23 +21,38 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { Profile } from "@/lib/api";
 import { profileMenu as menuCopy } from "@/lib/copy";
+import { shellCopy } from "@/lib/copy-shell";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+
+import { RoleSwitcher } from "./role-switcher";
 
 import "@/styles/workspace.css";
 
-const primaryNavigation = [
-  { href: "/dashboard", label: "Home", mobileLabel: "Home", icon: House },
-  { href: "/practice", label: "Practice", mobileLabel: "Practice", icon: ChatCircleText },
-  { href: "/stories", label: "My Stories", mobileLabel: "Stories", icon: BookOpenText },
-  { href: "/experience", label: "My Experience", mobileLabel: "Experience", icon: FileText },
-  { href: "/roles", label: "Roles", mobileLabel: "Roles", icon: Compass },
-  { href: "/progress", label: "Progress", mobileLabel: "Progress", icon: ChartLineUp },
-] as const;
+/** A path is active when it equals a prefix or sits under it; a RegExp matches the whole path. */
+type Match = string | RegExp;
 
-const secondaryNavigation = [
-  { href: "/settings", label: "Settings", icon: Gear },
-  { href: "/help", label: "Help", icon: Question },
-] as const;
+// Role pages (/roles/<id>/...) are part of My plan; the role list and /roles/new are not.
+const ROLE_PAGE = /^\/roles\/(?!new(?:\/|$))[^/]+(?:\/|$)/;
+
+const primaryNavigation = [
+  { href: "/dashboard", ...shellCopy.nav.home, icon: House, match: ["/dashboard"] as Match[] },
+  { href: "/plan", ...shellCopy.nav.plan, icon: MapTrifold, match: ["/plan", ROLE_PAGE] as Match[] },
+  { href: "/stories", ...shellCopy.nav.stories, icon: BookOpenText, match: ["/stories"] as Match[] },
+  { href: "/practice", ...shellCopy.nav.practice, icon: ChatCircleText, match: ["/practice"] as Match[] },
+  { href: "/reflect", ...shellCopy.nav.reflect, icon: Notebook, match: ["/reflect", "/progress"] as Match[] },
+];
+
+const profileNavigation = [
+  { href: "/experience", ...shellCopy.profile.experience, icon: FileText },
+  { href: "/roles", ...shellCopy.profile.roles, icon: Compass },
+  { href: "/settings", ...shellCopy.profile.preferences, icon: Gear },
+  { href: "/help", ...shellCopy.profile.help, icon: Question },
+];
+
+function matches(pathname: string, match: Match) {
+  if (typeof match !== "string") return match.test(pathname);
+  return pathname === match || pathname.startsWith(`${match}/`);
+}
 
 function initials(profile: Profile | null) {
   const source = profile?.full_name || profile?.email || "Mirror user";
@@ -56,9 +70,7 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
   const [logoutError, setLogoutError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  function activeFor(href: string) {
-    return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
-  }
+  const activeFor = (match: Match[]) => match.some((item) => matches(pathname, item));
 
   async function logout() {
     setLogoutError("");
@@ -76,35 +88,23 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
       <button
         type="button"
         className={`ws-sidebar-backdrop${sidebarOpen ? " is-visible" : ""}`}
-        aria-label="Close navigation"
+        aria-label={shellCopy.closeNav}
         onClick={() => setSidebarOpen(false)}
       />
-      <aside id="workspace-navigation" className={`ws-sidebar${sidebarOpen ? " is-open" : ""}`} aria-label="Primary navigation">
+      <aside id="workspace-navigation" className={`ws-sidebar${sidebarOpen ? " is-open" : ""}`} aria-label={shellCopy.primaryNav}>
         <div className="ws-sidebar-head">
-          <Link href="/dashboard" className="ws-brand" aria-label="Mirror home" onClick={() => setSidebarOpen(false)}>
+          <Link href="/dashboard" className="ws-brand" aria-label={shellCopy.homeLink} onClick={() => setSidebarOpen(false)}>
             <Image src="/icon.svg" alt="" width={24} height={24} priority />
             <span>MIRROR</span>
           </Link>
-          <button type="button" className="ws-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close navigation">
+          <button type="button" className="ws-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label={shellCopy.closeNav}>
             <X size={19} aria-hidden="true" />
           </button>
         </div>
 
-        <nav className="ws-nav" aria-label="Workspace">
-          {primaryNavigation.map(({ href, label, icon: Icon }) => {
-            const active = activeFor(href);
-            return (
-              <Link key={href} href={href} className={`ws-nav-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)}>
-                <Icon size={18} weight={active ? "fill" : "regular"} aria-hidden="true" />
-                <span>{label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <nav className="ws-nav ws-nav-secondary" aria-label="Support and settings">
-          {secondaryNavigation.map(({ href, label, icon: Icon }) => {
-            const active = activeFor(href);
+        <nav className="ws-nav" aria-label={shellCopy.primaryNav}>
+          {primaryNavigation.map(({ href, label, icon: Icon, match }) => {
+            const active = activeFor(match);
             return (
               <Link key={href} href={href} className={`ws-nav-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)}>
                 <Icon size={18} weight={active ? "fill" : "regular"} aria-hidden="true" />
@@ -118,29 +118,26 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
           <Link href="/settings" className="ws-account-link" onClick={() => setSidebarOpen(false)}>
             <span className="ws-avatar" aria-hidden="true">{initials(profile)}</span>
             <span className="ws-account-info">
-              <strong>{profile?.full_name || "Mirror member"}</strong>
-              <span>{profile?.email || "Private workspace"}</span>
+              <strong>{profile?.full_name || shellCopy.memberFallback}</strong>
+              <span>{profile?.email || shellCopy.emailFallback}</span>
             </span>
           </Link>
-          <button type="button" className="ws-logout" onClick={() => void logout()} aria-label={menuCopy.signOut}>
-            <SignOut size={17} aria-hidden="true" />
-          </button>
         </div>
       </aside>
 
       <div className="ws-main">
         <header className="ws-topbar">
           <div className="ws-topbar-start">
-            <button type="button" className="ws-menu-button" aria-label="Open navigation" aria-controls="workspace-navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)}>
+            <button type="button" className="ws-menu-button" aria-label={shellCopy.openNav} aria-controls="workspace-navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)}>
               <List size={20} aria-hidden="true" />
             </button>
-            <Link href="/dashboard" className="ws-topbar-brand" aria-label="Mirror home">
+            <Link href="/dashboard" className="ws-topbar-brand" aria-label={shellCopy.homeLink}>
               <Image src="/icon.svg" alt="" width={22} height={22} priority />
               <span>MIRROR</span>
             </Link>
+            <RoleSwitcher />
           </div>
           <div className="ws-topbar-actions">
-            <Link href="/help" className="ws-topbar-help"><Question size={17} aria-hidden="true" /><span>Help</span></Link>
             <ProfileMenu profile={profile} onSignOut={logout} />
           </div>
         </header>
@@ -149,9 +146,9 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
         <main id="main-content" className="ws-content">{children}</main>
       </div>
 
-      <nav className="ws-mobile-nav" aria-label="Mobile navigation">
-        {primaryNavigation.map(({ href, mobileLabel, icon: Icon }) => {
-          const active = activeFor(href);
+      <nav className="ws-mobile-nav" aria-label={shellCopy.mobileNav}>
+        {primaryNavigation.map(({ href, mobileLabel, icon: Icon, match }) => {
+          const active = activeFor(match);
           return (
             <Link key={href} href={href} className={`ws-mobile-nav-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}>
               <Icon size={19} weight={active ? "fill" : "regular"} aria-hidden="true" />
@@ -165,13 +162,14 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
 }
 
 /**
- * A short menu for the account only. The main navigation is not repeated here:
- * everything in it already has a permanent home in the sidebar.
+ * The profile menu holds everything that is not a primary destination: experience,
+ * roles, preferences, help, and a labelled Sign out.
  */
 function ProfileMenu({ profile, onSignOut }: { profile: Profile | null; onSignOut: () => Promise<void> }) {
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const name = profile?.full_name || menuCopy.open;
 
   useEffect(() => {
     if (!open) return;
@@ -199,33 +197,27 @@ function ProfileMenu({ profile, onSignOut }: { profile: Profile | null; onSignOu
         className="ws-topbar-user"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={name === menuCopy.open ? name : `${menuCopy.open}: ${name}`}
         onClick={() => setOpen((value) => !value)}
       >
         <span aria-hidden="true">{initials(profile)}</span>
-        <strong>{profile?.full_name || menuCopy.open}</strong>
+        <strong>{name}</strong>
         <CaretDown size={13} aria-hidden="true" />
       </button>
       {open ? (
         <div className="ws-profile-panel" role="menu" aria-label={menuCopy.open}>
           <div className="ws-profile-identity">
-            <strong>{profile?.full_name || "Mirror member"}</strong>
-            <span>{profile?.email || "Private workspace"}</span>
+            <strong>{profile?.full_name || shellCopy.memberFallback}</strong>
+            <span>{profile?.email || shellCopy.emailFallback}</span>
           </div>
-          <Link role="menuitem" href="/settings#profile" onClick={() => setOpen(false)}>
-            <User size={16} aria-hidden="true" /> {menuCopy.profile}
-          </Link>
-          <Link role="menuitem" href="/settings#interview" onClick={() => setOpen(false)}>
-            <ChatCircleText size={16} aria-hidden="true" /> {menuCopy.preferences}
-          </Link>
-          <Link role="menuitem" href="/settings#account" onClick={() => setOpen(false)}>
-            <Gear size={16} aria-hidden="true" /> {menuCopy.account}
-          </Link>
+          {profileNavigation.map(({ href, label, icon: Icon }) => (
+            <Link key={href} role="menuitem" href={href} onClick={() => setOpen(false)}>
+              <Icon size={16} aria-hidden="true" /> {label}
+            </Link>
+          ))}
           <hr />
-          <Link role="menuitem" href="/help" onClick={() => setOpen(false)}>
-            <Question size={16} aria-hidden="true" /> {menuCopy.help}
-          </Link>
-          <button role="menuitem" type="button" onClick={() => void onSignOut()}>
-            <SignOut size={16} aria-hidden="true" /> {menuCopy.signOut}
+          <button role="menuitem" type="button" className="ws-signout" onClick={() => void onSignOut()}>
+            {menuCopy.signOut}
           </button>
         </div>
       ) : null}

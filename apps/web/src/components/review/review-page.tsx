@@ -1,12 +1,15 @@
 "use client";
 
-import { ArrowRight, Check, Info } from "@phosphor-icons/react";
+import "@/styles/practice-reflect.css";
+
+import { ArrowRight, Info } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Loader } from "@/components/loader";
 import { AttemptComparison, TryAgain } from "@/components/review/try-again";
+import { ReviewStorySuggestions } from "@/components/stories/story-suggestions";
 import { PageHeader, PageShell, Section } from "@/components/workspace/page-shell";
 import {
   ApiError,
@@ -18,11 +21,11 @@ import {
   type SessionReview,
 } from "@/lib/api";
 import { loading, report as reportCopy, review as t, tryAgain as tryCopy } from "@/lib/copy";
+import { reflect, reflection as r } from "@/lib/copy-practice";
 import { attemptsByAnswer, latestAttempt } from "@/lib/attempt-view";
 import { formatDay } from "@/lib/dashboard-view";
 import { focusFor, modeCopy, startPracticeHref } from "@/lib/practice-view";
-import { stateClass } from "@/lib/progress-view";
-import { answerBlocks, practiceNext, retryTargets, reviewStrengths } from "@/lib/review-view";
+import { answerBlocks, answerTargets, practiceNext, reviewStrengths, strengthenItem, type AnswerTarget } from "@/lib/review-view";
 
 type ViewState = "loading" | "processing" | "error" | "ready";
 
@@ -127,9 +130,10 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
   }
 
   const strengths = useMemo(() => reviewStrengths(review), [review]);
-  const improvements = useMemo(() => (review?.improvements ?? []).slice(0, 3), [review]);
+  const strengthen = useMemo(() => strengthenItem(review), [review]);
   const blocks = useMemo(() => answerBlocks(turns ?? [], report), [turns, report]);
-  const targets = useMemo(() => retryTargets(improvements.length, blocks), [improvements, blocks]);
+  const landedFrom = useMemo(() => answerTargets(strengths.length, blocks, "cameThrough"), [strengths, blocks]);
+  const strengthenFrom = useMemo(() => answerTargets(strengthen ? 1 : 0, blocks, "couldBeClearer")[0] ?? null, [strengthen, blocks]);
   const byAnswer = useMemo(() => attemptsByAnswer(attempts), [attempts]);
   const next = practiceNext(review);
   const role = report?.session.target_role ?? review?.target_role ?? "";
@@ -181,97 +185,123 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
 
   if (!report || !review) return null;
 
+  // "Practise the same answer" opens the retry on the answer the one thing to strengthen came from.
+  const sameAnswer = strengthenFrom ? "#review-strengthen-title" : "#review-answers-title";
+
   return (
     <PageShell>
-      <PageHeader eyebrow={t.eyebrow} title={role} back={{ href: "/practice", label: t.back }} />
+      <PageHeader eyebrow={t.eyebrow} title={role} back={{ href: "/reflect", label: reflect.eyebrow }} />
       <p className="dh-step-count">
         <time dateTime={report.session.completed_at}>{formatDay(report.session.completed_at)}</time>
       </p>
+      {review.shorter_conversation ? <p className="dh-action-meta">{reportCopy.shorterNote}</p> : null}
 
       <div className="dh-home-sections">
-        <section className="dh-next-action" aria-labelledby="review-overview">
-          <p className="dh-section-label">{t.overview}</p>
-          <h2 id="review-overview" className="display">{review.next_step.title}</h2>
-          <p className="dh-next-copy">{report.verdict.summary}</p>
-          {review.counts ? (
-            <p className="dh-action-meta">
-              {review.counts.clear} {reportCopy.cameThrough.groups.held.toLowerCase()} ·{" "}
-              {t.toImprove(review.counts.could_be_stronger + review.counts.worth_revisiting)}
-            </p>
-          ) : null}
-          {review.shorter_conversation ? <p className="dh-action-meta">{reportCopy.shorterNote}</p> : null}
-          {/* Kept as a range with its own note, never a single number or a gauge. */}
-          <dl className="dh-readiness">
-            <div>
-              <dt>{reportCopy.readiness.role}</dt>
-              <dd>{range(report.role_readiness)}</dd>
-            </div>
-            <div>
-              <dt>{reportCopy.readiness.interview}</dt>
-              <dd>{range(report.interview_readiness)}</dd>
-            </div>
-          </dl>
-          <p className="dh-fine-print">{t.readinessNote}</p>
-        </section>
-
-        <Section id="review-clear" label={t.clearTitle} title={t.clearTitle}>
+        <Section id="review-landed" title={r.landedTitle}>
           {strengths.length ? (
-            <ul className="dh-plain-list">
-              {strengths.map((strength) => (
+            <ul className="pr-reflection-list">
+              {strengths.map((strength, index) => (
                 <li key={strength.key}>
-                  <strong>{strength.label}</strong>
-                  <small>{strength.note}</small>
-                  <span className={`dh-row-state ${stateClass("Coming through clearly")}`}>
-                    <Check size={14} aria-hidden="true" /> {reportCopy.cameThrough.groups.held}
-                  </span>
+                  <p className="pr-need"><span>{r.roleNeed}</span> {strength.label}</p>
+                  <p>{strength.note}</p>
+                  <FromAnswer target={landedFrom[index]} />
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="dh-review-empty">{t.clearEmpty}</p>
+            <p className="dh-review-empty">{r.landedEmpty}</p>
           )}
         </Section>
 
-        <Section id="review-improve" label={t.improveTitle} title={t.improveTitle}>
-          {improvements.length ? (
-            <ul className="dh-plain-list">
-              {improvements.map((item, index) => {
-                const target = targets[index];
-                const key = `item-${index}`;
-                return (
-                  <li key={key}>
-                    <strong>{item.title}</strong>
-                    <small>{item.note}</small>
-                    {item.from_label ? <small className="dh-quiet">{`${t.improveFrom}: ${item.from_label}`}</small> : null}
-                    <span className="dh-row-actions is-start">
-                      {target ? (
-                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === key ? null : key)} aria-expanded={openRetry === key}>
-                          {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
-                        </button>
-                      ) : null}
-                      <Link className={target ? "dh-text-action is-quiet" : "dh-text-action"} href={startPracticeHref(role, next ?? { mode: "QUICK_DRILL" })}>
-                        {t.practiceThis} <ArrowRight size={15} aria-hidden="true" />
-                      </Link>
-                    </span>
-                    {target && openRetry === key ? (
-                      <TryAgain
-                        sessionId={sessionId}
-                        answerTurnId={target.answerTurnId}
-                        question={target.question}
-                        firstAnswer={target.answer}
-                        area={{ key: review.practice_focus ?? null, title: item.title }}
-                        onSaved={saved}
-                        onClose={() => setOpenRetry(null)}
-                      />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
+        <Section id="review-strengthen" title={r.strengthenTitle}>
+          {strengthen ? (
+            <div className="pr-reflection-list">
+              <div>
+                {strengthen.need ? <p className="pr-need"><span>{r.roleNeed}</span> {strengthen.need}</p> : null}
+                <strong>{strengthen.title}</strong>
+                <p>{strengthen.note}</p>
+                {strengthen.from ? <p className="dh-quiet">{`${r.relatesTo}: ${strengthen.from}`}</p> : null}
+                <FromAnswer target={strengthenFrom} />
+                {strengthenFrom ? (
+                  <span className="dh-row-actions is-start">
+                    <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === "strengthen" ? null : "strengthen")} aria-expanded={openRetry === "strengthen"}>
+                      {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
+                    </button>
+                  </span>
+                ) : null}
+                {strengthenFrom && openRetry === "strengthen" ? (
+                  <TryAgain
+                    sessionId={sessionId}
+                    answerTurnId={strengthenFrom.answerTurnId}
+                    question={strengthenFrom.question}
+                    firstAnswer={strengthenFrom.answer}
+                    area={{ key: review.practice_focus ?? null, title: strengthen.title }}
+                    onSaved={saved}
+                    onClose={() => setOpenRetry(null)}
+                  />
+                ) : null}
+              </div>
+            </div>
           ) : (
-            <p className="dh-review-empty">{t.improveEmpty}</p>
+            <p className="dh-review-empty">{r.strengthenEmpty}</p>
           )}
         </Section>
+
+        <section className="dh-next-action" aria-labelledby="review-next">
+          <p className="dh-section-label">{r.nextTitle}</p>
+          {next ? (
+            <>
+              <h2 id="review-next" className="display">{focusFor(next.focus)?.title ?? review.next_step.title}</h2>
+              <p className="dh-next-copy">{review.next_step.body}</p>
+              <div className="dh-action-row">
+                <Link className="dh-primary-action" href={startPracticeHref(role, next, review.role_profile_id)}>
+                  {r.nextAction} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+                <span className="dh-action-meta">{modeCopy(next.mode).title} · {modeCopy(next.mode).length}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 id="review-next" className="display">{r.nextChoose}</h2>
+              <div className="dh-action-row">
+                <Link className="dh-primary-action" href={startPracticeHref(role, undefined, review.role_profile_id)}>
+                  {r.nextChooseAction} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
+            </>
+          )}
+        </section>
+
+        <Section id="review-repeat" title={r.repeatTitle}>
+          <ul className="pr-repeat">
+            <li>
+              <a href={sameAnswer} onClick={strengthenFrom ? () => setOpenRetry("strengthen") : undefined}>
+                <strong>{r.repeat.sameAnswer}</strong>
+                <small>{r.repeat.sameAnswerBody}</small>
+              </a>
+            </li>
+            <li>
+              <Link href="/stories">
+                <strong>{r.repeat.editStory}</strong>
+                <small>{r.repeat.editStoryBody}</small>
+              </Link>
+            </li>
+            <li>
+              <Link href={startPracticeHref(role, { mode: "FOCUSED_PRACTICE" }, review.role_profile_id)}>
+                <strong>{r.repeat.anotherTheme}</strong>
+                <small>{r.repeat.anotherThemeBody}</small>
+              </Link>
+            </li>
+            <li>
+              <Link href="/dashboard">
+                <strong>{r.repeat.finish}</strong>
+                <small>{r.repeat.finishBody}</small>
+              </Link>
+            </li>
+          </ul>
+        </Section>
+
+        <ReviewStorySuggestions sessionId={sessionId} />
 
         <Section id="review-answers" label={t.answersTitle} title={t.answersTitle} body={t.answersBody}>
           {turnsFailed ? <p className="dh-review-empty">{t.answersUnavailable}</p> : null}
@@ -333,31 +363,6 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
           ) : null}
         </Section>
 
-        <section className="dh-next-action" aria-labelledby="review-next">
-          <p className="dh-section-label">{t.nextTitle}</p>
-          {next ? (
-            <>
-              <h2 id="review-next" className="display">{focusFor(next.focus)?.title ?? review.next_step.title}</h2>
-              <p className="dh-next-copy">{review.next_step.body}</p>
-              <div className="dh-action-row">
-                <Link className="dh-primary-action" href={startPracticeHref(role, next)}>
-                  {t.nextStart} <ArrowRight size={17} aria-hidden="true" />
-                </Link>
-                <span className="dh-action-meta">{modeCopy(next.mode).title} · {modeCopy(next.mode).length}</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 id="review-next" className="display">{t.nextChoose}</h2>
-              <div className="dh-action-row">
-                <Link className="dh-primary-action" href={startPracticeHref(role, { mode: "QUICK_DRILL" })}>
-                  {t.nextChooseAction} <ArrowRight size={17} aria-hidden="true" />
-                </Link>
-              </div>
-            </>
-          )}
-        </section>
-
         <aside className="dh-trust" aria-labelledby="review-trust">
           <Info size={20} aria-hidden="true" />
           <div>
@@ -379,9 +384,15 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
   );
 }
 
-function range(value: ReportResponse["role_readiness"]) {
-  if (value.low == null || value.high == null) return reportCopy.readiness.none;
-  return `${value.low}–${value.high} · ${value.label}`;
+/** The answer a reflection item came from: the question, and the moment the review noted. */
+function FromAnswer({ target }: { target: AnswerTarget | null | undefined }) {
+  if (!target) return null;
+  return (
+    <div className="pr-from-answer">
+      <p>{r.fromAnswer} “{target.question}”</p>
+      {target.quote ? <blockquote>{target.quote}</blockquote> : null}
+    </div>
+  );
 }
 
 function QuoteNotes({ title, quotes, tone }: { title: string; quotes: ReportEvidence[]; tone: string }) {

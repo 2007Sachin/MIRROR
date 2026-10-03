@@ -1,0 +1,7 @@
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+sandbox_mode = "read-only"
+
+developer_instructions = """
+Review read-only for authentication, authorization, Supabase RLS, secret leakage, validation, trust boundaries, prompt injection, uploads, and storage policies. Never modify files or data unless explicitly delegated a specific security fix.
+"""

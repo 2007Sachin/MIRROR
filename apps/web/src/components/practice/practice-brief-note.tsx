@@ -6,7 +6,7 @@ import { mirrorApi, type Session } from "@/lib/api";
 import { practiceFocus } from "@/lib/copy";
 import { focusFor, modeCopy } from "@/lib/practice-view";
 
-/** On the pre-interview brief: what this practice is and how long it takes, read from the session. */
+/** On the pre-interview brief, keep the displayed duration tied to the actual session mode. */
 export function PracticeBriefNote({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
@@ -17,13 +17,20 @@ export function PracticeBriefNote({ sessionId }: { sessionId: string }) {
     };
   }, [sessionId]);
 
-  if (!session?.practice_mode || session.practice_mode === "FULL_INTERVIEW") return null;
+  if (!session?.practice_mode) return null;
   const area = session.practice_theme ?? focusFor(session.practice_focus)?.title;
   return (
-    <div className="sb-focus">
-      <p>{practiceFocus.reminderLabel}</p>
-      <strong>{area ? `${modeCopy(session.practice_mode).title} · ${area}` : modeCopy(session.practice_mode).title}</strong>
-      <span>{modeCopy(session.practice_mode).length}</span>
-    </div>
+    <>
+      {session.practice_mode !== "FULL_INTERVIEW" ? (
+        <div className="sb-focus">
+          <p>{practiceFocus.reminderLabel}</p>
+          <strong>{area ? `${modeCopy(session.practice_mode).title} · ${area}` : modeCopy(session.practice_mode).title}</strong>
+          <span>{modeCopy(session.practice_mode).length}</span>
+        </div>
+      ) : null}
+      <p className="mt-6 text-xs leading-5 text-[var(--silver)]">
+        {modeCopy(session.practice_mode).length}. There are no ratings or tips during the conversation; your reflection comes afterward.
+      </p>
+    </>
   );
 }

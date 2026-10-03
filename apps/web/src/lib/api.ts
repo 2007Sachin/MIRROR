@@ -7,12 +7,14 @@ export type Session = {
   role_profile_id: string | null;
   resume_url: string | null;
   jd_text: string;
-  status: "CREATED" | "PREPARING" | "READY" | "ACTIVE" | "ASSESSING" | "COMPLETED" | "FAILED";
+  status: "CREATED" | "PREPARING" | "READY" | "ACTIVE" | "ASSESSING" | "COMPLETED" | "FAILED" | "ABANDONED";
   phase: string;
   completion_pct: number;
   synthetic: boolean;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
+  current_version: number;
   started_at: string | null;
   completed_at: string | null;
   phase_started_at: string;
@@ -82,6 +84,7 @@ export type DashboardResponse = {
 export type DashboardSummary = {
   latest_review: null | {
     session_id: string;
+    role_profile_id?: string | null;
     target_role: string;
     completed_at: string;
     counts: null | { clear: number; could_be_stronger: number; worth_revisiting: number };
@@ -420,33 +423,197 @@ export type RoleProfileSummary = {
   updated_at: string;
 };
 
-export type ProgressDirection = "IMPROVING" | "STEADY" | "NEEDS_MORE_PRACTICE";
+export type SessionReview = NonNullable<DashboardSummary["latest_review"]>;
 
-export type ProgressExcerpt = { quote: string; note: string };
+// Role progress: `GET /api/v1/progress/roles`. The backend decides every state and trend.
+export type DevState = "COMING_THROUGH" | "DEVELOPING" | "NEEDS_PRACTICE" | "NOT_EXPLORED";
+export type ProgressTrend = "MORE" | "SIMILAR" | "LESS";
+export type ProgressAnswerState = "STRONG" | "PRESENT" | "NEEDS_PRACTICE";
+export type ProgressStage = "NONE" | "BASELINE" | "COMPARABLE";
+export type ProgressSeen = "REPEATEDLY" | "SOMETIMES" | "NOT_EXPLORED";
+
+export type ProgressPracticeItem = {
+  session_id: string;
+  number: number;
+  completed_at: string;
+  practice_mode: PracticeMode;
+  practice_focus: string | null;
+  practice_theme: string | null;
+  question_count: number | null;
+  shorter_conversation: boolean | null;
+};
+
+export type ProgressCell = {
+  session_id: string;
+  number: number;
+  completed_at: string;
+  state: DevState;
+  answers_seen: number;
+  answers_strong: number;
+};
 
 export type ProgressDimension = {
   key: string;
-  label: string;
-  state: string;
-  note: string;
-  direction: ProgressDirection | null;
-  excerpts: ProgressExcerpt[];
+  state: DevState;
+  note: string | null;
+  trend: ProgressTrend | null;
+  compared_with: string | null;
+  current: boolean;
+  practice_focus: string;
+  cells: ProgressCell[];
 };
 
-export type ProgressChange = { kind: "IMPROVED" | "WATCH"; text: string };
+export type ProgressInsight = { dimension: string; trend: ProgressTrend; compared_with: string };
 
-export type SessionReview = NonNullable<DashboardSummary["latest_review"]>;
+export type ProgressAnswerSignal = {
+  dimension: string;
+  state: ProgressAnswerState;
+  observation: string;
+  quote: string | null;
+};
 
-export type ProgressPractice = SessionReview;
+export type ProgressAnswer = {
+  session_id: string;
+  answer_turn_id: string;
+  question: string;
+  practice_number: number;
+  completed_at: string;
+  question_position: number;
+  question_total: number;
+  signals: ProgressAnswerSignal[];
+};
 
-export type ProgressResponse = {
-  roles: string[];
-  role: string | null;
-  practices: ProgressPractice[];
-  comparable_count: number;
+export type ProgressConnectionArea = {
+  key: string;
+  name: string;
+  seen: ProgressSeen;
+  practices_seen: number;
+  answers: Array<{ session_id: string; answer_turn_id: string }>;
+};
+
+export type RoleProgress = {
+  role_profile_id: string;
+  target_role: string;
+  stage: ProgressStage;
+  practice_count: number;
+  last_practised_at: string | null;
+  practices: ProgressPracticeItem[];
   dimensions: ProgressDimension[];
-  changes: ProgressChange[];
-  headline: { title: string; body: string } | null;
+  insights: ProgressInsight[];
+  answers: ProgressAnswer[];
+  connection: { state: "READY" | "PREPARING" | "UNAVAILABLE"; areas: ProgressConnectionArea[] };
+};
+
+export type ProgressTileSignal = { dimension: string; kind: "IMPROVING" | "CLEAR" | "NEEDS_ATTENTION" | "LESS" };
+
+export type ProgressRoleTile = {
+  role_profile_id: string;
+  target_role: string;
+  stage: ProgressStage;
+  practice_count: number;
+  last_practised_at: string | null;
+  positive: ProgressTileSignal | null;
+  attention: ProgressTileSignal | null;
+};
+
+// Home: `GET /api/v1/home`. The server decides the state; the page only renders it.
+export type HomeState =
+  | "NO_ROLE" | "ACTIVE_PRACTICE" | "REVIEW_PROCESSING" | "REVIEW_FAILED" | "REVIEW_READY"
+  | "FIRST_PRACTICE" | "EARLY_BASELINE" | "RECOMMENDED_NEXT" | "RETURNING";
+export type HomeSessionKind = "ACTIVE" | "READY" | "REVIEW_READY" | "REVIEW_PROCESSING" | "REVIEW_FAILED" | "OTHER";
+
+export type HomeRole = { role_profile_id: string; target_role: string };
+
+export type HomeActivePractice = {
+  session_id: string;
+  role_profile_id: string | null;
+  target_role: string;
+  kind: HomeSessionKind;
+  practice_mode: PracticeMode;
+  practice_focus: string | null;
+  practice_theme: string | null;
+  question_number: number;
+  question_total: number | null;
+  last_active_at: string;
+};
+
+export type HomeReviewCard = {
+  session_id: string;
+  kind: HomeSessionKind;
+  target_role: string;
+  practice_mode: PracticeMode;
+  practice_focus: string | null;
+  practice_theme: string | null;
+  question_count: number | null;
+  finished_at: string;
+};
+
+export type HomeNextStep = {
+  role_profile_id: string;
+  target_role: string;
+  mode: PracticeMode;
+  focus: string;
+  theme: string | null;
+  reason: string;
+  dimension: string | null;
+};
+
+export type HomeActivityItem = {
+  kind: "PRACTICE" | "STORY";
+  at: string;
+  session_id: string | null;
+  story_id: string | null;
+  title: string;
+  session_kind: HomeSessionKind | null;
+  practice_mode: PracticeMode | null;
+  practice_focus: string | null;
+  practice_theme: string | null;
+};
+
+export type HomeUpcomingInterview = {
+  event_id: string;
+  role_profile_id: string;
+  target_role: string;
+  scheduled_for: string;
+  round_kind: InterviewRoundKind;
+  company_label: string | null;
+};
+
+export type HomeResponse = {
+  state: HomeState;
+  roles: HomeRole[];
+  selected: HomeRole | null;
+  active: HomeActivePractice | null;
+  other_active: HomeActivePractice | null;
+  review: HomeReviewCard | null;
+  next_step: HomeNextStep | null;
+  progress: {
+    stage: ProgressStage;
+    practice_count: number;
+    last_practised_at: string | null;
+    insights: ProgressInsight[];
+    highlights: Array<{ dimension: string; state: string; note: string | null }>;
+  } | null;
+  map: { state: "READY" | "PREPARING" | "UNAVAILABLE"; without_example: number } | null;
+  stories: { state: "READY" | "UNAVAILABLE"; ready: number; developing: number } | null;
+  activity: HomeActivityItem[];
+  upcoming_interview?: HomeUpcomingInterview | null;
+};
+
+export type ProgressAnswerDetail = {
+  role_profile_id: string;
+  target_role: string;
+  session_id: string;
+  answer_turn_id: string;
+  question: string;
+  answer: string;
+  practice_number: number;
+  completed_at: string;
+  practice_mode: PracticeMode;
+  question_position: number;
+  question_total: number;
+  signals: ProgressAnswerSignal[];
+  attempts: AnswerAttempt[];
 };
 
 export type MapCoverage = "PREPARED" | "EXPERIENCE" | "MENTIONED" | "MISSING";
@@ -465,7 +632,7 @@ export type InterviewMap = {
     from_job_description: boolean;
     source_text: string | null;
     coverage: MapCoverage;
-    matches: Array<{ kind: string; label: string; text: string }>;
+    matches: Array<{ kind: string; label: string; text: string; story_id: string | null }>;
   }>;
   preparation_areas: Array<{
     key: string;
@@ -498,8 +665,79 @@ export type Story = Record<StoryPart, string | null> & {
   origin: StoryOrigin;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
+  current_version: number;
   completeness: "READY" | "DEVELOPING" | "STARTED";
   missing_parts: StoryPart[];
+  /** Exact role profiles this story is positioned for. None means useful across roles. */
+  role_profile_ids: string[];
+};
+
+/** How one story is positioned for one exact role. Never a copy of the story itself. */
+export type StoryRoleFraming = {
+  id: string;
+  story_id: string;
+  role_profile_id: string;
+  themes: string[];
+  emphasis: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StoryRoleFramingInput = { themes: string[]; emphasis: string | null };
+
+/** One practice that used a story: the exact version and role, and what became of the session. */
+export type StoryPracticeRecord = {
+  id: string;
+  session_id: string;
+  story_id: string;
+  story_version_id: string;
+  story_version: number;
+  role_profile_id: string | null;
+  position: number;
+  created_at: string;
+  session_status: Session["status"];
+  practice_mode: PracticeMode;
+  session_created_at: string;
+  session_started_at: string | null;
+};
+
+/**
+ * Review noticed something about how a story came across, in one practice, at the version practised.
+ * A suggestion never changes the story; the candidate decides whether and how to edit it.
+ */
+export type StorySuggestion = {
+  id: string;
+  session_id: string;
+  story_id: string;
+  story_title: string;
+  practised_version: number;
+  current_version: number;
+  story_archived: boolean;
+  role_profile_id: string | null;
+  issue_type: "OWNERSHIP_UNCLEAR" | "RESULT_UNSUPPORTED";
+  story_part: StoryPart;
+  status: "OPEN" | "ACCEPTED" | "DISMISSED";
+  resolved_version: number | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+/** How often a story was practised (started practices only). Never a score. */
+export type StoryPracticeSummary = { story_id: string; practice_count: number; last_practiced_at: string | null };
+
+export type StoryChangeReason = "CREATED" | "MANUAL_EDIT" | "RESTORED";
+
+/** A saved, read-only version of a story. The story itself always holds the current one. */
+export type StoryVersion = Record<StoryPart, string | null> & {
+  id: string;
+  story_id: string;
+  version: number;
+  title: string;
+  themes: string[];
+  change_reason: StoryChangeReason;
+  restored_from_version: number | null;
+  created_at: string;
 };
 
 export type StoryInput = StoryFields & {
@@ -512,9 +750,14 @@ export type StoryInput = StoryFields & {
   origin?: StoryOrigin;
 };
 
+/** What an edit may change: the story's content. Where it came from and its roles are separate. */
+export type StoryContentInput = Partial<Omit<StoryInput, "role_profile_id" | "source_claim_id" | "source_document_id" | "source_text" | "origin">>;
+
 export type PressureQuestionKind =
-  | "OWNERSHIP" | "MEASURE" | "SOURCE_OF_NUMBER" | "OUTCOME" | "DECISION" | "ALTERNATIVE" | "USAGE";
+  | "SITUATION" | "OWNERSHIP" | "MEASURE" | "SOURCE_OF_NUMBER" | "OUTCOME" | "DECISION" | "ALTERNATIVE" | "USAGE";
 export type PressureReadiness = "CAN_EXPLAIN" | "NEEDS_PREPARATION";
+export type DigDeeperResponseInput = { question_kind: PressureQuestionKind; question_text: string; answer: string; story_part: StoryPart };
+export type DigDeeperResponse = DigDeeperResponseInput & { id: string; user_id: string; role_profile_id: string; claim_id: string; story_id: string | null; created_at: string; updated_at: string };
 
 export type PressureTest = {
   role_profile_id: string;
@@ -563,21 +806,96 @@ export type AnswerAttempt = {
   };
 };
 
+export type InterviewRoundKind = "SCREENING" | "TECHNICAL" | "BEHAVIOURAL" | "HR" | "OTHER";
+export type InterviewFeeling = "WENT_WELL" | "MIXED" | "WENT_BADLY";
+export type InterviewOutcome = "WAITING" | "NEXT_ROUND" | "OFFER" | "NOT_SELECTED" | "WITHDREW";
+export type InterviewTiming = "UPCOMING" | "SOON" | "PAST";
+
+/** A real interview the candidate has booked for one role (Phases 8–9). */
+export type InterviewEvent = {
+  id: string;
+  role_profile_id: string;
+  scheduled_for: string;
+  round_kind: InterviewRoundKind;
+  company_label: string | null;
+  has_debrief: boolean;
+  timing: InterviewTiming;
+  created_at: string;
+  updated_at: string;
+};
+export type InterviewEventCreate = { scheduled_for: string; round_kind?: InterviewRoundKind; company_label?: string | null };
+export type InterviewEventUpdate = Partial<InterviewEventCreate>;
+
+export type InterviewBrief = {
+  event: InterviewEvent;
+  role_title: string;
+  state: "READY" | "ROLE_PREPARING" | "ROLE_UNREADABLE";
+  themes: Array<{ key: string; label: string; coverage: MapCoverage; support: string | null; story_id: string | null; prompt: string }>;
+  recheck: Array<{ claim_id: string; statement: string; readiness: PressureReadiness | null; question: string }>;
+  focus: { title: string; body: string; session_id: string | null } | null;
+  questions_to_ask: string[];
+  limitations: string[];
+};
+
+export type InterviewDebriefWrite = {
+  questions_asked: string[];
+  feeling?: InterviewFeeling | null;
+  outcome?: InterviewOutcome;
+  notes?: string | null;
+};
+export type InterviewDebrief = {
+  id: string;
+  interview_event_id: string;
+  questions_asked: string[];
+  feeling: InterviewFeeling | null;
+  outcome: InterviewOutcome;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type DebriefFollowUp = {
+  question: string;
+  theme_key: string | null;
+  theme_label: string | null;
+  coverage: MapCoverage | null;
+  action: "ADD_STORY" | "STRENGTHEN_STORY" | "NONE";
+  action_href: string | null;
+};
+export type InterviewDebriefView = { debrief: InterviewDebrief; follow_ups: DebriefFollowUp[] };
+
+export type ApiErrorKind = "auth" | "not_found" | "conflict" | "invalid" | "unavailable" | "other";
+
+/** A failed API call. `status` 0 means the request never reached the API (network). */
 export class ApiError extends Error {
+  readonly kind: ApiErrorKind;
+
   constructor(public readonly status: number, message: string, public readonly code?: string) {
     super(message);
+    this.kind =
+      status === 401 ? "auth"
+      : status === 404 ? "not_found"
+      : status === 409 ? "conflict"
+      : status === 422 ? "invalid"
+      : status === 0 || status >= 500 ? "unavailable"
+      : "other";
   }
 }
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** The one authenticated fetch. Area modules (lib/api-*.ts) build their calls on it. */
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const client = getSupabaseBrowserClient();
   const { data } = await client.auth.getSession();
-  const send = (accessToken: string | undefined) => {
+  const send = async (accessToken: string | undefined) => {
     const headers = new Headers(init?.headers);
     if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-    return fetch(`${apiUrl}${path}`, { ...init, headers });
+    try {
+      return await fetch(`${apiUrl}${path}`, { ...init, headers });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error; // the caller stopped it
+      throw new ApiError(0, "We couldn't reach Mirror just now. Your work is kept. Please check your connection and try again.");
+    }
   };
 
   let response = await send(data.session?.access_token);
@@ -888,7 +1206,7 @@ export const mirrorApi = {
   }),
   role: (id: string) => request<RoleAnalysis>(`/api/v1/roles/${id}`),
   roleCompetencies: (id: string) => request<RoleCompetency[]>(`/api/v1/roles/${id}/competencies`),
-  createSession: (target_role: string, jd_text: string, practice?: PracticeChoice, role_profile_id?: string | null) =>
+  createSession: (target_role: string, jd_text: string, practice?: PracticeChoice, role_profile_id?: string | null, idempotency_key?: string, story_ids?: string[]) =>
     request<Session>("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -899,6 +1217,8 @@ export const mirrorApi = {
           ? { practice_mode: practice.mode, practice_focus: practice.focus, practice_theme: practice.theme }
           : {}),
         ...(role_profile_id ? { role_profile_id } : {}),
+        ...(idempotency_key ? { idempotency_key } : {}),
+        ...(story_ids?.length ? { story_ids } : {}),
       }),
     }),
   linkSessionDocuments: (id: string, document_ids: string[]) => request<Session>(`/api/v1/sessions/${id}/documents`, {
@@ -935,9 +1255,12 @@ export const mirrorApi = {
   retryAssessment: (id: string) => request<AssessmentPipelineState>(`/api/v1/sessions/${id}/assessment/retry`, { method: "POST" }),
   dashboard: () => request<DashboardResponse>("/api/v1/dashboard"),
   dashboardSummary: () => request<DashboardSummary>("/api/v1/dashboard/summary"),
-  progress: (role?: string) => request<ProgressResponse>(
-    `/api/v1/progress${role ? `?role=${encodeURIComponent(role)}` : ""}`,
-  ),
+  home: (roleProfileId?: string) =>
+    request<HomeResponse>(`/api/v1/home${roleProfileId ? `?role_profile_id=${encodeURIComponent(roleProfileId)}` : ""}`),
+  progressHub: () => request<{ roles: ProgressRoleTile[] }>("/api/v1/progress/roles"),
+  roleProgress: (roleProfileId: string) => request<RoleProgress>(`/api/v1/progress/roles/${roleProfileId}`),
+  progressAnswer: (roleProfileId: string, sessionId: string, answerTurnId: string) =>
+    request<ProgressAnswerDetail>(`/api/v1/progress/roles/${roleProfileId}/sessions/${sessionId}/answers/${answerTurnId}`),
   roles: () => request<RoleProfileSummary[]>("/api/v1/roles"),
   practiceRecommendation: (roleProfileId: string) => request<{ recommendation: PracticeRecommendation | null }>(
     `/api/v1/roles/${roleProfileId}/practice-recommendation`,
@@ -953,29 +1276,72 @@ export const mirrorApi = {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ kind, answer }),
   }),
+  digDeeperResponses: (roleProfileId: string, claimId: string) => request<DigDeeperResponse[]>(`/api/v1/roles/${roleProfileId}/pressure-test/${claimId}/responses`),
+  saveDigDeeperResponse: (roleProfileId: string, claimId: string, value: DigDeeperResponseInput) => request<DigDeeperResponse>(`/api/v1/roles/${roleProfileId}/pressure-test/${claimId}/responses`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...value, role_profile_id: roleProfileId, claim_id: claimId }) }),
   attempts: (sessionId: string) => request<AnswerAttempt[]>(`/api/v1/sessions/${sessionId}/attempts`),
-  tryAgain: (sessionId: string, answerTurnId: string, values: { answer: string; area_key?: string | null; area_title?: string | null }) =>
+  tryAgain: (sessionId: string, answerTurnId: string, values: { answer: string; area_key?: string | null; area_title?: string | null; idempotency_key?: string }) =>
     request<AnswerAttempt>(`/api/v1/sessions/${sessionId}/answers/${answerTurnId}/attempts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(values),
     }),
-  stories: () => request<Story[]>("/api/v1/stories"),
+  stories: (options: { archived?: boolean } = {}) =>
+    request<Story[]>(options.archived ? "/api/v1/stories?archived=true" : "/api/v1/stories"),
   story: (id: string) => request<Story>(`/api/v1/stories/${id}`),
   createStory: (values: StoryInput) => request<Story>("/api/v1/stories", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(values),
   }),
-  updateStory: (id: string, values: Partial<StoryInput>) => request<Story>(`/api/v1/stories/${id}`, {
+  updateStory: (id: string, values: StoryContentInput) => request<Story>(`/api/v1/stories/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(values),
   }),
-  deleteStory: (id: string) => request<void>(`/api/v1/stories/${id}`, { method: "DELETE" }),
+  archiveStory: (id: string) => request<Story>(`/api/v1/stories/${id}/archive`, { method: "POST" }),
+  restoreStory: (id: string) => request<Story>(`/api/v1/stories/${id}/restore`, { method: "POST" }),
+  storyVersions: (id: string) => request<StoryVersion[]>(`/api/v1/stories/${id}/versions`),
+  restoreStoryVersion: (id: string, versionId: string) =>
+    request<Story>(`/api/v1/stories/${id}/versions/${versionId}/restore`, { method: "POST" }),
+  storyRoles: (id: string) => request<StoryRoleFraming[]>(`/api/v1/stories/${id}/roles`),
+  setStoryRole: (id: string, roleProfileId: string, values: StoryRoleFramingInput) =>
+    request<StoryRoleFraming>(`/api/v1/stories/${id}/roles/${roleProfileId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    }),
+  removeStoryRole: (id: string, roleProfileId: string) =>
+    request<void>(`/api/v1/stories/${id}/roles/${roleProfileId}`, { method: "DELETE" }),
+  storyPractice: (id: string) => request<StoryPracticeRecord[]>(`/api/v1/stories/${id}/practice`),
+  storyPracticeSummaries: () => request<StoryPracticeSummary[]>("/api/v1/story-practice"),
+  sessionStorySuggestions: (sessionId: string) => request<StorySuggestion[]>(`/api/v1/sessions/${sessionId}/story-suggestions`),
+  storySuggestions: (id: string) => request<StorySuggestion[]>(`/api/v1/stories/${id}/suggestions`),
+  openStorySuggestions: () => request<Array<{ id: string; story_id: string }>>("/api/v1/story-suggestions"),
+  dismissStorySuggestion: (id: string) => request<StorySuggestion>(`/api/v1/story-suggestions/${id}/dismiss`, { method: "POST" }),
+  acceptStorySuggestion: (id: string, savedVersion: number) =>
+    request<StorySuggestion>(`/api/v1/story-suggestions/${id}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ saved_version: savedVersion }),
+    }),
   retryTurnAudio: (turnId: string) => request<VoiceTurnResult>(`/api/v1/turns/${turnId}/audio/retry`, { method: "POST" }),
   report: (id: string) => request<ReportResponse>(`/api/v1/sessions/${id}/report`),
   sessionReview: (id: string) => request<SessionReview>(`/api/v1/sessions/${id}/review`),
+  interviews: (roleProfileId: string) => request<InterviewEvent[]>(`/api/v1/roles/${roleProfileId}/interviews`),
+  createInterview: (roleProfileId: string, value: InterviewEventCreate) =>
+    request<InterviewEvent>(`/api/v1/roles/${roleProfileId}/interviews`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) }),
+  updateInterview: (eventId: string, value: InterviewEventUpdate) =>
+    request<InterviewEvent>(`/api/v1/interviews/${eventId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) }),
+  deleteInterview: (eventId: string) => request<void>(`/api/v1/interviews/${eventId}`, { method: "DELETE" }),
+  interviewBrief: (eventId: string) => request<InterviewBrief>(`/api/v1/interviews/${eventId}/brief`),
+  /** `null` when nothing has been written yet (the API answers 404). */
+  interviewDebrief: (eventId: string) =>
+    request<InterviewDebriefView>(`/api/v1/interviews/${eventId}/debrief`).catch((reason: unknown) => {
+      if (reason instanceof ApiError && reason.status === 404) return null;
+      throw reason;
+    }),
+  saveInterviewDebrief: (eventId: string, value: InterviewDebriefWrite) =>
+    request<InterviewDebriefView>(`/api/v1/interviews/${eventId}/debrief`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) }),
 };
 
 

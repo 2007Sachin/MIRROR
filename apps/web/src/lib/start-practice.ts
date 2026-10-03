@@ -19,13 +19,14 @@ export function canStartDirectly(role: string, onboarding: Onboarding) {
  * Creates a prepared practice for the role that is already set up. A focused practice or
  * quick drill is planned on the server from fixed questions, so preparing it is quick.
  */
-export async function createPractice(role: string, onboarding: Onboarding, choice?: PracticeChoice): Promise<string> {
+export async function createPractice(role: string, onboarding: Onboarding, choice?: PracticeChoice, roleProfileId?: string | null, idempotencyKey?: string, storyIds?: string[]): Promise<string> {
   const resumeId = onboarding.onboarding_resume_document_id;
   if (!resumeId) throw new Error("no resume is set up for this role");
   // Pass the role explicitly rather than relying on it matching the account's
   // current role: the session should stay bound to this specific role even if
   // the account's current role changes later.
-  const session = await mirrorApi.createSession(role, "", choice, onboarding.onboarding_role_profile_id);
+  // Chosen stories are pinned by the server at their current version; the plan uses exactly those.
+  const session = await mirrorApi.createSession(role, "", choice, roleProfileId ?? onboarding.onboarding_role_profile_id, idempotencyKey, storyIds);
   const documentIds = [resumeId, onboarding.onboarding_role_brief_document_id].filter(
     (value): value is string => Boolean(value),
   );

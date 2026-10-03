@@ -66,8 +66,8 @@ export function MirrorOrb({ activeStep }: MirrorOrbProps) {
       sphere.addColorStop(0, "rgba(242, 255, 250, 0.92)");
       sphere.addColorStop(0.18, "rgba(154, 244, 210, 0.86)");
       sphere.addColorStop(0.58, "rgba(52, 193, 148, 0.72)");
-      sphere.addColorStop(0.86, "rgba(23, 107, 86, 0.48)");
-      sphere.addColorStop(1, "rgba(7, 45, 37, 0.06)");
+      sphere.addColorStop(0.86, "rgba(23, 107, 78, 0.48)");
+      sphere.addColorStop(1, "rgba(7, 45, 33, 0.06)");
       context.fillStyle = sphere;
       context.beginPath();
       context.arc(center, center, radius, 0, Math.PI * 2);

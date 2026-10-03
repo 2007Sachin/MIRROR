@@ -1,35 +1,67 @@
 "use client";
 
+import "@/styles/practice-reflect.css";
+
 import { ArrowRight, Check, Plus } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { PageAlert, PageHeader, PageLoading, PageShell, usePageData } from "@/components/workspace/page-shell";
-import { mirrorApi, type DashboardResponse, type Onboarding, type PracticeChoice, type PracticeFocusKey, type PracticeMode } from "@/lib/api";
+import { getActiveRole, type ActiveRoleState } from "@/lib/api-active-role";
+import { mirrorApi, type DashboardResponse, type Onboarding, type PracticeChoice, type PracticeFocusKey, type PracticeMode, type Story } from "@/lib/api";
 import { practice, practiceFocus, startPractice as t } from "@/lib/copy";
+import { preCheck } from "@/lib/copy-practice";
 import { newSessionHref, practiceOptions, type PracticeOption } from "@/lib/dashboard-view";
-import { MODES, briefHref, choiceFrom, choiceIsComplete, modeCopy, setupHref } from "@/lib/practice-view";
+import { MODES, briefHref, choiceFrom, choiceIsComplete, focusFor, modeCopy, sameRole, setupHref } from "@/lib/practice-view";
 import { canStartDirectly, createPractice } from "@/lib/start-practice";
 
-type StartData = { workspace: DashboardResponse; onboarding: Onboarding };
+type StartData = { workspace: DashboardResponse; onboarding: Onboarding; story: Story | null; active: ActiveRoleState | null };
 
-async function loadStart(): Promise<StartData> {
-  const [workspace, onboarding] = await Promise.all([mirrorApi.dashboard(), mirrorApi.onboarding()]);
-  return { workspace, onboarding };
+async function loadStart(storyId: string | null): Promise<StartData> {
+  const [workspace, onboarding, story, active] = await Promise.all([
+    mirrorApi.dashboard(),
+    mirrorApi.onboarding(),
+    storyId ? mirrorApi.story(storyId).catch(() => null) : Promise.resolve(null),
+    // Without the active role the page simply asks which role, as before.
+    getActiveRole().catch(() => null),
+  ]);
+  return { workspace, onboarding, story: story && !story.archived_at ? story : null, active };
 }
 
+type PickedRole = { role: string; id: string | null };
+
+/**
+ * The pre-practice check. Role (the active role unless one was asked for), format, focus and
+ * expected length are all shown first; "Start practice" is the only moment a practice is created.
+ */
 export function StartPractice() {
   const router = useRouter();
   const params = useSearchParams();
-  const { state, data, error, reload } = usePageData(loadStart, practice.errors.load);
+  // Practising one chosen story: only a short story practice, and only for a role that can start here.
+  const storyId = params.get("story");
+  const { state, data, error, reload } = usePageData(() => loadStart(storyId), practice.errors.load, [storyId]);
 
-  const [role, setRole] = useState<string | null>(params.get("role")?.trim() || null);
+  const paramRole = params.get("role")?.trim() || null;
+  // undefined: nothing chosen yet, so the active role is used; null: choosing a role.
+  const [picked, setPicked] = useState<PickedRole | null | undefined>(
+    paramRole ? { role: paramRole, id: params.get("role_profile_id") } : undefined,
+  );
   const [choice, setChoice] = useState<PracticeChoice>(() =>
-    choiceFrom(params.get("mode"), params.get("focus"), params.get("theme")),
+    storyId
+      ? { mode: params.get("mode") === "FOCUSED_PRACTICE" ? "FOCUSED_PRACTICE" : "QUICK_DRILL", focus: "story", theme: null }
+      : choiceFrom(params.get("mode"), params.get("focus"), params.get("theme")),
   );
   const [busy, setBusy] = useState(false);
   const [startError, setStartError] = useState("");
+  const roles = data?.active?.roles ?? [];
+  const fallback = params.get("role_profile_id");
+  const defaultRole = (fallback ? roles.find((item) => item.role_profile_id === fallback) : null) ?? data?.active?.role ?? null;
+  const chosen: PickedRole | null =
+    picked === undefined ? (defaultRole ? { role: defaultRole.target_role, id: defaultRole.role_profile_id } : null) : picked;
+  const role = chosen?.role ?? null;
+  const roleProfileId = chosen?.id ?? null;
+  const idempotencyKey = useRef<string>(crypto.randomUUID());
 
   const options = useMemo(() => {
     if (!data) return [];
@@ -39,9 +71,15 @@ export function StartPractice() {
 
   const step = role ? 2 : 1;
 
+  function pickRole(name: string) {
+    setPicked({ role: name, id: roles.find((item) => sameRole(item.target_role, name))?.role_profile_id ?? null });
+  }
+
   function chooseMode(mode: PracticeMode) {
     setChoice((current) => ({ ...current, mode, focus: mode === "FULL_INTERVIEW" ? null : current.focus }));
   }
+
+  const modes = storyId ? MODES.filter((mode) => mode !== "FULL_INTERVIEW") : MODES;
 
   function chooseFocus(focus: PracticeFocusKey) {
     // A theme belongs to role-specific practice only, and only the one that was offered.
@@ -53,11 +91,20 @@ export function StartPractice() {
     setBusy(true);
     setStartError("");
     try {
-      if (canStartDirectly(role, data.onboarding)) {
-        router.push(briefHref(await createPractice(role, data.onboarding, choice)));
+      const direct = canStartDirectly(role, data.onboarding) && (!roleProfileId || roleProfileId === data.onboarding.onboarding_role_profile_id);
+      if (storyId) {
+        // Never fall through to the setup flow here: it would quietly drop the chosen story.
+        if (!data.story) setStartError(t.story.missing);
+        else if (!direct) setStartError(t.story.roleNeeded);
+        else router.push(briefHref(await createPractice(role, data.onboarding, choice, roleProfileId, idempotencyKey.current, [data.story.id])));
+        if (!data.story || !direct) setBusy(false);
         return;
       }
-      router.push(setupHref(role, choice));
+      if (direct) {
+        router.push(briefHref(await createPractice(role, data.onboarding, choice, roleProfileId, idempotencyKey.current)));
+        return;
+      }
+      router.push(setupHref(role, choice, roleProfileId));
     } catch {
       setStartError(t.focusStep.failed);
       setBusy(false);
@@ -81,7 +128,7 @@ export function StartPractice() {
         <div className="dh-choice-list">
           {options.length ? (
             options.map((option) => (
-              <button key={option.role} type="button" onClick={() => setRole(option.role)}>
+              <button key={option.role} type="button" onClick={() => pickRole(option.role)}>
                 <span className="dh-choice-copy">
                   <strong>{option.role}</strong>
                   <small>{describe(option)}</small>
@@ -108,14 +155,14 @@ export function StartPractice() {
         <>
           <p className="dh-chosen-role">
             {role}{" "}
-            <button type="button" className="dh-text-action" onClick={() => setRole(null)} disabled={busy}>
-              {t.back}
+            <button type="button" className="dh-text-action" onClick={() => setPicked(null)} disabled={busy}>
+              {preCheck.changeRole}
             </button>
           </p>
 
           <fieldset className="dh-choice-list is-focus">
             <legend className="dh-subhead">{t.focusStep.howLabel}</legend>
-            {MODES.map((mode) => (
+            {modes.map((mode) => (
               <label key={mode} className={choice.mode === mode ? "is-selected" : ""}>
                 <input type="radio" name="practice-mode" value={mode} checked={choice.mode === mode} onChange={() => chooseMode(mode)} disabled={busy} />
                 <span className="dh-choice-copy">
@@ -128,7 +175,13 @@ export function StartPractice() {
             ))}
           </fieldset>
 
-          {choice.mode !== "FULL_INTERVIEW" ? (
+          {storyId ? (
+            <div className="dh-guidance dh-practice-story">
+              <p className="dh-subhead">{t.story.label}</p>
+              {data?.story ? <strong>{data.story.title}</strong> : <p>{t.story.missing}</p>}
+              <p className="dh-fine-print">{t.story.body}</p>
+            </div>
+          ) : choice.mode !== "FULL_INTERVIEW" ? (
             <fieldset className="dh-choice-list is-focus">
               <legend className="dh-subhead">{t.focusStep.whatLabel}</legend>
               {practiceFocus.options.map((option) => (
@@ -145,18 +198,47 @@ export function StartPractice() {
             </fieldset>
           ) : null}
 
+          <section className="pr-check" aria-labelledby="practice-check-title">
+            <h2 id="practice-check-title">{preCheck.title}</h2>
+            <p>{preCheck.body}</p>
+            <dl>
+              <div>
+                <dt>{preCheck.role}</dt>
+                <dd>{role}</dd>
+              </div>
+              <div>
+                <dt>{preCheck.format}</dt>
+                <dd>{modeCopy(choice.mode).title}</dd>
+              </div>
+              <div>
+                <dt>{preCheck.focus}</dt>
+                <dd>{focusLabel(choice, storyId ? data?.story?.title ?? null : null)}</dd>
+              </div>
+              <div>
+                <dt>{preCheck.length}</dt>
+                <dd>{modeCopy(choice.mode).length}</dd>
+              </div>
+            </dl>
+          </section>
+
           {startError ? <PageAlert message={startError} /> : null}
           <div className="dh-action-row">
-            <button className="dh-primary-action" type="button" onClick={() => void begin()} disabled={busy || !choiceIsComplete(choice)}>
+            <button className="dh-primary-action" type="button" onClick={() => void begin()} disabled={busy || !choiceIsComplete(choice)} aria-busy={busy}>
               {busy ? t.focusStep.preparing : t.focusStep.begin}
               {busy ? null : <ArrowRight size={17} aria-hidden="true" />}
             </button>
-            <span className="dh-action-meta">{modeCopy(choice.mode).length}</span>
           </div>
         </>
       ) : null}
     </PageShell>
   );
+}
+
+function focusLabel(choice: PracticeChoice, story: string | null) {
+  if (story) return story;
+  if (choice.mode === "FULL_INTERVIEW") return preCheck.wholeInterview;
+  if (choice.focus === "role" && choice.theme) return choice.theme;
+  return focusFor(choice.focus)?.title ?? preCheck.chooseFocus;
 }
 
 function describe(option: PracticeOption) {

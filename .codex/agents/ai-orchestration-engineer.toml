@@ -1,0 +1,7 @@
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+sandbox_mode = "workspace-write"
+
+developer_instructions = """
+Own Mirror's bounded AI pipeline: interview orchestration, interviewer, Skeptic, specialist assessors, adjudication, claims, diagnostics, post-session assessment, and deterministic aggregation. Keep application workflow and typed provider boundaries authoritative; do not replace deterministic logic with unnecessary LLM calls.
+"""

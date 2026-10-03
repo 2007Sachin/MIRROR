@@ -8,6 +8,8 @@ candidate can see why Mirror said it.
 Rules this module keeps:
 - Themes come only from the role analysis. Nothing is added from general knowledge.
 - Coverage comes only from the candidate's own material. Nothing is inferred.
+- When an approved-experience source is given, coverage reads only APPROVED Career
+  Evidence items (never raw resume text), and every match says why it exists.
 - Questions are "worth preparing for", never a prediction of what will be asked.
 - No number is produced. States are the four codes below.
 """
@@ -18,7 +20,7 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -32,6 +34,9 @@ from .role_models import (
     RoleAnalysisStatus,
     StoredRoleCompetency,
 )
+
+if TYPE_CHECKING:
+    from .career_evidence import EvidenceItem
 
 MAX_THEMES = 6
 MAX_AREAS = 3
@@ -60,6 +65,17 @@ class ExperienceState(StrEnum):
     MISSING = "MISSING"
     READING = "READING"
     UNREADABLE = "UNREADABLE"
+    NEEDS_REVIEW = "NEEDS_REVIEW"  # the resume is read; review and approve your experience first
+
+
+class CoverageReason(StrEnum):
+    """Why a piece of approved experience counts for a theme: which field matched."""
+
+    TOOL = "TOOL"              # the theme is a tool the item names
+    OUTCOME = "OUTCOME"        # the item's outcome or measured result speaks to it
+    DECISION = "DECISION"      # the item describes a decision or recommendation about it
+    CAPABILITY = "CAPABILITY"  # the item's own statement shows it
+    CONFIRMED = "CONFIRMED"    # the person tagged their own story with it
 
 
 class AreaAction(StrEnum):
@@ -73,6 +89,13 @@ class CoverageMatch(MapModel):
     kind: str  # STORY, WORK, PROJECT, ACHIEVEMENT, SKILL, TOOL
     label: str
     text: str
+    # Set only for a STORY match, so the frontend can link straight to practising that
+    # exact story instead of the generic role-focused practice. Never set for work,
+    # project, achievement, skill or tool matches, which have no story to open.
+    story_id: UUID | None = None
+    reason: CoverageReason | None = None
+    # Set only for an approved experience item, so the frontend can link to it.
+    evidence_id: UUID | None = None
 
 
 class InterviewTheme(MapModel):
@@ -261,12 +284,15 @@ def coverage_for(
     output: ResumeAgentOutput | None,
     stories: Sequence[StoryEvidence],
     matcher: ThemeMatcher = DEFAULT_MATCHER,
+    *,
+    evidence: Sequence[EvidenceItem] | None = None,
 ) -> tuple[Coverage, list[CoverageMatch]]:
     """Strongest thing the candidate's own material shows for one theme.
 
     A story counts when the candidate tagged it with the theme (or a close wording).
     Work counts as useful experience only on a USEFUL match; a WEAK overlap with work,
-    or a skill named on the resume, is "mentioned, not yet shown".
+    or a skill named on the resume, is "mentioned, not yet shown". With ``evidence`` (the
+    person's APPROVED items), raw resume output is ignored entirely.
     """
     story_hits = [
         story for story in stories
@@ -275,9 +301,14 @@ def coverage_for(
     ]
     if story_hits:
         return Coverage.PREPARED, [
-            CoverageMatch(kind="STORY", label=story.title, text=_excerpt(story.text or story.title))
+            CoverageMatch(
+                kind="STORY", label=story.title, text=_excerpt(story.text or story.title), story_id=story.id,
+                reason=CoverageReason.CONFIRMED,
+            )
             for story in _unique(story_hits, lambda story: story.title)[:2]
         ]
+    if evidence is not None:
+        return _evidence_coverage(name, evidence, matcher)
     graded = [(item, matcher.strength(name, item.text)) for item in _used(output)]
     useful = [item for item, strength in graded if strength == MatchStrength.USEFUL]
     if useful:
@@ -291,6 +322,54 @@ def coverage_for(
         mentioned = _unique([*named, *weak], lambda item: item.label)
         return Coverage.MENTIONED, [
             CoverageMatch(kind=item.kind, label=item.label, text=_excerpt(item.text)) for item in mentioned[:2]
+        ]
+    return Coverage.MISSING, []
+
+
+_DECISION = re.compile(
+    r"\b(?:decid\w*|decision\w*|chose|chosen|choos\w*|recommend\w*|prioriti[sz]\w*|trade-?offs?|selected|proposed)\b",
+    re.IGNORECASE,
+)
+
+
+def _reason(name: str, item: EvidenceItem, matcher: ThemeMatcher) -> CoverageReason | None:
+    """Which field of an approved item shows the theme. A bare skill name never does."""
+    if item.kind == "SKILL":
+        return None
+    if any(matcher.strength(name, tool) == MatchStrength.USEFUL for tool in item.tools):
+        return CoverageReason.TOOL
+    if matcher.strength(name, " ".join(filter(None, (item.outcome, item.metric)))) == MatchStrength.USEFUL:
+        return CoverageReason.OUTCOME
+    statement = " ".join(filter(None, (item.title, item.detail)))
+    if matcher.strength(name, statement) == MatchStrength.USEFUL:
+        return CoverageReason.DECISION if _DECISION.search(statement) else CoverageReason.CAPABILITY
+    return None
+
+
+def _evidence_match(item: EvidenceItem, reason: CoverageReason) -> CoverageMatch:
+    return CoverageMatch(
+        kind=str(item.kind), label=_excerpt(item.title, 120), text=_excerpt(item.title), reason=reason, evidence_id=item.id
+    )
+
+
+def _evidence_coverage(
+    name: str, evidence: Sequence[EvidenceItem], matcher: ThemeMatcher
+) -> tuple[Coverage, list[CoverageMatch]]:
+    """EXPERIENCE needs a full match on a field of real work; a skill name or a partial overlap is MENTIONED."""
+    approved = [item for item in evidence if item.status == "APPROVED"]
+    shown = [(item, reason) for item in approved if (reason := _reason(name, item, matcher))]
+    if shown:
+        return Coverage.EXPERIENCE, [
+            _evidence_match(item, reason) for item, reason in _unique(shown, lambda pair: pair[0].title)[:2]
+        ]
+    named = [
+        item for item in approved
+        if matcher.strength(name, " ".join(filter(None, (item.title, item.detail, item.outcome, *item.tools))))
+        != MatchStrength.NONE
+    ]
+    if named:
+        return Coverage.MENTIONED, [
+            _evidence_match(item, CoverageReason.CAPABILITY) for item in _unique(named, lambda item: item.title)[:2]
         ]
     return Coverage.MISSING, []
 
@@ -349,8 +428,13 @@ def _question_for(theme: InterviewTheme, used: set[str]) -> SuggestedQuestion | 
 # ------------------------------------------------------------------ the map
 
 
-def _unmeasured_outcomes(resume: ResumeAnalysisResponse | None) -> bool:
-    """True when the resume describes results but almost never says how big they were."""
+def _unmeasured_outcomes(
+    resume: ResumeAnalysisResponse | None, evidence: Sequence[EvidenceItem] | None = None
+) -> bool:
+    """True when the person's results almost never say how big they were."""
+    if evidence is not None:
+        results = [item for item in evidence if item.status == "APPROVED" and item.kind in ("ACHIEVEMENT", "PROJECT")]
+        return len(results) >= 3 and sum(1 for item in results if item.metric) * 4 < len(results)
     if resume is None:
         return False
     outcomes = [
@@ -383,7 +467,17 @@ def _themes(role: RoleAnalysisResponse) -> list[StoredRoleCompetency]:
     return unique[:MAX_THEMES]
 
 
-def experience_state(resume: ResumeAnalysisResponse | None, has_resume_document: bool) -> ExperienceState:
+def experience_state(
+    resume: ResumeAnalysisResponse | None,
+    has_resume_document: bool,
+    evidence: Sequence[EvidenceItem] | None = None,
+) -> ExperienceState:
+    """With an approved-experience source, READY means at least one APPROVED item."""
+    if evidence is not None:
+        if any(item.status == "APPROVED" for item in evidence):
+            return ExperienceState.READY
+        state = experience_state(resume, has_resume_document)
+        return ExperienceState.NEEDS_REVIEW if state == ExperienceState.READY else state
     if not has_resume_document:
         return ExperienceState.MISSING
     if resume is None or resume.status == "PROCESSING":
@@ -400,9 +494,12 @@ def build_interview_map(
     has_resume_document: bool,
     stories: Sequence[StoryEvidence] = (),
     latest_review: LatestReview | None = None,
+    evidence: Sequence[EvidenceItem] | None = None,
 ) -> InterviewMap:
+    """``evidence`` is the person's experience items. When given, only the APPROVED ones count
+    and raw resume output is never read; ``None`` keeps the older path for callers without one."""
     version = role.latest_analysis
-    experience = experience_state(resume, has_resume_document)
+    experience = experience_state(resume, has_resume_document, evidence)
     base = {
         "role_profile_id": role.id,
         "target_role": role.target_role,
@@ -413,10 +510,11 @@ def build_interview_map(
     if version.status == RoleAnalysisStatus.FAILED or version.output is None or not role.competencies:
         return InterviewMap(state=MapState.ROLE_UNREADABLE, **base)
 
-    output = resume.output if experience == ExperienceState.READY and resume else None
+    output = resume.output if evidence is None and experience == ExperienceState.READY and resume else None
+    approved = [item for item in evidence if item.status == "APPROVED"] if evidence is not None else None
     themes: list[InterviewTheme] = []
     for item in _themes(role):
-        coverage, matches = coverage_for(item.name, output, stories)
+        coverage, matches = coverage_for(item.name, output, stories, evidence=approved)
         from_jd = item.source_type != CompetencySourceType.SYNTHETIC_CANONICAL
         themes.append(
             InterviewTheme(
@@ -434,7 +532,7 @@ def build_interview_map(
         state=MapState.READY,
         role_from_job_description=any(theme.from_job_description for theme in themes),
         themes=themes,
-        preparation_areas=preparation_areas(themes, experience, resume, latest_review),
+        preparation_areas=preparation_areas(themes, experience, resume, latest_review, approved),
         questions=suggested_questions(themes),
         also_expected=list(version.output.behavioural_expectations[:4]),
         **base,
@@ -446,8 +544,19 @@ def preparation_areas(
     experience: ExperienceState,
     resume: ResumeAnalysisResponse | None,
     latest_review: LatestReview | None,
+    evidence: Sequence[EvidenceItem] | None = None,
 ) -> list[PreparationArea]:
     """At most three things worth preparing, each with one action and a reason."""
+    if experience == ExperienceState.NEEDS_REVIEW:
+        # ADD_EXPERIENCE already leads to /experience, where the review happens.
+        return [
+            PreparationArea(
+                key="review-experience",
+                title="Review your experience first",
+                body="Mirror has read your resume. Check what it found and approve what's accurate, so this plan only uses experience you've confirmed.",
+                action=AreaAction.ADD_EXPERIENCE,
+            )
+        ]
     if experience == ExperienceState.MISSING:
         return [
             PreparationArea(
@@ -469,7 +578,7 @@ def preparation_areas(
                 focus="impact",
             )
         )
-    elif _unmeasured_outcomes(resume):
+    elif _unmeasured_outcomes(resume, evidence):
         areas.append(
             PreparationArea(
                 key="impact-from-resume",

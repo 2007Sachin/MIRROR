@@ -14,17 +14,22 @@ import {
   Section,
   usePageData,
 } from "@/components/workspace/page-shell";
-import { mirrorApi, type DashboardResponse, type InterviewMap } from "@/lib/api";
+import { mirrorApi, type DashboardResponse, type InterviewMap, type PracticeRecommendation } from "@/lib/api";
 import { interviewMap as mapCopy, roles as t } from "@/lib/copy";
 import { sessionRow } from "@/lib/dashboard-view";
 import { startPracticeHref } from "@/lib/practice-view";
 import { sessionsForRole } from "@/lib/role-view";
 
-type RoleWorkspaceData = { map: InterviewMap; workspace: DashboardResponse };
+type RoleWorkspaceData = { map: InterviewMap; workspace: DashboardResponse; recommendation: PracticeRecommendation | null };
 
 async function loadRoleWorkspace(roleProfileId: string): Promise<RoleWorkspaceData> {
-  const [map, workspace] = await Promise.all([mirrorApi.interviewMap(roleProfileId), mirrorApi.dashboard()]);
-  return { map, workspace };
+  const [map, workspace, recommendation] = await Promise.all([
+    mirrorApi.interviewMap(roleProfileId),
+    mirrorApi.dashboard(),
+    // Deterministic and already computed by the backend; never blocks the page if it fails.
+    mirrorApi.practiceRecommendation(roleProfileId).then((value) => value.recommendation).catch(() => null),
+  ]);
+  return { map, workspace, recommendation };
 }
 
 /** The role workspace: its Interview Map first, then the practice already done for it. */
@@ -48,8 +53,14 @@ export function RoleDetail({ roleProfileId }: { roleProfileId: string }) {
         back={{ href: "/roles", label: t.detail.back }}
         action={
           state === "ready" ? (
-            <Link className="dh-primary-action" href={startPracticeHref(role)}>
-              {t.detail.start} <ArrowRight size={17} aria-hidden="true" />
+            // When the map has a specific recommendation, its own banner is the one primary
+            // "start practising" action; this header button steps back rather than compete
+            // with it. With no recommendation, it is the only practice CTA and stays primary.
+            <Link
+              className={data?.recommendation ? "dh-text-action" : "dh-primary-action"}
+              href={startPracticeHref(role, undefined, roleProfileId)}
+            >
+              {t.detail.start} <ArrowRight size={data?.recommendation ? 15 : 17} aria-hidden="true" />
             </Link>
           ) : null
         }
@@ -61,7 +72,7 @@ export function RoleDetail({ roleProfileId }: { roleProfileId: string }) {
 
       {state === "ready" && data ? (
         <div className="dh-home-sections">
-          <InterviewMapView map={data.map} />
+          <InterviewMapView map={data.map} recommendation={data.recommendation} />
 
           <Section id="role-history" label={t.detail.history.title} title={t.detail.history.title}>
             {history.length ? (

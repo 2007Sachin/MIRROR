@@ -150,6 +150,17 @@ class RoleAnalysisService:
             unique.append(profile)
         return unique
 
+    async def families(self, user_id: UUID) -> list[tuple[RoleProfileRead, frozenset[UUID]]]:
+        """Each role once (its newest profile) with the ids of every profile for that role name.
+
+        Practices bind to the profile that was current when they started, so progress
+        for a role has to include practices bound to its earlier duplicates.
+        """
+        groups: dict[str, list[RoleProfileRead]] = {}
+        for profile in await self._analyses.list_profiles(user_id):
+            groups.setdefault(profile.target_role.casefold().strip(), []).append(profile)
+        return [(members[0], frozenset(member.id for member in members)) for members in groups.values()]
+
     async def competencies(
         self, profile_id: UUID, user_id: UUID
     ) -> list[StoredRoleCompetency]:

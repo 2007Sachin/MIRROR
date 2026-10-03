@@ -100,6 +100,19 @@ def test_a_story_tagged_with_the_theme_counts_as_prepared() -> None:
     assert coverage == Coverage.PREPARED and matches[0].kind == "STORY"
 
 
+def test_a_prepared_match_carries_the_exact_story_id_so_it_can_be_practised() -> None:
+    """The frontend needs the exact story to link straight to practising it (never guessed)."""
+    story = StoryEvidence(id=uuid4(), title="Pricing call", themes=("Experimentation",), text="We ran a test")
+    _, matches = coverage_for("Experimentation", OUTPUT, [story])
+    assert matches[0].story_id == story.id
+
+
+def test_a_non_story_match_never_carries_a_story_id() -> None:
+    coverage, matches = coverage_for("Data analysis", OUTPUT, [])
+    assert coverage == Coverage.EXPERIENCE
+    assert matches and all(match.story_id is None for match in matches)
+
+
 def test_work_that_uses_the_theme_counts_as_experience_and_shows_where() -> None:
     coverage, matches = coverage_for("Data analysis", OUTPUT, [])
     assert coverage == Coverage.EXPERIENCE
@@ -269,6 +282,30 @@ async def test_service_reads_the_newest_resume_and_the_persons_stories() -> None
 
 
 @pytest.mark.asyncio
+async def test_an_archived_story_stops_counting_until_it_is_restored() -> None:
+    from app.readiness_service import ReadinessService
+    from app.story_models import StoryCreate
+    from app.story_repository import MemoryStoryRepository
+
+    stories = MemoryStoryRepository()
+    story = await stories.create(USER, StoryCreate(title="A pricing experiment", themes=["Experimentation"], situation="s"))
+    analysis = role([competency("Experimentation"), competency("Forecasting")])
+    service = ReadinessService(FakeRoles(analysis), FakeDocuments([_document()]), FakeResumes(resume(OUTPUT)), stories, None)
+
+    async def coverage():
+        return {theme.name: theme.coverage for theme in (await service.interview_map(analysis.id, USER)).themes}
+
+    before = await coverage()
+    assert before["Experimentation"] == Coverage.PREPARED
+    await stories.archive(story.id, USER)
+    archived = await coverage()
+    assert archived["Experimentation"] != Coverage.PREPARED
+    assert archived["Forecasting"] == before["Forecasting"]  # nothing else moves
+    await stories.restore(story.id, USER)
+    assert await coverage() == before
+
+
+@pytest.mark.asyncio
 async def test_service_refuses_a_role_that_belongs_to_someone_else() -> None:
     from app.readiness_service import ReadinessService
     from app.role_service import RoleProfileNotFoundForUser
@@ -278,3 +315,99 @@ async def test_service_refuses_a_role_that_belongs_to_someone_else() -> None:
     service = ReadinessService(FakeRoles(analysis), FakeDocuments([]), FakeResumes(None), MemoryStoryRepository(), None)
     with pytest.raises(RoleProfileNotFoundForUser):
         await service.interview_map(uuid4(), USER)
+
+
+# ------------------------------------------------------------------ stories framed for roles
+
+
+class FakeRoleSet:
+    """Several roles for one person, looked up by exact id only."""
+
+    def __init__(self, *analyses):
+        self.by_id = {analysis.id: analysis for analysis in analyses}
+
+    async def get(self, profile_id, user_id):
+        from app.role_service import RoleProfileNotFoundForUser
+        if profile_id not in self.by_id or user_id != USER:
+            raise RoleProfileNotFoundForUser
+        return self.by_id[profile_id]
+
+
+async def _framed_setup():
+    from app.readiness_service import ReadinessService
+    from app.story_repository import MemoryStoryRepository
+
+    stories = MemoryStoryRepository()
+    first = role([competency("Experimentation"), competency("Forecasting")])
+    second = role([competency("Experimentation"), competency("Forecasting")])
+    assert first.target_role == second.target_role and first.id != second.id  # same name, two roles
+    service = ReadinessService(FakeRoleSet(first, second), FakeDocuments([_document()]), FakeResumes(resume(OUTPUT)), stories, None)
+
+    async def coverage(analysis):
+        return {theme.name: theme.coverage for theme in (await service.interview_map(analysis.id, USER)).themes}
+
+    return stories, first, second, coverage
+
+
+@pytest.mark.asyncio
+async def test_a_story_with_no_role_counts_for_every_role() -> None:
+    from app.story_models import StoryCreate
+
+    stories, first, second, coverage = await _framed_setup()
+    await stories.create(USER, StoryCreate(title="Forecast rebuild", themes=["Forecasting"], situation="s"))
+    assert (await coverage(first))["Forecasting"] == Coverage.PREPARED
+    assert (await coverage(second))["Forecasting"] == Coverage.PREPARED
+
+
+@pytest.mark.asyncio
+async def test_role_themes_count_only_for_that_exact_role() -> None:
+    from app.story_models import StoryCreate, StoryRoleFramingInput
+
+    stories, first, second, coverage = await _framed_setup()
+    story = await stories.create(USER, StoryCreate(title="Pricing test", themes=["Forecasting"], situation="s"))
+    await stories.set_framing(story.id, first.id, USER, StoryRoleFramingInput(themes=["Experimentation"]))
+
+    one, two = await coverage(first), await coverage(second)
+    assert one["Experimentation"] == Coverage.PREPARED
+    assert two["Experimentation"] != Coverage.PREPARED  # same role name, different role: no leak
+    assert one["Forecasting"] == two["Forecasting"] == Coverage.PREPARED  # its own themes still count everywhere
+
+
+@pytest.mark.asyncio
+async def test_one_story_framed_for_two_roles_counts_for_both_until_archived() -> None:
+    from app.story_models import StoryCreate, StoryRoleFramingInput
+
+    stories, first, second, coverage = await _framed_setup()
+    story = await stories.create(USER, StoryCreate(title="Pricing test", situation="s", role_profile_id=first.id))
+    await stories.set_framing(story.id, first.id, USER, StoryRoleFramingInput(themes=["Experimentation"]))
+    await stories.set_framing(story.id, second.id, USER, StoryRoleFramingInput(themes=["Experimentation"]))
+    before = (await coverage(first), await coverage(second))
+    assert before[0]["Experimentation"] == before[1]["Experimentation"] == Coverage.PREPARED
+
+    await stories.archive(story.id, USER)
+    assert (await coverage(first))["Experimentation"] != Coverage.PREPARED
+    assert (await coverage(second))["Experimentation"] != Coverage.PREPARED
+    await stories.restore(story.id, USER)
+    assert (await coverage(first), await coverage(second)) == before
+
+
+@pytest.mark.asyncio
+async def test_removing_a_role_from_a_story_only_affects_that_role() -> None:
+    from app.story_models import StoryCreate, StoryRoleFramingInput
+
+    stories, first, second, coverage = await _framed_setup()
+    story = await stories.create(USER, StoryCreate(title="Pricing test", situation="s"))
+    for analysis in (first, second):
+        await stories.set_framing(story.id, analysis.id, USER, StoryRoleFramingInput(themes=["Experimentation"]))
+    await stories.remove_framing(story.id, first.id, USER)
+    assert (await coverage(first))["Experimentation"] != Coverage.PREPARED
+    assert (await coverage(second))["Experimentation"] == Coverage.PREPARED
+
+
+def test_role_themes_add_to_a_storys_own_themes_without_repeating_them() -> None:
+    from app.readiness_service import story_evidence
+    from app.story_models import StoryRead
+
+    story = StoryRead(id=uuid4(), user_id=USER, title="t", themes=["Pricing"], origin="MANUAL", created_at=NOW, updated_at=NOW)
+    assert story_evidence(story).themes == ("Pricing",)
+    assert story_evidence(story, ["pricing", "Discovery"]).themes == ("Pricing", "Discovery")

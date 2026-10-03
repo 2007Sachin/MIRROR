@@ -33,9 +33,12 @@ export function TryAgain({
   const [error, setError] = useState("");
   const [result, setResult] = useState<AnswerAttempt | null>(null);
   const field = useRef<HTMLTextAreaElement>(null);
+  const resultPanel = useRef<HTMLDivElement>(null);
+  const idempotencyKey = useRef(crypto.randomUUID());
 
   useEffect(() => {
-    field.current?.focus();
+    if (result) resultPanel.current?.focus();
+    else field.current?.focus();
   }, [result]);
 
   async function submit() {
@@ -47,6 +50,7 @@ export function TryAgain({
         answer: draft.trim(),
         area_key: area?.key ?? null,
         area_title: area?.title ?? null,
+        idempotency_key: idempotencyKey.current,
       });
       setResult(attempt);
       onSaved(attempt);
@@ -60,6 +64,7 @@ export function TryAgain({
   function again() {
     setResult(null);
     setDraft("");
+    idempotencyKey.current = crypto.randomUUID();
   }
 
   return (
@@ -73,7 +78,9 @@ export function TryAgain({
       </details>
 
       {result?.comparison ? (
-        <AttemptComparison attempt={result} />
+        <div ref={resultPanel} tabIndex={-1}>
+          <AttemptComparison attempt={result} />
+        </div>
       ) : (
         <label className="dh-form is-wide">
           <span>{t.answerLabel}</span>

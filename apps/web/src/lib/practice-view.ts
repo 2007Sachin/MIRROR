@@ -2,12 +2,13 @@
  * Practice: the candidate-facing view of practice sessions and practice choices.
  *
  * The shape of each mode (how many questions, how long) is decided by the backend
- * (`practice_modes.py`); the words for it live in `copy.ts`. This file only turns a
+ * (`practice_modes.py`); the words for it live in `copy-practice.ts`. This file only turns a
  * choice into a link or a label. It never starts, plans or scores a conversation.
  */
 import type { DashboardDiagnostic, DashboardSummary, PracticeChoice, PracticeFocusKey, PracticeMode } from "@/lib/api";
-import { practiceFocus, practiceModes } from "@/lib/copy";
-import { newSessionHref, sessionKind, sessionRow, type SessionRow } from "@/lib/dashboard-view";
+import { practiceFocus } from "@/lib/copy";
+import { practiceFormats } from "@/lib/copy-practice";
+import { newSessionHref, sessionKind, sessionRow, type SessionKind, type SessionRow } from "@/lib/dashboard-view";
 
 export type PracticeFocus = (typeof practiceFocus.options)[number];
 
@@ -26,7 +27,7 @@ export function focusFor(key: string | null | undefined): PracticeFocus | null {
 }
 
 export function modeCopy(mode: PracticeMode) {
-  return practiceModes[mode];
+  return practiceFormats[mode];
 }
 
 /** What a practice is called in lists: "Quick drill · Show your impact". */
@@ -49,26 +50,27 @@ export function choiceIsComplete(choice: PracticeChoice) {
   return choice.mode === "FULL_INTERVIEW" || Boolean(choice.focus);
 }
 
-function query(role: string | null | undefined, choice?: Partial<PracticeChoice>) {
+function query(role: string | null | undefined, choice?: Partial<PracticeChoice>, roleProfileId?: string | null) {
   const params = new URLSearchParams();
   if (role?.trim()) params.set("role", role.trim());
   if (choice?.mode && choice.mode !== "FULL_INTERVIEW") params.set("mode", choice.mode);
   if (choice?.focus && choice.focus !== "full") params.set("focus", choice.focus);
   if (choice?.theme) params.set("theme", choice.theme);
+  if (roleProfileId) params.set("role_profile_id", roleProfileId);
   return params.toString();
 }
 
 /** Where "Start practice" goes. Role and choice are carried, never invented. */
-export function startPracticeHref(role?: string | null, choice?: Partial<PracticeChoice> | string | null) {
+export function startPracticeHref(role?: string | null, choice?: Partial<PracticeChoice> | string | null, roleProfileId?: string | null) {
   const normalised = typeof choice === "string" ? { mode: "QUICK_DRILL" as const, focus: choice as PracticeFocusKey } : choice ?? undefined;
-  const text = query(role, normalised ?? undefined);
+  const text = query(role, normalised ?? undefined, roleProfileId);
   return `/practice/start${text ? `?${text}` : ""}`;
 }
 
 /** The full setup flow, keeping the choice so it survives the round trip. */
-export function setupHref(role: string, choice?: PracticeChoice) {
+export function setupHref(role: string, choice?: PracticeChoice, roleProfileId?: string | null) {
   const base = newSessionHref(role);
-  const extra = query(null, choice);
+  const extra = query(null, choice, roleProfileId);
   return extra ? `${base}&${extra}` : base;
 }
 
@@ -76,23 +78,45 @@ export function briefHref(sessionId: string) {
   return `/sessions/${sessionId}/brief`;
 }
 
-/** Every practice, newest first, each labelled with how it was practised. */
+/** A practice that reached its review (ready, still being prepared, or needing another go). */
+export function isCompleted(session: DashboardDiagnostic) {
+  const kind = sessionKind(session);
+  return kind === "review_ready" || kind === "review_processing" || kind === "review_failed";
+}
+
+/**
+ * Previous practice: only completed attempts, newest first, each labelled with how it was
+ * practised. Drafts are "Continue", and a discarded practice is not a practice at all.
+ */
 export function practiceHistory(
   sessions: DashboardDiagnostic[],
   summary: DashboardSummary["latest_review"] | null,
 ): Array<SessionRow & { label: string }> {
-  return sessions.map((session) => ({
+  return sessions.filter(isCompleted).map((session) => ({
     ...sessionRow(session, summary),
     label: practiceLabel(session.practice_mode ?? "FULL_INTERVIEW", session.practice_focus, session.practice_theme),
   }));
 }
 
-/** The one practice worth continuing: an unfinished one, if there is one. */
-export function continuePractice(sessions: DashboardDiagnostic[]): DashboardDiagnostic | null {
-  return (
-    sessions.find((session) => {
-      const kind = sessionKind(session);
-      return kind === "in_progress" || kind === "ready";
-    }) ?? null
-  );
+const UNFINISHED: SessionKind[] = ["in_progress", "ready", "setup"];
+
+/** Every practice that has not finished: each can be continued (when it got that far) or discarded. */
+export function unfinishedPractices(sessions: DashboardDiagnostic[]): DashboardDiagnostic[] {
+  return sessions.filter((session) => UNFINISHED.includes(sessionKind(session)));
+}
+
+/** Where "Continue" goes, or null for a practice whose setup never finished (it can only be discarded). */
+export function continueHref(session: DashboardDiagnostic): string | null {
+  const kind = sessionKind(session);
+  return kind === "in_progress" || kind === "ready" ? `/app/interview/${session.id}` : null;
+}
+
+/** Same role, by name: sessions carry the role name, the active role carries both. */
+export function sameRole(left: string | null | undefined, right: string | null | undefined) {
+  return Boolean(left?.trim()) && left?.trim().toLocaleLowerCase() === right?.trim().toLocaleLowerCase();
+}
+
+/** The tone of a history row's state label. */
+export function historyStateClass(kind: SessionKind) {
+  return kind === "review_ready" ? "is-ready" : kind === "review_failed" ? "is-attention" : "is-active";
 }

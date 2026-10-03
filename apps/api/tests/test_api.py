@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.auth import AuthenticatedUser, get_token_verifier
@@ -22,9 +23,18 @@ test_engine = InterviewStateMachine(
     total_time_budget_seconds=1200,
     phase_time_budget_seconds=180,
 )
-app.dependency_overrides[get_token_verifier] = lambda: TestVerifier()
-app.dependency_overrides[get_interview_state_machine] = lambda: test_engine
 AUTH = {"Authorization": "Bearer test-access-token"}
+
+
+@pytest.fixture(autouse=True)
+def _overrides():
+    # Installed per test, not at import: other modules clean up their own overrides,
+    # which used to remove these when the whole suite ran.
+    app.dependency_overrides[get_token_verifier] = lambda: TestVerifier()
+    app.dependency_overrides[get_interview_state_machine] = lambda: test_engine
+    yield
+    app.dependency_overrides.pop(get_token_verifier, None)
+    app.dependency_overrides.pop(get_interview_state_machine, None)
 
 
 def test_create_and_read_session() -> None:

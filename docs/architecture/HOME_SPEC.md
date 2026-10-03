@@ -5,6 +5,10 @@ Dig Deeper, My Stories, practice modes, Review, Try again. This is a specificati
 Home code has been changed to match it. It replaces the older "generic dashboard" framing with
 one dominant action per visit, chosen by a state machine over real data.
 
+Implementation note: the Home state machine now lives in `apps/web/src/lib/home-view.ts`.
+The answer-level retry opportunity remains on the Review page until Home has a cheap
+answer-level report/attempt contract.
+
 ## 0. Data sources this spec relies on
 
 - `Onboarding.onboarding_resume_document_id`, `.onboarding_role_profile_id`, `.target_role`

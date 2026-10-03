@@ -29,13 +29,13 @@ def test_map_actions_all_lead_somewhere_real() -> None:
 
 
 def test_the_pressure_test_saves_only_the_candidates_own_answers() -> None:
-    assert "mirrorApi.answerChecks" in PRESSURE
+    assert "answerFeedback(question.kind" in PRESSURE  # structured Dig Deeper feedback
     assert "storyFromAnswers" in PRESSURE
     assert "source_text: statement" in STORY_VIEW  # the resume statement is kept as a source, not an answer
 
 
-def test_story_deletion_asks_first() -> None:
-    assert "showModal" in EDITOR and "deleteTitle" in EDITOR
+def test_archiving_a_story_asks_first() -> None:
+    assert "showModal" in EDITOR and "archiveTitle" in EDITOR
 
 
 def test_my_stories_is_navigable_and_guarded() -> None:

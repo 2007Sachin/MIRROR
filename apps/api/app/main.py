@@ -18,17 +18,21 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from .config import get_settings
 from .auth import AuthenticatedUser, get_current_user
 from .deferred_writes import get_deferred_writes
 from .dependencies import (
     get_dashboard_summary_service,
-    get_progress_service,
+    get_role_progress_service,
+    get_home_service,
     get_readiness_service,
     get_attempt_service,
     get_story_repository,
+    get_practice_story_usage_repository,
+    get_story_suggestion_service,
     current_user_id,
     get_document_repository,
     get_document_storage,
@@ -47,6 +51,7 @@ from .dependencies import (
     get_report_service,
     get_assessment_pipeline_repository,
     get_dashboard_service,
+    get_dig_deeper_repository,
 )
 from .interview_engine import (
     ConcurrentSessionChange,
@@ -119,7 +124,11 @@ from .document_library_service import (
     EvidenceArchived,
     EvidenceNotFound,
 )
-from .onboarding_repository import OnboardingRepository, OnboardingUnavailable
+from .onboarding_repository import (
+    OnboardingRepository,
+    OnboardingUnavailable,
+    ready_to_complete,
+)
 from .profile_repository import ProfileRepository, ProfileUnavailable
 from .repository import SessionRepository
 from .resume_models import ClaimCorrectionCreate, ResumeAnalysisResponse
@@ -161,7 +170,6 @@ from .schemas import (
     SessionPatch,
     SessionRead,
     SessionStatus,
-    onboarding_is_complete,
 )
 from .report_models import ReportResponse
 from .assessment_pipeline_models import AssessmentPipelineState
@@ -177,7 +185,8 @@ from .dashboard_summary import (
     LatestReview,
     build_latest_review,
 )
-from .progress_summary import ProgressResponse, ProgressService
+from .home_service import HomeResponse, HomeService
+from .role_progress import AnswerDetail, AnswerNotFound, ProgressHub, RoleProgress, RoleProgressService
 from .interview_map import InterviewMap
 from .readiness_service import ClaimNotFoundForUser, ReadinessService
 from .practice_recommendation import RecommendationResponse
@@ -191,8 +200,48 @@ from .pressure_test import (
     ReadinessUpdate,
     check_answer,
 )
-from .story_models import StoryCreate, StoryUpdate, StoryView, story_view
-from .story_repository import StoriesUnavailable, StoryRepository
+from .story_models import (
+    StoryCreate,
+    StoryRead,
+    StoryRoleFraming,
+    StoryRoleFramingInput,
+    StoryUpdate,
+    StoryVersion,
+    StoryView,
+    story_view,
+)
+from .story_repository import StoriesUnavailable, StoryArchived, StoryRepository
+from .story_suggestions import (
+    StorySuggestion,
+    StorySuggestionService,
+    StorySuggestionView,
+    SuggestionClosed,
+    SuggestionNotAddressed,
+    SuggestionNotFound,
+)
+from .practice_story_usage import (
+    PracticeStoryArchived,
+    PracticeStoryNotFound,
+    PracticeStoryUsage,
+    PracticeStoryUsageRepository,
+    StoryPracticeRecord,
+    StoryPracticeSummary,
+    pin_story_versions,
+    practice_summaries,
+)
+from .dig_deeper_models import DigDeeperResponseCreate, DigDeeperResponseRead
+from .dig_deeper_repository import DigDeeperRepository
+from .dependencies import get_interview_event_service
+from .interview_event_models import (
+    InterviewBrief,
+    InterviewDebriefView,
+    InterviewDebriefWrite,
+    InterviewEvent,
+    InterviewEventCreate,
+    InterviewEventUpdate,
+)
+from .interview_event_repository import InterviewEventsUnavailable
+from .interview_event_service import DebriefNotFound, InterviewEventNotFound, InterviewEventService, TooManyInterviews
 
 settings = get_settings()
 
@@ -260,6 +309,41 @@ async def _stop_idle_pause_loop() -> None:
     if task:
         task.cancel()
 
+
+class _CalmServerErrors:
+    """An unexpected error becomes a JSON 500 inside CORS, so the browser can read it.
+
+    Starlette answers unhandled exceptions outside every middleware, so without this the
+    500 has no CORS headers and the page sees only a network failure.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def tracked(message) -> None:
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracked)
+        except Exception:
+            if started:
+                raise
+            logger.exception("unhandled error", extra={"path": scope.get("path")})
+            response = JSONResponse(
+                {"detail": "We couldn't finish that just now. Please try again in a moment."}, status_code=500
+            )
+            await response(scope, receive, send)
+
+
+app.add_middleware(_CalmServerErrors)  # added first, so CORS (added next) wraps it
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.app_url],
@@ -290,10 +374,14 @@ async def read_session_review(
     session_id: UUID,
     user: AuthenticatedUser = Depends(get_current_user),
     report: ReportService = Depends(get_report_service),
+    repository: SessionRepository = Depends(get_repository),
 ) -> LatestReview:
     """The same plain-language reading of one review that the Home page shows."""
     try:
-        return build_latest_review(session_id, await report.get_report(session_id, user.id))
+        session = await repository.get(session_id, user.id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="We couldn't find that review.")
+        return build_latest_review(session_id, await report.get_report(session_id, user.id), session.role_profile_id)
     except ReportNotFound as exc:
         raise HTTPException(status_code=404, detail="We couldn't find that review.") from exc
     except ReportAssessmentIncomplete as exc:
@@ -369,20 +457,69 @@ async def read_dashboard_summary(
         ) from exc
 
 
-@app.get("/api/v1/progress", response_model=ProgressResponse)
-async def read_progress(
-    role: str | None = None,
+_PROGRESS_UNAVAILABLE = "Your progress isn't available right now. Please try again in a moment."
+
+
+@app.get("/api/v1/home", response_model=HomeResponse)
+async def read_home(
+    role_profile_id: UUID | None = None,
     user: AuthenticatedUser = Depends(get_current_user),
-    progress: ProgressService = Depends(get_progress_service),
-) -> ProgressResponse:
-    """How someone's answers are developing across their finished practices."""
+    home: HomeService = Depends(get_home_service),
+) -> HomeResponse:
+    """What to do now, for one role: decided on the server, from the same sources as every other page."""
     try:
-        return await progress.progress(user.id, role)
-    except DashboardUnavailable as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="Your space isn't available right now. Please try again in a moment.",
-        ) from exc
+        return await home.home(user.id, role_profile_id)
+    except RoleProfileNotFoundForUser as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
+    except (DashboardUnavailable, RoleAnalysisUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="Your space isn't available right now. Please try again in a moment.") from exc
+
+
+@app.get("/api/v1/progress/roles", response_model=ProgressHub)
+async def read_progress_hub(
+    user: AuthenticatedUser = Depends(get_current_user),
+    progress: RoleProgressService = Depends(get_role_progress_service),
+) -> ProgressHub:
+    """One small summary per role, for the Progress page."""
+    try:
+        return await progress.hub(user.id)
+    except (DashboardUnavailable, RoleAnalysisUnavailable) as exc:
+        raise HTTPException(status_code=503, detail=_PROGRESS_UNAVAILABLE) from exc
+
+
+@app.get("/api/v1/progress/roles/{role_profile_id}", response_model=RoleProgress)
+async def read_role_progress(
+    role_profile_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    progress: RoleProgressService = Depends(get_role_progress_service),
+) -> RoleProgress:
+    """How practice for one role is developing, and the answers behind it."""
+    try:
+        return await progress.detail(role_profile_id, user.id)
+    except RoleProfileNotFoundForUser as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
+    except (DashboardUnavailable, RoleAnalysisUnavailable) as exc:
+        raise HTTPException(status_code=503, detail=_PROGRESS_UNAVAILABLE) from exc
+
+
+@app.get(
+    "/api/v1/progress/roles/{role_profile_id}/sessions/{session_id}/answers/{answer_turn_id}",
+    response_model=AnswerDetail,
+)
+async def read_progress_answer(
+    role_profile_id: UUID,
+    session_id: UUID,
+    answer_turn_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    progress: RoleProgressService = Depends(get_role_progress_service),
+) -> AnswerDetail:
+    """One answer from a practice of this role, with what Mirror noticed and any retries."""
+    try:
+        return await progress.answer(role_profile_id, session_id, answer_turn_id, user.id)
+    except (RoleProfileNotFoundForUser, AnswerNotFound) as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that answer.") from exc
+    except (DashboardUnavailable, RoleAnalysisUnavailable, AttemptsUnavailable, InterviewTurnsUnavailable) as exc:
+        raise HTTPException(status_code=503, detail=_PROGRESS_UNAVAILABLE) from exc
 
 
 @app.get(
@@ -508,9 +645,7 @@ async def update_onboarding(
         current = await onboarding.get(user.id)
         values = payload.model_dump(exclude_unset=True)
         proposed = current.model_copy(update=values)
-        if payload.onboarding_completed is True and not onboarding_is_complete(
-            proposed
-        ):
+        if payload.onboarding_completed is True and not ready_to_complete(proposed):
             raise HTTPException(
                 status_code=422,
                 detail="Please finish the required setup steps before continuing.",
@@ -1197,6 +1332,38 @@ async def read_pressure_test(
         raise HTTPException(status_code=503, detail="This isn't available right now. Please try again in a moment.") from exc
 
 
+@app.get("/api/v1/roles/{role_profile_id}/pressure-test/{claim_id}/responses", response_model=list[DigDeeperResponseRead])
+async def list_dig_deeper_responses(
+    role_profile_id: UUID,
+    claim_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    responses: DigDeeperRepository = Depends(get_dig_deeper_repository),
+    readiness: ReadinessService = Depends(get_readiness_service),
+) -> list[DigDeeperResponseRead]:
+    await readiness.role(role_profile_id, user.id)
+    pressure = await readiness.pressure_test(role_profile_id, user.id)
+    if not any(item.claim_id == claim_id for item in pressure.items):
+        raise HTTPException(status_code=404, detail="We couldn't find that statement.")
+    return await responses.list_for_context(user.id, role_profile_id, claim_id)
+
+
+@app.put("/api/v1/roles/{role_profile_id}/pressure-test/{claim_id}/responses", response_model=DigDeeperResponseRead)
+async def save_dig_deeper_response(
+    role_profile_id: UUID,
+    claim_id: UUID,
+    payload: DigDeeperResponseCreate,
+    user: AuthenticatedUser = Depends(get_current_user),
+    responses: DigDeeperRepository = Depends(get_dig_deeper_repository),
+    readiness: ReadinessService = Depends(get_readiness_service),
+) -> DigDeeperResponseRead:
+    if payload.role_profile_id != role_profile_id or payload.claim_id != claim_id:
+        raise HTTPException(status_code=400, detail="The response source does not match this practice.")
+    pressure = await readiness.pressure_test(role_profile_id, user.id)
+    if not any(item.claim_id == claim_id and any(q.kind.value == payload.question_kind for q in item.questions) for item in pressure.items):
+        raise HTTPException(status_code=400, detail="That question is not part of this practice.")
+    return await responses.upsert(user.id, payload)
+
+
 @app.put("/api/v1/pressure-test/{claim_id}", response_model=PressureResponse)
 async def set_pressure_readiness(
     claim_id: UUID,
@@ -1275,13 +1442,26 @@ async def list_answer_attempts(
         raise HTTPException(status_code=503, detail="Your attempts aren't available right now. Please try again in a moment.") from exc
 
 
+async def _story_view(stories: StoryRepository, story: StoryRead) -> StoryView:
+    try:
+        framings = await stories.framings(story.id, story.user_id) or []
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Your story isn't available right now. Please try again in a moment.") from exc
+    return story_view(story, [item.role_profile_id for item in framings])
+
+
 @app.get("/api/v1/stories", response_model=list[StoryView])
 async def list_stories(
+    archived: bool = Query(default=False),
     user: AuthenticatedUser = Depends(get_current_user),
     stories: StoryRepository = Depends(get_story_repository),
 ) -> list[StoryView]:
     try:
-        return [story_view(story) for story in await stories.list_for_user(user.id)]
+        listed = await stories.list_for_user(user.id, archived=archived)
+        roles_by_story: dict[UUID, list[UUID]] = {}
+        for framing in await stories.framings_for_user(user.id):
+            roles_by_story.setdefault(framing.story_id, []).append(framing.role_profile_id)
+        return [story_view(story, roles_by_story.get(story.id)) for story in listed]
     except StoriesUnavailable as exc:
         raise HTTPException(status_code=503, detail="Your stories aren't available right now. Please try again in a moment.") from exc
 
@@ -1296,7 +1476,9 @@ async def create_story(
     try:
         if payload.role_profile_id is not None:
             await roles.get(payload.role_profile_id, user.id)
-        return story_view(await stories.create(user.id, payload))
+        created = await stories.create(user.id, payload)
+        # The role it was written for is framed in the same transaction (see story_role_framings).
+        return story_view(created, [payload.role_profile_id] if payload.role_profile_id else [])
     except RoleProfileNotFoundForUser as exc:
         raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
     except (StoriesUnavailable, RoleAnalysisUnavailable) as exc:
@@ -1315,7 +1497,7 @@ async def read_story(
         raise HTTPException(status_code=503, detail="Your story isn't available right now. Please try again in a moment.") from exc
     if story is None:
         raise HTTPException(status_code=404, detail="We couldn't find that story.")
-    return story_view(story)
+    return await _story_view(stories, story)
 
 
 @app.patch("/api/v1/stories/{story_id}", response_model=StoryView)
@@ -1324,33 +1506,274 @@ async def update_story(
     payload: StoryUpdate,
     user: AuthenticatedUser = Depends(get_current_user),
     stories: StoryRepository = Depends(get_story_repository),
-    roles: RoleAnalysisService = Depends(get_role_analysis_service),
 ) -> StoryView:
     try:
-        if payload.role_profile_id is not None:
-            await roles.get(payload.role_profile_id, user.id)
         story = await stories.update(story_id, user.id, payload)
-    except RoleProfileNotFoundForUser as exc:
-        raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
-    except (StoriesUnavailable, RoleAnalysisUnavailable) as exc:
+    except StoryArchived as exc:
+        raise HTTPException(status_code=409, detail="Restore this story before editing it.") from exc
+    except StoriesUnavailable as exc:
         raise HTTPException(status_code=503, detail="We couldn't save your story just now. Please try again in a moment.") from exc
     if story is None:
         raise HTTPException(status_code=404, detail="We couldn't find that story.")
-    return story_view(story)
+    return await _story_view(stories, story)
 
 
-@app.delete("/api/v1/stories/{story_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_story(
+@app.post("/api/v1/stories/{story_id}/archive", response_model=StoryView)
+async def archive_story(
     story_id: UUID,
     user: AuthenticatedUser = Depends(get_current_user),
     stories: StoryRepository = Depends(get_story_repository),
-) -> Response:
+) -> StoryView:
+    """Archiving is reversible: the story, its history and anything that points at it stay."""
     try:
-        removed = await stories.delete(story_id, user.id)
+        story = await stories.archive(story_id, user.id)
     except StoriesUnavailable as exc:
-        raise HTTPException(status_code=503, detail="We couldn't remove your story just now. Please try again in a moment.") from exc
-    if not removed:
+        raise HTTPException(status_code=503, detail="We couldn't archive your story just now. Please try again in a moment.") from exc
+    if story is None:
         raise HTTPException(status_code=404, detail="We couldn't find that story.")
+    return await _story_view(stories, story)
+
+
+@app.post("/api/v1/stories/{story_id}/restore", response_model=StoryView)
+async def restore_story(
+    story_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    stories: StoryRepository = Depends(get_story_repository),
+) -> StoryView:
+    try:
+        story = await stories.restore(story_id, user.id)
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="We couldn't restore your story just now. Please try again in a moment.") from exc
+    if story is None:
+        raise HTTPException(status_code=404, detail="We couldn't find that story.")
+    return await _story_view(stories, story)
+
+
+@app.get("/api/v1/stories/{story_id}/versions", response_model=list[StoryVersion])
+async def list_story_versions(
+    story_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    stories: StoryRepository = Depends(get_story_repository),
+) -> list[StoryVersion]:
+    try:
+        versions = await stories.versions(story_id, user.id)
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Your story's history isn't available right now. Please try again in a moment.") from exc
+    if versions is None:
+        raise HTTPException(status_code=404, detail="We couldn't find that story.")
+    return versions
+
+
+@app.get("/api/v1/stories/{story_id}/versions/{version_id}", response_model=StoryVersion)
+async def read_story_version(
+    story_id: UUID,
+    version_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    stories: StoryRepository = Depends(get_story_repository),
+) -> StoryVersion:
+    try:
+        version = await stories.version(story_id, version_id, user.id)
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Your story's history isn't available right now. Please try again in a moment.") from exc
+    if version is None:
+        raise HTTPException(status_code=404, detail="We couldn't find that version of your story.")
+    return version
+
+
+@app.post("/api/v1/stories/{story_id}/versions/{version_id}/restore", response_model=StoryView)
+async def restore_story_version(
+    story_id: UUID,
+    version_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    stories: StoryRepository = Depends(get_story_repository),
+) -> StoryView:
+    """An earlier version becomes a new current version. History is never rewritten."""
+    try:
+        story = await stories.restore_version(story_id, version_id, user.id)
+    except StoryArchived as exc:
+        raise HTTPException(status_code=409, detail="Restore this story before bringing back an earlier version.") from exc
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="We couldn't bring back that version just now. Please try again in a moment.") from exc
+    if story is None:
+        raise HTTPException(status_code=404, detail="We couldn't find that version of your story.")
+    return await _story_view(stories, story)
+
+
+@app.get("/api/v1/stories/{story_id}/practice", response_model=list[StoryPracticeRecord])
+async def list_story_practice(
+    story_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    stories: StoryRepository = Depends(get_story_repository),
+    usages: PracticeStoryUsageRepository = Depends(get_practice_story_usage_repository),
+) -> list[StoryPracticeRecord]:
+    """Where this story was practised, newest first. Kept when the story is edited or archived."""
+    try:
+        if await stories.get(story_id, user.id) is None:
+            raise HTTPException(status_code=404, detail="We couldn't find that story.")
+        return await usages.history_for_story(story_id, user.id)
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Your practice history isn't available right now. Please try again in a moment.") from exc
+
+
+@app.get("/api/v1/story-practice", response_model=list[StoryPracticeSummary])
+async def list_story_practice_summaries(
+    user: AuthenticatedUser = Depends(get_current_user),
+    usages: PracticeStoryUsageRepository = Depends(get_practice_story_usage_repository),
+) -> list[StoryPracticeSummary]:
+    """For My Stories: how many started practices used each story, and when last. No scores."""
+    try:
+        return practice_summaries(await usages.history_for_user(user.id))
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Your practice history isn't available right now. Please try again in a moment.") from exc
+
+
+class SuggestionAcceptance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    saved_version: int = Field(ge=2)
+
+
+_SUGGESTION_UNAVAILABLE = "Suggestions aren't available right now. Please try again in a moment."
+
+
+@app.get("/api/v1/sessions/{session_id}/story-suggestions", response_model=list[StorySuggestionView])
+async def list_session_story_suggestions(
+    session_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    suggestions: StorySuggestionService = Depends(get_story_suggestion_service),
+) -> list[StorySuggestionView]:
+    """For Review: ways to improve the stories this practice used. Empty unless attribution is exact."""
+    try:
+        return await suggestions.for_session(session_id, user.id)
+    except SuggestionNotFound as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that review.") from exc
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail=_SUGGESTION_UNAVAILABLE) from exc
+
+
+@app.get("/api/v1/stories/{story_id}/suggestions", response_model=list[StorySuggestionView])
+async def list_story_suggestions(
+    story_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    suggestions: StorySuggestionService = Depends(get_story_suggestion_service),
+) -> list[StorySuggestionView]:
+    try:
+        found = await suggestions.for_story(story_id, user.id)
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail=_SUGGESTION_UNAVAILABLE) from exc
+    if found is None:
+        raise HTTPException(status_code=404, detail="We couldn't find that story.")
+    return found
+
+
+@app.get("/api/v1/story-suggestions", response_model=list[StorySuggestion])
+async def list_open_story_suggestions(
+    user: AuthenticatedUser = Depends(get_current_user),
+    suggestions: StorySuggestionService = Depends(get_story_suggestion_service),
+) -> list[StorySuggestion]:
+    """Open suggestions only, so My Stories can say "1 improvement to review". Never a score."""
+    try:
+        return await suggestions.open_for_user(user.id)
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail=_SUGGESTION_UNAVAILABLE) from exc
+
+
+@app.post("/api/v1/story-suggestions/{suggestion_id}/dismiss", response_model=StorySuggestionView)
+async def dismiss_story_suggestion(
+    suggestion_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    suggestions: StorySuggestionService = Depends(get_story_suggestion_service),
+) -> StorySuggestionView:
+    """The story is left exactly as it is; the suggestion stays as history."""
+    try:
+        return await suggestions.dismiss(suggestion_id, user.id)
+    except SuggestionNotFound as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that suggestion.") from exc
+    except SuggestionClosed as exc:
+        raise HTTPException(status_code=409, detail="You've already acted on this suggestion.") from exc
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail=_SUGGESTION_UNAVAILABLE) from exc
+
+
+@app.post("/api/v1/story-suggestions/{suggestion_id}/accept", response_model=StorySuggestionView)
+async def accept_story_suggestion(
+    suggestion_id: UUID,
+    payload: SuggestionAcceptance,
+    user: AuthenticatedUser = Depends(get_current_user),
+    suggestions: StorySuggestionService = Depends(get_story_suggestion_service),
+) -> StorySuggestionView:
+    """Called after the candidate saved an edit they started from this suggestion."""
+    try:
+        return await suggestions.accept(suggestion_id, user.id, payload.saved_version)
+    except SuggestionNotFound as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that suggestion.") from exc
+    except SuggestionClosed as exc:
+        raise HTTPException(status_code=409, detail="You've already acted on this suggestion.") from exc
+    except StoryArchived as exc:
+        raise HTTPException(status_code=409, detail="Restore this story before improving it.") from exc
+    except SuggestionNotAddressed as exc:
+        raise HTTPException(status_code=409, detail="This suggestion stays open until you change that part of your story.") from exc
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail=_SUGGESTION_UNAVAILABLE) from exc
+
+
+@app.get("/api/v1/stories/{story_id}/roles", response_model=list[StoryRoleFraming])
+async def list_story_roles(
+    story_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    stories: StoryRepository = Depends(get_story_repository),
+) -> list[StoryRoleFraming]:
+    """The exact roles this story is useful for. A story with none counts for every role."""
+    try:
+        framings = await stories.framings(story_id, user.id)
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Your story's roles aren't available right now. Please try again in a moment.") from exc
+    if framings is None:
+        raise HTTPException(status_code=404, detail="We couldn't find that story.")
+    return framings
+
+
+@app.put("/api/v1/stories/{story_id}/roles/{role_profile_id}", response_model=StoryRoleFraming)
+async def set_story_role(
+    story_id: UUID,
+    role_profile_id: UUID,
+    payload: StoryRoleFramingInput,
+    user: AuthenticatedUser = Depends(get_current_user),
+    stories: StoryRepository = Depends(get_story_repository),
+    roles: RoleAnalysisService = Depends(get_role_analysis_service),
+) -> StoryRoleFraming:
+    """Adds this role to the story, or updates how it is positioned for it. Never a new story."""
+    try:
+        await roles.get(role_profile_id, user.id)  # the role must be this person's, by exact id
+        framing = await stories.set_framing(story_id, role_profile_id, user.id, payload)
+    except RoleProfileNotFoundForUser as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
+    except StoryArchived as exc:
+        raise HTTPException(status_code=409, detail="Restore this story before changing its roles.") from exc
+    except (StoriesUnavailable, RoleAnalysisUnavailable) as exc:
+        raise HTTPException(status_code=503, detail="We couldn't save that just now. Please try again in a moment.") from exc
+    if framing is None:
+        raise HTTPException(status_code=404, detail="We couldn't find that story.")
+    return framing
+
+
+@app.delete("/api/v1/stories/{story_id}/roles/{role_profile_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_story_role(
+    story_id: UUID,
+    role_profile_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    stories: StoryRepository = Depends(get_story_repository),
+) -> Response:
+    """Removes only this role from the story. The story, its history and other roles stay."""
+    try:
+        removed = await stories.remove_framing(story_id, role_profile_id, user.id)
+    except StoryArchived as exc:
+        raise HTTPException(status_code=409, detail="Restore this story before changing its roles.") from exc
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="We couldn't save that just now. Please try again in a moment.") from exc
+    if removed is None:
+        raise HTTPException(status_code=404, detail="We couldn't find that story.")
+    if not removed:
+        raise HTTPException(status_code=404, detail="This story isn't linked to that role.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -1396,13 +1819,48 @@ async def create_session(
     user_id: UUID = Depends(current_user_id),
     engine: InterviewStateMachine = Depends(get_interview_state_machine),
     roles: RoleAnalysisService = Depends(get_role_analysis_service),
+    stories: StoryRepository = Depends(get_story_repository),
+    usages: PracticeStoryUsageRepository = Depends(get_practice_story_usage_repository),
 ) -> SessionRead:
     try:
         if payload.role_profile_id is not None:
             await roles.get(payload.role_profile_id, user_id)
+        # Chosen stories must be this person's own, active stories; their current versions
+        # are pinned now, and the practice plan is built from exactly these versions.
+        pinned = await pin_story_versions(stories, user_id, payload.story_ids) if payload.story_ids else []
     except RoleProfileNotFoundForUser as exc:
         raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
-    return await engine.create_session_state(user_id, payload)
+    except PracticeStoryNotFound as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that story.") from exc
+    except PracticeStoryArchived as exc:
+        raise HTTPException(status_code=409, detail="Restore this story before practising it.") from exc
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Your stories aren't available right now. Please try again in a moment.") from exc
+    session = await engine.create_session_state(user_id, payload)
+    if pinned:
+        try:
+            # A replay returns the same session, and record() then adds nothing.
+            await usages.record(user_id, session.id, session.role_profile_id, pinned)
+        except StoriesUnavailable as exc:
+            raise HTTPException(status_code=503, detail="We couldn't set up that practice just now. Please try again.") from exc
+    return session
+
+
+@app.get("/api/v1/sessions/{session_id}/stories", response_model=list[PracticeStoryUsage])
+async def list_session_stories(
+    session_id: UUID,
+    user_id: UUID = Depends(current_user_id),
+    engine: InterviewStateMachine = Depends(get_interview_state_machine),
+    usages: PracticeStoryUsageRepository = Depends(get_practice_story_usage_repository),
+) -> list[PracticeStoryUsage]:
+    """The stories this practice used, at the exact versions practised. Empty for most sessions."""
+    try:
+        await engine.get_state(session_id, user_id)
+        return await usages.for_session(session_id, user_id)
+    except SessionNotFound as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that session.") from exc
+    except StoriesUnavailable as exc:
+        raise HTTPException(status_code=503, detail="This isn't available right now. Please try again in a moment.") from exc
 
 
 @app.post(
@@ -1957,3 +2415,126 @@ async def end_session(
         ) from exc
     except AssessmentPipelineUnavailable as exc:
         raise HTTPException(status_code=503, detail="Your reflection can't be prepared right now. Please try again in a moment.") from exc
+
+
+# ------------------------------------------------------------------ interviews (Phases 8-9)
+
+_INTERVIEW_UNAVAILABLE = "Your interviews aren't available right now. Please try again in a moment."
+_INTERVIEW_STORAGE_ERRORS = (InterviewEventsUnavailable, RoleAnalysisUnavailable, DocumentUnavailable, StoriesUnavailable, DashboardUnavailable)
+
+
+@app.get("/api/v1/roles/{role_profile_id}/interviews", response_model=list[InterviewEvent])
+async def list_interviews(
+    role_profile_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: InterviewEventService = Depends(get_interview_event_service),
+) -> list[InterviewEvent]:
+    try:
+        return await service.list_for_role(role_profile_id, user.id)
+    except RoleProfileNotFoundForUser as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
+    except _INTERVIEW_STORAGE_ERRORS as exc:
+        raise HTTPException(status_code=503, detail=_INTERVIEW_UNAVAILABLE) from exc
+
+
+@app.post("/api/v1/roles/{role_profile_id}/interviews", response_model=InterviewEvent, status_code=status.HTTP_201_CREATED)
+async def create_interview(
+    role_profile_id: UUID,
+    payload: InterviewEventCreate,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: InterviewEventService = Depends(get_interview_event_service),
+) -> InterviewEvent:
+    try:
+        return await service.create(role_profile_id, user.id, payload)
+    except RoleProfileNotFoundForUser as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
+    except TooManyInterviews as exc:
+        raise HTTPException(status_code=409, detail="This role already has a lot of interviews. Remove an old one to add another.") from exc
+    except _INTERVIEW_STORAGE_ERRORS as exc:
+        raise HTTPException(status_code=503, detail=_INTERVIEW_UNAVAILABLE) from exc
+
+
+@app.patch("/api/v1/interviews/{event_id}", response_model=InterviewEvent)
+async def update_interview(
+    event_id: UUID,
+    payload: InterviewEventUpdate,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: InterviewEventService = Depends(get_interview_event_service),
+) -> InterviewEvent:
+    try:
+        return await service.update(event_id, user.id, payload)
+    except InterviewEventNotFound as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that interview.") from exc
+    except _INTERVIEW_STORAGE_ERRORS as exc:
+        raise HTTPException(status_code=503, detail=_INTERVIEW_UNAVAILABLE) from exc
+
+
+@app.delete("/api/v1/interviews/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_interview(
+    event_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: InterviewEventService = Depends(get_interview_event_service),
+) -> Response:
+    try:
+        await service.delete(event_id, user.id)
+    except InterviewEventNotFound as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that interview.") from exc
+    except _INTERVIEW_STORAGE_ERRORS as exc:
+        raise HTTPException(status_code=503, detail=_INTERVIEW_UNAVAILABLE) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/api/v1/interviews/{event_id}/brief", response_model=InterviewBrief)
+async def read_interview_brief(
+    event_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: InterviewEventService = Depends(get_interview_event_service),
+) -> InterviewBrief:
+    """A one-page brief built only from the role brief and your own material."""
+    try:
+        return await service.brief(event_id, user.id)
+    except (InterviewEventNotFound, RoleProfileNotFoundForUser) as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that interview.") from exc
+    except _INTERVIEW_STORAGE_ERRORS as exc:
+        raise HTTPException(status_code=503, detail=_INTERVIEW_UNAVAILABLE) from exc
+
+
+@app.get("/api/v1/interviews/{event_id}/debrief", response_model=InterviewDebriefView)
+async def read_interview_debrief(
+    event_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: InterviewEventService = Depends(get_interview_event_service),
+) -> InterviewDebriefView:
+    try:
+        return await service.get_debrief(event_id, user.id)
+    except (InterviewEventNotFound, RoleProfileNotFoundForUser) as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that interview.") from exc
+    except DebriefNotFound as exc:
+        raise HTTPException(status_code=404, detail="You haven't written how it went yet.") from exc
+    except _INTERVIEW_STORAGE_ERRORS as exc:
+        raise HTTPException(status_code=503, detail=_INTERVIEW_UNAVAILABLE) from exc
+
+
+@app.put("/api/v1/interviews/{event_id}/debrief", response_model=InterviewDebriefView)
+async def write_interview_debrief(
+    event_id: UUID,
+    payload: InterviewDebriefWrite,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: InterviewEventService = Depends(get_interview_event_service),
+) -> InterviewDebriefView:
+    try:
+        return await service.put_debrief(event_id, user.id, payload)
+    except (InterviewEventNotFound, RoleProfileNotFoundForUser) as exc:
+        raise HTTPException(status_code=404, detail="We couldn't find that interview.") from exc
+    except _INTERVIEW_STORAGE_ERRORS as exc:
+        raise HTTPException(status_code=503, detail=_INTERVIEW_UNAVAILABLE) from exc
+
+
+# Redesign workstream routers (docs/architecture/REDESIGN_BUILD.md).
+from .routes_active_role import router as _active_role_router  # noqa: E402
+from .routes_evidence import router as _evidence_router  # noqa: E402
+from .routes_plan import router as _plan_router  # noqa: E402
+from .routes_sessions_lifecycle import router as _lifecycle_router  # noqa: E402
+
+for _router in (_evidence_router, _active_role_router, _lifecycle_router, _plan_router):
+    app.include_router(_router)

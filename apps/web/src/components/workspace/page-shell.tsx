@@ -11,6 +11,9 @@ import { Loader } from "@/components/loader";
 import { AppShell } from "@/components/workspace/app-shell";
 import { ApiError, mirrorApi, type Profile } from "@/lib/api";
 import { loading } from "@/lib/copy";
+import { cached, peekCached } from "@/lib/session-cache";
+
+const PROFILE_KEY = "profile";
 
 /**
  * The profile behind every authenticated page. A profile that cannot be loaded is
@@ -18,11 +21,10 @@ import { loading } from "@/lib/copy";
  */
 export function useProfile() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(() => peekCached<Profile>(PROFILE_KEY) ?? null);
   useEffect(() => {
     let active = true;
-    void mirrorApi
-      .me()
+    void cached(PROFILE_KEY, () => mirrorApi.me())
       .then((next) => {
         if (active) setProfile(next);
       })

@@ -1,0 +1,72 @@
+/** Words for My plan and for reviewing your examples on My experience (see docs/copy-guide.md). */
+import type { LinkReason, PlanStatus } from "@/lib/api-plan";
+
+export const planCopy = {
+  eyebrow: "My plan",
+  title: (role: string) => `Your plan for ${role}`,
+  titleGeneral: "Your plan",
+  intro: "Each thing this role looks for, what you already have for it, and one way to make it stronger.",
+  startHere: "Start here",
+  whyFromRole: "From the job description:",
+  whyGeneral: "Often explored for this role.",
+  haveTitle: "What you already have",
+  haveEmpty: "Nothing linked yet.",
+  suggestedTitle: "Might fit",
+  strengthenTitle: "What would strengthen it",
+  status: {
+    STRONG: "Strong example",
+    GOOD: "Good example – explanation to practice",
+    BUILD: "Build an example",
+  } satisfies Record<PlanStatus, string>,
+  reason: {
+    TOOL: "Shared tool",
+    OUTCOME: "Same outcome",
+    DECISION: "A decision you made",
+    CAPABILITY: "Shows this directly",
+    CONFIRMED: "Confirmed by you",
+  } satisfies Record<LinkReason, string>,
+  story: "Story",
+  example: "Example",
+  confirm: "Yes, it fits",
+  dismiss: "Not this one",
+  unlink: "Remove link",
+  saving: "Saving…",
+  actions: {
+    practice: "Practice this explanation",
+    story: "Turn it into a story",
+    add: "Add another example",
+  },
+  states: {
+    reviewTitle: "Review your experience first",
+    reviewBody: "Check what Mirror found in your resume and keep what's accurate. Your plan only uses examples you've approved.",
+    reviewAction: "Review your experience",
+    preparingTitle: "Getting to know this role",
+    preparingBody: "This takes a minute or two. Your plan appears here when it's ready.",
+    preparingAction: "Check again",
+    unavailableTitle: "This role couldn't be read",
+    unavailableBody: "Add the role again with the job description or a short summary, and your plan will build from that.",
+    unavailableAction: "Go to your roles",
+    noRoleTitle: "Add the role you're preparing for",
+    noRoleBody: "Your plan shows what the role looks for next to the examples you already have.",
+    noRoleAction: "Add a role",
+  },
+  errors: {
+    load: "Your plan didn't load. Nothing is lost. Please try again.",
+    save: "That choice wasn't saved. Please try again.",
+    notFound: "We couldn't find that role.",
+  },
+  rolesLink: "Back to your roles",
+} as const;
+
+export const reviewedExamplesCopy = {
+  label: "Your examples",
+  title: "Your reviewed examples",
+  body: "Keep, edit or remove what Mirror found in your resume at any time. Your plan, stories and practice only use what you keep.",
+  keepAll: (count: number) => (count === 1 ? "Keep the 1 waiting" : `Keep all ${count} waiting`),
+  reading: "Mirror is still reading your resume. Your examples appear here when it's done.",
+  empty: "No examples yet. Add your resume and they'll appear here for you to review.",
+  unreadable: "Your resume couldn't be read. Replace it above and your examples will appear here.",
+  loadError: "Your examples didn't load. Please try again.",
+  saveError: "That change wasn't saved. Please try again.",
+  retry: "Try again",
+} as const;

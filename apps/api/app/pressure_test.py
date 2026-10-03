@@ -20,6 +20,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .evidence_quality import is_noise
 from .interview_map import words
 from .resume_models import ResumeAnalysisResponse, ResumeClaimReview, ResumeClaimType, VerificationPriority
 from .role_models import RoleAnalysisResponse
@@ -40,6 +41,7 @@ class Readiness(StrEnum):
 class QuestionKind(StrEnum):
     """What a follow-up digs into. Also the story part a good answer fills."""
 
+    SITUATION = "SITUATION"
     OWNERSHIP = "OWNERSHIP"
     MEASURE = "MEASURE"
     SOURCE_OF_NUMBER = "SOURCE_OF_NUMBER"
@@ -50,6 +52,7 @@ class QuestionKind(StrEnum):
 
 
 STORY_PART_FOR: dict[QuestionKind, str] = {
+    QuestionKind.SITUATION: "situation",
     QuestionKind.OWNERSHIP: "ownership",
     QuestionKind.MEASURE: "measurable_result",
     QuestionKind.SOURCE_OF_NUMBER: "measurable_result",
@@ -122,6 +125,11 @@ def questions_for(claim: ResumeClaimReview) -> list[PressureQuestion]:
             asked.append(PressureQuestion(kind=kind, text=question, why=why, story_part=STORY_PART_FOR[kind]))
 
     soft = claim.ownership_language or (_SOFT_OWNERSHIP.search(text).group(0) if _SOFT_OWNERSHIP.search(text) else None)
+    # Resume responsibility statements often already provide the setting through
+    # their source wording; ask for a starting situation where the source is only
+    # a broad experience label and leaves that context genuinely open.
+    if claim.claim_type == ResumeClaimType.EXPERIENCE:
+        ask(QuestionKind.SITUATION, "What was happening when this work began, and what problem or responsibility were you dealing with?", "A clear starting point helps someone understand the experience before the actions.")
     if claim.claim_type == ResumeClaimType.OWNERSHIP or soft:
         ask(
             QuestionKind.OWNERSHIP,
@@ -192,7 +200,8 @@ def build_pressure_test(
     for claim in resume.claims:
         statement = statement_of(claim)
         key = " ".join(statement.casefold().split())
-        if key in seen:
+        # Contact details, links, headings and boilerplate are never worth talking through.
+        if key in seen or is_noise(statement, named=claim.claim_type in _NAMED_TYPES):
             continue
         seen.add(key)
         theme = _related_theme(statement, themes)
@@ -228,6 +237,11 @@ class AnswerCheck(PressureModel):
 class AnswerChecks(PressureModel):
     checks: list[AnswerCheck]
     follow_up: str | None = None
+    # The same checks, told as three parts: what came through clearly, the one detail
+    # worth adding next, and a sentence opening the person can finish in their own words.
+    clear: list[str] = Field(default_factory=list)
+    missing: str | None = None
+    next_sentence: str
 
 
 _NUMBER = re.compile(r"\d|\b(percent|half|third|quarter|double|twice|triple|dozen|thousand|lakh|crore|million|hundred)\b", re.IGNORECASE)
@@ -250,35 +264,62 @@ def answer_features(answer: str) -> dict[str, bool]:
     }
 
 
+# What each kind of question looks for. Every QuestionKind must appear here (tested).
+CHECKS_FOR: dict[QuestionKind, tuple[str, ...]] = {
+    QuestionKind.SITUATION: ("detail", "reason"),
+    QuestionKind.OWNERSHIP: ("own_part", "detail"),
+    QuestionKind.MEASURE: ("number", "result"),
+    QuestionKind.SOURCE_OF_NUMBER: ("number", "detail"),
+    QuestionKind.OUTCOME: ("result", "number"),
+    QuestionKind.DECISION: ("result", "reason"),
+    QuestionKind.ALTERNATIVE: ("reason", "detail"),
+    QuestionKind.USAGE: ("own_part", "reason", "detail"),
+}
+
+_LABELS = {
+    "number": ("You gave a number or size.", "We didn't hear a number or size."),
+    "own_part": ("You said what you did yourself.", "Most of this describes what “we” did."),
+    "result": ("You said what happened as a result.", "We didn't hear what changed afterwards."),
+    "reason": ("You explained why.", "We didn't hear why you chose this."),
+    "detail": ("You gave enough detail to follow.", "This was brief. A couple more specifics would help."),
+}
+_FOLLOW_UPS = {
+    "number": "Roughly how big was the change? A range is fine.",
+    "own_part": "What did you personally do, as opposed to the team?",
+    "result": "What was different after this work?",
+    "reason": "Why that approach rather than another one?",
+    "detail": "Can you give one concrete detail that only you would know?",
+}
+_MISSING = {
+    "number": "How big the change was. A rough size or a range is fine, if you say so.",
+    "own_part": "Your own part, as opposed to what the team did.",
+    "result": "What was different afterwards because of this work.",
+    "reason": "Why you chose this approach over another one.",
+    "detail": "One concrete detail that only someone who did the work would know.",
+}
+# Sentence openings only: the person finishes them in their own words. No numbers.
+_NEXT_SENTENCE = {
+    "number": "The change was roughly …, compared with … before.",
+    "own_part": "My part was to …, while the team …",
+    "result": "Because of this work, …",
+    "reason": "I chose this approach because …, rather than …",
+    "detail": "One specific thing I remember is …",
+}
+_CLOSING_SENTENCE = "What I would take from this into my next role is …"
+
+
 def check_answer(request: AnswerCheckRequest) -> AnswerChecks:
     """Which of the things this kind of question looks for appear in the answer."""
     found = answer_features(request.answer)
-    wanted = {
-        QuestionKind.OWNERSHIP: ("own_part", "detail"),
-        QuestionKind.MEASURE: ("number", "result"),
-        QuestionKind.SOURCE_OF_NUMBER: ("number", "detail"),
-        QuestionKind.OUTCOME: ("result", "number"),
-        QuestionKind.DECISION: ("result", "reason"),
-        QuestionKind.ALTERNATIVE: ("reason", "detail"),
-        QuestionKind.USAGE: ("own_part", "reason", "detail"),
-    }[request.kind]
-    labels = {
-        "number": ("You gave a number or size.", "We didn't hear a number or size."),
-        "own_part": ("You said what you did yourself.", "Most of this describes what “we” did."),
-        "result": ("You said what happened as a result.", "We didn't hear what changed afterwards."),
-        "reason": ("You explained why.", "We didn't hear why you chose this."),
-        "detail": ("You gave enough detail to follow.", "This was brief. One or two more specifics would help."),
-    }
     checks = [
-        AnswerCheck(key=key, present=found[key], text=labels[key][0] if found[key] else labels[key][1])
-        for key in wanted
+        AnswerCheck(key=key, present=found[key], text=_LABELS[key][0] if found[key] else _LABELS[key][1])
+        for key in CHECKS_FOR[request.kind]
     ]
-    follow_ups = {
-        "number": "Roughly how big was the change? A range is fine.",
-        "own_part": "What did you personally do, as opposed to the team?",
-        "result": "What was different after this work?",
-        "reason": "Why that approach rather than another one?",
-        "detail": "Can you give one concrete detail that only you would know?",
-    }
     missing = next((check.key for check in checks if not check.present), None)
-    return AnswerChecks(checks=checks, follow_up=follow_ups[missing] if missing else None)
+    return AnswerChecks(
+        checks=checks,
+        follow_up=_FOLLOW_UPS[missing] if missing else None,
+        clear=[check.text for check in checks if check.present],
+        missing=_MISSING[missing] if missing else None,
+        next_sentence=_NEXT_SENTENCE[missing] if missing else _CLOSING_SENTENCE,
+    )

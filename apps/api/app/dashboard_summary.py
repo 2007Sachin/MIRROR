@@ -60,6 +60,7 @@ class ReviewNextStep(SummaryModel):
 class LatestReview(SummaryModel):
     session_id: UUID
     target_role: str
+    role_profile_id: UUID | None = None
     completed_at: datetime
     counts: ReviewCounts | None
     dimensions: list[ReviewDimension]
@@ -250,11 +251,12 @@ def review_next_step(improvements: list[ReviewImprovement]) -> ReviewNextStep:
     return ReviewNextStep(title="Keep practising", body="Another conversation will show a little more about how you explain your work.")
 
 
-def build_latest_review(session_id: UUID, report: ReportResponse) -> LatestReview:
+def build_latest_review(session_id: UUID, report: ReportResponse, role_profile_id: UUID | None = None) -> LatestReview:
     improvements = review_improvements(report)
     return LatestReview(
         session_id=session_id,
         target_role=report.session.target_role,
+        role_profile_id=role_profile_id,
         completed_at=report.session.completed_at,
         counts=review_counts(report),
         dimensions=review_dimensions(report),
@@ -285,4 +287,4 @@ class DashboardSummaryService:
         except (ReportNotFound, ReportAssessmentIncomplete, ReportUnavailable):
             # A review that is not readable right now is not an error for the Home page.
             return DashboardSummaryResponse()
-        return DashboardSummaryResponse(latest_review=build_latest_review(latest.id, report))
+        return DashboardSummaryResponse(latest_review=build_latest_review(latest.id, report, latest.role_profile_id))

@@ -3,6 +3,7 @@
 import { Plus } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 
+import { ReviewedExamples } from "@/components/experience/reviewed-examples";
 import { EvidenceDrawer, type EvidenceDrawerMode } from "@/components/workspace/evidence-drawer";
 import { EvidenceRemoveDialog, EvidenceUploadDialog } from "@/components/workspace/evidence-dialogs";
 import { evidenceCategory } from "@/components/workspace/evidence-types";
@@ -235,6 +236,8 @@ export function ExperiencePage() {
               <p className="dh-review-empty">{t.addResume}</p>
             )}
           </Section>
+
+          <ReviewedExamples />
 
           <Section id="experience-work" label={t.sections.work} title={t.sections.work} body={t.fromResume}>
             {output?.work_experience.length ? (

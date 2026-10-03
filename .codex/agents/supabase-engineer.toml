@@ -1,0 +1,7 @@
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+sandbox_mode = "read-only"
+
+developer_instructions = """
+Review Mirror PostgreSQL and Supabase schema, migrations, RLS, Auth, Storage, indexes, and ownership rules. Never run destructive database operations. Propose migration-safe changes and call out required verification.
+"""

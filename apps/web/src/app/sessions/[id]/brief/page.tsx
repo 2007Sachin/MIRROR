@@ -33,7 +33,6 @@ export default async function PreBriefPage({ params }: { params: Promise<{ id: s
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
           <Link href={`/app/interview/${id}`} className="button-primary">Begin the conversation <ArrowRight size={18} /></Link>
         </div>
-        <p className="mt-6 text-xs leading-5 text-[var(--silver)]">Allow about 20 minutes. There are no ratings or tips during the conversation; your reflection comes afterward.</p>
       </Reveal>
     </main>
   );

@@ -21,13 +21,14 @@ PHASE_ORDER = (
 )
 
 LEGAL_TRANSITIONS: dict[SessionStatus, frozenset[SessionStatus]] = {
-    SessionStatus.CREATED: frozenset({SessionStatus.PREPARING, SessionStatus.FAILED}),
-    SessionStatus.PREPARING: frozenset({SessionStatus.READY, SessionStatus.FAILED}),
-    SessionStatus.READY: frozenset({SessionStatus.ACTIVE, SessionStatus.FAILED}),
-    SessionStatus.ACTIVE: frozenset({SessionStatus.ASSESSING, SessionStatus.FAILED}),
+    SessionStatus.CREATED: frozenset({SessionStatus.PREPARING, SessionStatus.FAILED, SessionStatus.ABANDONED}),
+    SessionStatus.PREPARING: frozenset({SessionStatus.READY, SessionStatus.FAILED, SessionStatus.ABANDONED}),
+    SessionStatus.READY: frozenset({SessionStatus.ACTIVE, SessionStatus.FAILED, SessionStatus.ABANDONED}),
+    SessionStatus.ACTIVE: frozenset({SessionStatus.ASSESSING, SessionStatus.FAILED, SessionStatus.ABANDONED}),
     SessionStatus.ASSESSING: frozenset({SessionStatus.COMPLETED, SessionStatus.FAILED}),
     SessionStatus.COMPLETED: frozenset(),
     SessionStatus.FAILED: frozenset(),
+    SessionStatus.ABANDONED: frozenset(),
 }
 
 MAX_PROBES_PER_PRIMARY_QUESTION = 2
@@ -352,6 +353,19 @@ class InterviewStateMachine:
             "SESSION_ENDED",
             {"outcome": "failed", "reason": reason[:500]},
             completed_at=self._clock(),
+            elapsed_seconds=self._elapsed(session),
+        )
+
+    async def abandon(self, session_id: UUID, user_id: UUID) -> SessionRead:
+        """Discard a practice that has not finished. Idempotent; an abandoned practice is never reviewed."""
+        session = await self._require(session_id, user_id)
+        if session.status == SessionStatus.ABANDONED:
+            return session
+        return await self._transition(
+            session,
+            SessionStatus.ABANDONED,
+            "SESSION_ABANDONED",
+            {"from": session.status.value},
             elapsed_seconds=self._elapsed(session),
         )
 

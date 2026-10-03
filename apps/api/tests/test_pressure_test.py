@@ -145,3 +145,25 @@ async def test_a_story_made_from_a_statement_is_linked_back_to_it() -> None:
         stories, None, MemoryPressureResponseRepository(),
     )
     assert (await service.pressure_test(analysis.id, USER)).items[0].story_id == story.id
+
+
+@pytest.mark.asyncio
+async def test_a_dig_deeper_story_keeps_its_link_through_edits_and_archive() -> None:
+    from app.story_models import StoryUpdate
+
+    mine = claim("Built pricing models")
+    analysis = role([competency("Pricing")])
+    stories = MemoryStoryRepository()
+    story = await stories.create(USER, StoryCreate(title="Pricing models", source_claim_id=mine.id, origin="PRESSURE_TEST"))
+    assert [item.version for item in await stories.versions(story.id, USER)] == [1]
+    service = ReadinessService(
+        FakeRoles(analysis), FakeDocuments([_document()]), FakeResumes(resume(OUTPUT, [mine])),
+        stories, None, MemoryPressureResponseRepository(),
+    )
+
+    await stories.update(story.id, USER, StoryUpdate(situation="Edited later"))
+    assert (await service.pressure_test(analysis.id, USER)).items[0].story_id == story.id
+    await stories.archive(story.id, USER)
+    assert (await service.pressure_test(analysis.id, USER)).items[0].story_id is None
+    await stories.restore(story.id, USER)
+    assert (await service.pressure_test(analysis.id, USER)).items[0].story_id == story.id

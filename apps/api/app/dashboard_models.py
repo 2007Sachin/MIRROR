@@ -16,6 +16,7 @@ class DashboardModel(BaseModel):
 class DashboardDiagnostic(DashboardModel):
     id: UUID
     target_role: str
+    role_profile_id: UUID | None = None
     company: str | None = None
     interview_status: SessionStatus
     phase: Phase
@@ -27,6 +28,7 @@ class DashboardDiagnostic(DashboardModel):
     practice_mode: str = "FULL_INTERVIEW"
     practice_focus: str | None = None
     practice_theme: str | None = None
+    total_questions: int = 0  # primary questions asked so far
 
 
 class DashboardResponse(DashboardModel):

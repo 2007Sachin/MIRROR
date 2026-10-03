@@ -1,0 +1,142 @@
+/*
+ * Guided stories, the story library cards and Dig Deeper feedback.
+ * Tokens only (docs/architecture/REDESIGN_BUILD.md "Visual system"): no raw colours.
+ */
+
+.sg-why {
+  background: var(--action-soft);
+  border-radius: .5rem;
+  color: var(--ink);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* ------------------------------------------------------------------ builder */
+.sg-builder {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6);
+}
+
+.sg-name { max-width: 32rem; }
+
+.sg-steps {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sg-steps li {
+  border-top: 4px solid var(--paper-sunken);
+  color: var(--slate);
+  font-size: var(--text-xs);
+  padding-top: var(--space-2);
+}
+.sg-steps li.is-done { border-top-color: var(--slate); }
+.sg-steps li.is-current {
+  border-top-color: var(--action);
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.sg-progress {
+  color: var(--slate);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  margin: 0;
+}
+
+.sg-extra span { color: var(--slate); }
+
+.sg-done {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--success);
+  border-radius: .75rem;
+  color: var(--ink);
+  padding: var(--space-5) var(--space-6);
+}
+.sg-done p { margin: 0 0 var(--space-4); }
+
+/* ------------------------------------------------------------------ library cards */
+.sg-cards {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sg-card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5);
+}
+.sg-card-head {
+  align-items: start;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+.sg-card-head strong { color: var(--ink); }
+.sg-card-head .dh-row-state { flex: none; }
+.sg-card-purpose {
+  color: var(--slate);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+.sg-card .dh-fine-print { margin: 0; }
+.sg-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+.sg-card-actions a { min-height: 44px; }
+
+/* ------------------------------------------------------------------ Dig Deeper feedback */
+.sg-feedback h3 { margin-top: var(--space-4); }
+.sg-feedback h3:first-child { margin-top: 0; }
+.sg-next-sentence {
+  background: var(--action-soft);
+  border-radius: .5rem;
+  color: var(--ink);
+  font-style: italic;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.sg-inline-error {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--danger);
+  border-radius: .5rem;
+  color: var(--danger);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+}
+.sg-inline-error button { min-height: 44px; }
+
+.sg-builder :focus-visible,
+.sg-card :focus-visible,
+.sg-inline-error :focus-visible,
+.sg-done :focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@media (max-width: 40rem) {
+  .sg-builder { padding: var(--space-4); }
+  .sg-steps li { font-size: 0; }  /* the bars stay; "2 of 5 · Challenge" below says where you are */
+}

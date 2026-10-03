@@ -43,7 +43,6 @@
   letter-spacing: -.02em;
 }
 .ws-nav { display: grid; gap: var(--space-1); }
-.ws-nav-secondary { border-top: 1px solid var(--line); margin-top: auto; padding-top: var(--space-5); }
 .ws-nav-item {
   align-items: center;
   border-radius: .5rem;
@@ -52,20 +51,21 @@
   font-size: var(--text-sm);
   font-weight: 560;
   gap: var(--space-3);
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   padding: 0 var(--space-3);
   text-decoration: none;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .ws-nav-item svg { flex: none; }
 .ws-nav-item:hover { background: var(--paper-sunken); color: var(--ink); }
-.ws-nav-item.is-active { background: var(--pulse-soft); color: var(--pulse-ink); color: var(--pulse-hover); font-weight: 650; }
-.ws-nav-item.is-active svg { color: var(--pulse); }
+.ws-nav-item.is-active { background: var(--action-soft); color: var(--ink); font-weight: 650; }
+.ws-nav-item.is-active svg { color: var(--ink); }
 .ws-sidebar-account {
   align-items: center;
   border-top: 1px solid var(--line);
   display: flex;
   gap: var(--space-2);
+  margin-top: auto;
   padding-top: var(--space-5);
 }
 .ws-account-link { align-items: center; color: var(--ink); display: flex; flex: 1; gap: var(--space-2); min-width: 0; text-decoration: none; }
@@ -86,18 +86,6 @@
 .ws-account-info { display: grid; gap: .1rem; min-width: 0; }
 .ws-account-info strong { font-size: var(--text-xs); font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-account-info span { color: var(--silver); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-logout {
-  align-items: center;
-  border-radius: .4rem;
-  color: var(--silver);
-  display: flex;
-  flex: none;
-  height: 2rem;
-  justify-content: center;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-  width: 2rem;
-}
-.ws-logout:hover { background: var(--danger-soft); color: var(--danger); }
 
 /* ------------------------------------------------------------------ Main */
 .ws-main { display: flex; flex-direction: column; min-width: 0; }
@@ -114,8 +102,26 @@
 .ws-menu-button { align-items: center; color: var(--slate); display: none; height: 2.5rem; justify-content: center; width: 2.5rem; }
 .ws-topbar-brand { align-items: center; color: var(--ink); display: none; gap: var(--space-2); text-decoration: none; }
 .ws-topbar-brand span { font-family: var(--font-display); font-size: var(--text-base); font-weight: 650; }
-.ws-topbar-help { align-items: center; color: var(--slate); display: flex; font-size: var(--text-xs); gap: var(--space-2); text-decoration: none; }
-.ws-topbar-help:hover { color: var(--ink); }
+/* Role switcher: "Preparing for: <role>", a native select plus an Add a role link. */
+.ws-role-switcher { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; position: relative; }
+.ws-role-switcher label { color: var(--slate); font-size: var(--text-xs); white-space: nowrap; }
+.ws-role-switcher select {
+  background: var(--paper-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: .45rem;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  max-width: 16rem;
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  text-overflow: ellipsis;
+}
+.ws-role-switcher select:disabled { cursor: progress; opacity: .6; }
+.ws-role-add { color: var(--ink); font-size: var(--text-xs); font-weight: 600; padding: var(--space-2) var(--space-1); text-decoration: underline; text-underline-offset: .2em; }
+.ws-role-add:hover { text-decoration-thickness: 2px; }
+.ws-role-error { background: var(--paper-raised); border: 1px solid var(--line); border-radius: .45rem; color: var(--danger); font-size: var(--text-xs); left: 0; margin: 0; max-width: 22rem; padding: var(--space-2) var(--space-3); position: absolute; top: calc(100% + .3rem); z-index: 60; }
 /* The account menu. Deliberately short: it never repeats the main navigation. */
 .ws-profile-menu { position: relative; }
 .ws-profile-panel {
@@ -148,10 +154,12 @@
   gap: var(--space-3);
   padding: .55rem var(--space-3);
   text-align: left;
+  min-height: 2.75rem;
   text-decoration: none;
   width: 100%;
 }
 .ws-profile-panel :is(a, button):hover { background: var(--paper-sunken); }
+.ws-profile-panel .ws-signout { font-weight: 600; }
 .ws-profile-panel svg { color: var(--slate); flex: none; }
 .ws-topbar-user {
   align-items: center;
@@ -162,6 +170,7 @@
   display: flex;
   font: inherit;
   gap: var(--space-2);
+  min-height: 2.75rem;
   text-decoration: none;
 }
 .ws-topbar-user > span {
@@ -321,7 +330,7 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
 
 .ws-current { border: 1px solid var(--line); border-radius: .75rem; display: grid; grid-template-columns: minmax(0, 1fr) 16rem; overflow: hidden; }
 .ws-current.is-active { border-color: rgba(184, 132, 44, .35); }
-.ws-current.is-complete { border-color: rgba(31, 122, 92, .3); }
+.ws-current.is-complete { border-color: rgba(22, 101, 52, .3); }
 .ws-current.is-failed { border-color: rgba(168, 63, 55, .3); }
 .ws-current-content { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-6); }
 .ws-current-heading { align-items: start; display: flex; gap: var(--space-4); justify-content: space-between; }
@@ -760,7 +769,9 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
   .ws-sidebar { display: none; }
   .ws-topbar { height: 3.5rem; padding-inline: var(--space-4); }
   .ws-menu-button { display: none; }
-  .ws-topbar-help, .ws-topbar-user strong { display: none; }
+  .ws-topbar-user strong { display: none; }
+  .ws-role-switcher label, .ws-role-add { display: none; }
+  .ws-role-switcher select { max-width: 11rem; }
   .ws-content { padding: var(--space-5) var(--space-4) var(--space-8); }
   .ws-mobile-nav {
     align-items: center;
@@ -768,7 +779,7 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
     border-top: 1px solid var(--line);
     bottom: 0;
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     height: 4.5rem;
     left: 0;
     position: fixed;
@@ -780,13 +791,13 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
     color: var(--silver);
     display: flex;
     flex-direction: column;
-    font-size: .58rem;
+    font-size: .68rem;
     gap: .2rem;
     justify-content: center;
     min-width: 0;
     text-decoration: none;
   }
-  .ws-mobile-nav-item.is-active { color: var(--pulse-hover); }
+  .ws-mobile-nav-item.is-active { background: var(--action-soft); color: var(--ink); }
   .ws-page-header { align-items: start; flex-direction: column; gap: var(--space-3); }
   .ws-page-header h1 { font-size: clamp(1.9rem, 8vw, 2.4rem); }
   .ws-evidence-row { grid-template-columns: 1.5rem 1.75rem minmax(0, 1fr) auto 1.75rem; }
@@ -800,8 +811,3 @@ a.ws-row, div.ws-row-clickable { color: var(--ink); text-decoration: none; trans
   .ws-drawer-shell { animation: none; }
   .ws-progress-bar > i::before { transition: none; }
 }
-
-/* Active navigation: a quiet cobalt tint, matching the Home page. */
-.ws-nav-item.is-active { background: rgba(61, 90, 254, 0.09); color: #2c45d8; }
-.ws-nav-item.is-active svg { color: #3d5afe; }
-.ws-mobile-nav-item.is-active { color: #2c45d8; }

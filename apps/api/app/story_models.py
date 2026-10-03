@@ -100,9 +100,10 @@ class StoryCreate(StoryFields):
 
 
 class StoryUpdate(StoryFields):
+    """Content only. The role a story was written for is provenance; roles are framings."""
+
     title: str | None = Field(default=None, min_length=2, max_length=200)
     themes: list[str] | None = Field(default=None, max_length=12)
-    role_profile_id: UUID | None = None
 
     @field_validator("themes")
     @classmethod
@@ -130,11 +131,74 @@ class StoryRead(StoryFields):
     origin: StoryOrigin
     created_at: datetime
     updated_at: datetime
+    archived_at: datetime | None = None
+    current_version: int = Field(default=1, ge=1)
+
+
+class StoryChangeReason(StrEnum):
+    """Why a new version of a story exists."""
+
+    CREATED = "CREATED"
+    MANUAL_EDIT = "MANUAL_EDIT"
+    RESTORED = "RESTORED"
+
+
+# The fields that make up what a story says. Only a change to one of these creates a
+# version; provenance, role and archive state are not content.
+STORY_CONTENT_FIELDS: tuple[str, ...] = (
+    "title", "themes", "situation", "ownership", "actions", "reasoning", "trade_offs",
+    "outcome", "measurable_result", "learning", "do_differently",
+)
+
+
+def story_content(story: BaseModel) -> dict[str, object]:
+    return {field: getattr(story, field) for field in STORY_CONTENT_FIELDS}
+
+
+class StoryVersion(StoryFields):
+    """A read-only snapshot of a story's content when it was saved."""
+
+    id: UUID
+    story_id: UUID
+    version: int = Field(ge=1)
+    title: str
+    themes: list[str] = Field(default_factory=list)
+    change_reason: StoryChangeReason
+    restored_from_version: int | None = None
+    created_at: datetime
+
+
+class StoryRoleFramingInput(StoryModel):
+    """How a story is positioned for one role. Never a copy of the story's content."""
+
+    themes: list[str] = Field(default_factory=list, max_length=12)
+    emphasis: str | None = Field(default=None, max_length=500)
+
+    @field_validator("themes")
+    @classmethod
+    def clean_themes(cls, value: list[str]) -> list[str]:
+        return _clean_themes(value)
+
+    @field_validator("emphasis")
+    @classmethod
+    def strip_emphasis(cls, value: str | None) -> str | None:
+        return _clean(value)
+
+
+class StoryRoleFraming(StoryRoleFramingInput):
+    """A story is useful for this exact role profile, with these extra themes."""
+
+    id: UUID
+    story_id: UUID
+    role_profile_id: UUID
+    created_at: datetime
+    updated_at: datetime
 
 
 class StoryView(StoryRead):
     completeness: StoryCompleteness
     missing_parts: list[str] = Field(default_factory=list)
+    role_profile_ids: list[UUID] = Field(default_factory=list)  # roles it is framed for
 
 
 def story_completeness(story: StoryFields) -> tuple[StoryCompleteness, list[str]]:
@@ -148,6 +212,8 @@ def story_completeness(story: StoryFields) -> tuple[StoryCompleteness, list[str]
     return StoryCompleteness.DEVELOPING, missing
 
 
-def story_view(story: StoryRead) -> StoryView:
+def story_view(story: StoryRead, role_profile_ids: list[UUID] | None = None) -> StoryView:
     completeness, missing = story_completeness(story)
-    return StoryView(**story.model_dump(), completeness=completeness, missing_parts=missing)
+    return StoryView(
+        **story.model_dump(), completeness=completeness, missing_parts=missing, role_profile_ids=role_profile_ids or []
+    )

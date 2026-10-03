@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import type { Onboarding } from "@/lib/api";
 
@@ -6,7 +8,8 @@ type ServerOnboardingResult =
   | { status: "unauthenticated" }
   | { status: "unavailable" };
 
-export async function getServerOnboarding(): Promise<ServerOnboardingResult> {
+/** Deduplicated per request: a layout, page and metadata asking together cost one read. */
+export const getServerOnboarding = cache(async (): Promise<ServerOnboardingResult> => {
   const supabase = await createSupabaseServerClient();
   if (!supabase) return { status: "unauthenticated" };
 
@@ -25,5 +28,4 @@ export async function getServerOnboarding(): Promise<ServerOnboardingResult> {
   } catch {
     return { status: "unavailable" };
   }
-}
-
+});

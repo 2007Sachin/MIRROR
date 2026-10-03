@@ -1,0 +1,120 @@
+"use client";
+
+import "@/styles/plan.css";
+
+import Link from "next/link";
+import { useState } from "react";
+
+import { PlanAreaCard, type PlanHrefs } from "@/components/plan/plan-area-card";
+import { EmptyState, PageAlert, PageHeader, PageLoading, PageShell, usePageData } from "@/components/workspace/page-shell";
+import { ApiError } from "@/lib/api";
+import { choosePlanLink, getPlan, type Plan, type PlanArea, type PlanLink } from "@/lib/api-plan";
+import { planCopy as t } from "@/lib/copy-plan";
+import { findStoryHref } from "@/lib/map-view";
+import { startPracticeHref } from "@/lib/practice-view";
+
+/** Start the story from the approved example already linked to this need, when there is one. */
+function storyHref(roleProfileId: string, area: PlanArea) {
+  const item = [...area.have, ...area.suggested].find((link) => link.evidence_item_id)?.evidence_item_id;
+  const base = findStoryHref(roleProfileId, area.theme);
+  return item ? `${base}&evidence=${encodeURIComponent(item)}` : base;
+}
+
+function hrefsFor(plan: Plan, area: PlanArea): PlanHrefs {
+  const role = plan.role!;
+  return {
+    // The exact role travels with the practice, so it stays on this role.
+    PRACTICE: startPracticeHref(role.target_role, { mode: "FOCUSED_PRACTICE", focus: "role", theme: area.theme }, role.role_profile_id),
+    STORY: storyHref(role.role_profile_id, area),
+    ADD_EXAMPLE: "/experience",
+  };
+}
+
+/** My plan for one role (`role` from the URL), else for the active role. */
+export function PlanPage({ roleProfileId }: { roleProfileId: string | null }) {
+  const { state, data: plan, error, reload, setData } = usePageData(() => getPlan(roleProfileId), t.errors.load, [roleProfileId]);
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  async function choose(area: PlanArea, link: PlanLink, confirmed: boolean) {
+    if (!plan?.role) return;
+    setBusy(true);
+    setSaveError("");
+    try {
+      setData(await choosePlanLink(plan.role.role_profile_id, area.key, link, confirmed));
+    } catch (reason) {
+      setSaveError(reason instanceof ApiError && reason.kind !== "other" && reason.message ? reason.message : t.errors.save);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <PageShell>
+      <PageHeader
+        eyebrow={t.eyebrow}
+        title={plan?.role ? t.title(plan.role.target_role) : t.titleGeneral}
+        intro={plan?.state === "READY" ? t.intro : undefined}
+      />
+      {state === "loading" ? <PageLoading /> : null}
+      {state === "error" ? <PageAlert message={error} onRetry={reload} /> : null}
+      {state === "ready" && plan ? <PlanBody plan={plan} busy={busy} onChoose={choose} reload={reload} /> : null}
+      {saveError ? <PageAlert message={saveError} /> : null}
+    </PageShell>
+  );
+}
+
+function PlanBody({
+  plan,
+  busy,
+  onChoose,
+  reload,
+}: {
+  plan: Plan;
+  busy: boolean;
+  onChoose: (area: PlanArea, link: PlanLink, confirmed: boolean) => void;
+  reload: () => void;
+}) {
+  if (plan.state === "NEEDS_REVIEW") {
+    return (
+      <EmptyState title={t.states.reviewTitle} body={t.states.reviewBody}>
+        <Link className="dh-primary-action" href="/experience#review">{t.states.reviewAction}</Link>
+      </EmptyState>
+    );
+  }
+  if (plan.state === "NO_ROLE") {
+    return (
+      <EmptyState title={t.states.noRoleTitle} body={t.states.noRoleBody}>
+        <Link className="dh-primary-action" href="/roles/new">{t.states.noRoleAction}</Link>
+      </EmptyState>
+    );
+  }
+  if (plan.state === "PREPARING") {
+    return (
+      <EmptyState title={t.states.preparingTitle} body={t.states.preparingBody}>
+        <button type="button" className="dh-primary-action is-quiet" onClick={reload}>{t.states.preparingAction}</button>
+      </EmptyState>
+    );
+  }
+  if (plan.state === "UNAVAILABLE" || !plan.role) {
+    return (
+      <EmptyState title={t.states.unavailableTitle} body={t.states.unavailableBody}>
+        <Link className="dh-primary-action is-quiet" href="/roles">{t.states.unavailableAction}</Link>
+      </EmptyState>
+    );
+  }
+  return (
+    <div className="pl-areas">
+      {plan.areas.map((area) => (
+        <PlanAreaCard
+          key={area.key}
+          area={area}
+          recommended={area.key === plan.recommended_area_key}
+          hrefs={hrefsFor(plan, area)}
+          busy={busy}
+          onChoose={(link, confirmed) => onChoose(area, link, confirmed)}
+        />
+      ))}
+    </div>
+  );
+}

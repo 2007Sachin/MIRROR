@@ -28,7 +28,7 @@ def client():
         app.dependency_overrides.pop(dependency, None)
 
 
-def test_a_story_can_be_created_read_updated_and_deleted_by_its_owner(client) -> None:
+def test_a_story_can_be_created_read_updated_and_archived_by_its_owner(client) -> None:
     created = client.post("/api/v1/stories", headers=A, json={"title": "Rebuilding the pricing model", "themes": ["Pricing", " pricing "]})
     assert created.status_code == 201
     story = created.json()
@@ -41,15 +41,17 @@ def test_a_story_can_be_created_read_updated_and_deleted_by_its_owner(client) ->
     assert updated.json()["completeness"] == "DEVELOPING"
     assert client.get("/api/v1/stories", headers=A).json()[0]["id"] == story["id"]
 
-    assert client.delete(f"/api/v1/stories/{story['id']}", headers=A).status_code == 204
-    assert client.get(f"/api/v1/stories/{story['id']}", headers=A).status_code == 404
+    archived = client.post(f"/api/v1/stories/{story['id']}/archive", headers=A)
+    assert archived.status_code == 200 and archived.json()["archived_at"] is not None
+    assert client.get(f"/api/v1/stories/{story['id']}", headers=A).json()["archived_at"] is not None
+    assert client.post(f"/api/v1/stories/{story['id']}/restore", headers=A).json()["archived_at"] is None
 
 
 def test_another_person_can_never_see_change_or_delete_a_story(client) -> None:
     story = client.post("/api/v1/stories", headers=A, json={"title": "Mine"}).json()
     assert client.get(f"/api/v1/stories/{story['id']}", headers=B).status_code == 404
     assert client.patch(f"/api/v1/stories/{story['id']}", headers=B, json={"title": "Taken"}).status_code == 404
-    assert client.delete(f"/api/v1/stories/{story['id']}", headers=B).status_code == 404
+    assert client.post(f"/api/v1/stories/{story['id']}/archive", headers=B).status_code == 404
     assert client.get("/api/v1/stories", headers=B).json() == []
     assert client.get("/api/v1/stories").status_code == 401
 

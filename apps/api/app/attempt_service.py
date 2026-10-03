@@ -38,7 +38,7 @@ from .schemas import SessionStatus
 
 ATTEMPT_COLUMNS = (
     "id,user_id,session_id,question_turn_id,original_turn_id,sequence,question_text,original_answer,"
-    "answer_text,area_key,area_title,role_profile_id,comparison,comparison_source,model,prompt_version,created_at"
+    "answer_text,area_key,area_title,role_profile_id,idempotency_key,comparison,comparison_source,model,prompt_version,created_at"
 )
 MAX_ATTEMPTS_PER_ANSWER = 10
 
@@ -49,6 +49,10 @@ class AttemptNotFound(Exception):
 
 class AttemptNotAllowed(Exception):
     """This answer cannot take another attempt right now."""
+
+
+class AttemptIdempotencyConflict(AttemptNotAllowed):
+    """A replay key was reused for a different answer."""
 
 
 class AttemptNotFinished(AttemptNotAllowed):
@@ -117,11 +121,17 @@ class SupabaseAttemptRepository:
 class MemoryAttemptRepository:
     def __init__(self) -> None:
         self.rows: list[AttemptRecord] = []
+        self.idempotency: dict[tuple[UUID, UUID], AttemptRecord] = {}
 
     async def list_for_session(self, session_id: UUID, user_id: UUID) -> list[AttemptRecord]:
         return [row for row in self.rows if row.session_id == session_id and row.user_id == user_id]
 
     async def create(self, values: dict[str, Any]) -> AttemptRecord:
+        key = values.get("idempotency_key")
+        if key:
+            existing = self.idempotency.get((UUID(str(values["user_id"])), UUID(str(key))))
+            if existing:
+                return existing
         clash = any(
             str(row.original_turn_id) == str(values["original_turn_id"]) and row.sequence == values["sequence"]
             for row in self.rows
@@ -130,6 +140,8 @@ class MemoryAttemptRepository:
             raise AttemptNotAllowed("another attempt was saved at the same time")
         record = AttemptRecord.model_validate({**values, "id": uuid4(), "created_at": datetime.now(UTC)})
         self.rows.append(record)
+        if key:
+            self.idempotency[(record.user_id, UUID(str(key)))] = record
         return record
 
 
@@ -272,6 +284,12 @@ class AttemptService:
             raise AttemptNotFound
 
         earlier = [row for row in await self._attempts.list_for_session(session_id, user_id) if row.original_turn_id == answer_turn_id]
+        if payload.idempotency_key:
+            replay = next((row for row in earlier if row.idempotency_key == payload.idempotency_key), None)
+            if replay:
+                if replay.answer_text != payload.answer or replay.area_key != payload.area_key:
+                    raise AttemptIdempotencyConflict("this retry key was already used for another answer")
+                return replay
         if len(earlier) >= MAX_ATTEMPTS_PER_ANSWER:
             raise AttemptNotAllowed("this answer already has many attempts")
         sequence = max((row.sequence for row in earlier), default=0) + 1
@@ -292,6 +310,8 @@ class AttemptService:
             "answer_text": payload.answer,
             "area_key": payload.area_key,
             "area_title": payload.area_title,
+            "role_profile_id": str(session.role_profile_id) if session.role_profile_id else None,
+            "idempotency_key": str(payload.idempotency_key) if payload.idempotency_key else None,
             "comparison": comparison.model_dump(mode="json"),
             "comparison_source": comparison.source.value,
             "model": model,

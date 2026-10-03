@@ -5,6 +5,11 @@ ROOT = Path(__file__).parents[2] / "apps" / "web" / "src"
 ONBOARDING = (ROOT / "components" / "onboarding-flow.tsx").read_text(
     encoding="utf-8"
 )
+ONBOARDING_STEPS = "\n".join(
+    path.read_text(encoding="utf-8")
+    for path in sorted((ROOT / "components" / "onboarding").glob("*.tsx"))
+)
+ONBOARDING_COPY = (ROOT / "lib" / "copy-onboarding.ts").read_text(encoding="utf-8")
 SETUP_PAGE = (ROOT / "app" / "app" / "setup" / "page.tsx").read_text(
     encoding="utf-8"
 )
@@ -18,26 +23,24 @@ API = (ROOT / "lib" / "api.ts").read_text(encoding="utf-8")
 
 
 def test_onboarding_collects_role_context_and_starting_evidence() -> None:
-    assert "Add the role brief" in ONBOARDING
-    assert "Upload role brief" in ONBOARDING
-    assert "Paste role brief" in ONBOARDING
-    assert "Continue without one" in ONBOARDING
-    assert "Add my resume" in ONBOARDING
+    for label in ("Job description", "Upload it", "Paste it", "Skip for now", "Upload my resume", "Use my saved experience"):
+        assert label in ONBOARDING_COPY
+    assert "uploadRoleBriefDocument" in ONBOARDING_STEPS
+    assert "uploadResumeDocument" in ONBOARDING_STEPS
 
 
 def test_onboarding_reports_real_upload_progress_and_persists_ids() -> None:
-    assert 'role="progressbar"' in ONBOARDING
+    assert 'role="progressbar"' in ONBOARDING_STEPS
     assert "onboarding_resume_document_id" in ONBOARDING
     assert "onboarding_role_brief_document_id" in ONBOARDING
-    assert "onboarding_session_id" in ONBOARDING
-    assert "window.localStorage" not in ONBOARDING
+    assert "window.localStorage" not in ONBOARDING + ONBOARDING_STEPS
 
 
-def test_onboarding_prepares_then_opens_the_evidence_interview() -> None:
-    assert "mirrorApi.prepare" in ONBOARDING
-    assert "mirrorApi.interviewPlan" in ONBOARDING
-    assert "Begin the conversation" in ONBOARDING
-    assert "`/app/interview/${session.id}`" in ONBOARDING
+def test_onboarding_ends_on_a_plan_without_preparing_a_practice() -> None:
+    # A practice is created only from the practice start page, after the person chooses to start.
+    for call in ("mirrorApi.createSession", "mirrorApi.prepare", "linkSessionDocuments", "onboarding_session_id"):
+        assert call not in ONBOARDING + ONBOARDING_STEPS
+    assert "PlanReadyStep" in ONBOARDING
 
 
 def test_legacy_setup_route_redirects_to_the_unified_flow() -> None:

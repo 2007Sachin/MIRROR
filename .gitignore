@@ -42,3 +42,7 @@ desktop.ini
 supabase/.temp/
 
 .env.bak*
+
+artifacts/
+*.stackdump
+

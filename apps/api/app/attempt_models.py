@@ -117,6 +117,7 @@ class AttemptCreate(AttemptModel):
     answer: str = Field(min_length=1, max_length=6000)
     area_key: str | None = Field(default=None, max_length=80)
     area_title: str | None = Field(default=None, max_length=200)
+    idempotency_key: UUID | None = None
 
     @field_validator("answer")
     @classmethod
@@ -139,6 +140,7 @@ class AttemptRecord(AttemptModel):
     area_key: str | None = None
     area_title: str | None = None
     role_profile_id: UUID | None = None
+    idempotency_key: UUID | None = None
     comparison: AttemptComparison | None = None
     comparison_source: ComparisonSource | None = None
     model: str | None = None

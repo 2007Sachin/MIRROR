@@ -15,6 +15,8 @@ when that name is already in the planning context.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -162,15 +164,39 @@ def _fill(template: str, fallback: str, *, role: str, project: str | None, theme
     return text[:1].upper() + text[1:]
 
 
+# Practising stories the candidate chose. Each story gets an opening question first; the
+# remaining questions go deeper into them in turn. Only the story's title is used here, from
+# the exact version pinned for this session.
+_CHOSEN_STORY_QUESTIONS: tuple[str, ...] = (
+    "Tell me about “{story}”. What was going on, and what did you do?",
+    "In “{story}”, which part was yours, and why did you take that approach?",
+    "What changed because of your work on “{story}”, and how do you know?",
+    "Looking back on “{story}”, what would you do differently?",
+)
+
+
+def chosen_story_questions(titles: Sequence[str], count: int) -> list[str]:
+    """Question i is about story i mod n: every chosen story is asked about, in order."""
+    if not titles:
+        return []
+    return [
+        _CHOSEN_STORY_QUESTIONS[index // len(titles)].format(story=titles[index % len(titles)])
+        for index in range(min(count, len(titles) * len(_CHOSEN_STORY_QUESTIONS)))
+    ]
+
+
 def practice_questions(
     focus: PracticeFocus,
     count: int,
     source: InterviewPlannerInput,
     theme: str | None = None,
+    stories: Sequence[str] = (),
 ) -> list[str]:
     """The primary questions for one area, personalised only from the planning context."""
     if focus == PracticeFocus.FULL:
         raise ValueError("a full interview is planned by the Planner agent")
+    if focus == PracticeFocus.STORY and stories:
+        return chosen_story_questions(stories, count)
     project = source.projects[0].name if source.projects else None
     if focus == PracticeFocus.ROLE and not theme:
         top = sorted(source.role_competencies, key=lambda item: item.importance_weight, reverse=True)
@@ -185,15 +211,33 @@ def practice_questions(
     return questions
 
 
+STORY_OBJECTIVE = re.compile(r"^story-([1-4])-([1-9])$")
+
+
+def _objective_id(focus: PracticeFocus, index: int, chosen: int) -> str:
+    """A question about chosen story p is "story-p-n": the id is stored on every turn of that
+    question, so Review can tell exactly which chosen story an answer was about."""
+    if focus == PracticeFocus.STORY and chosen:
+        return f"story-{index % chosen + 1}-{index + 1}"
+    return f"practice-{focus.value}-{index + 1}"
+
+
+def story_position(objective_id: str | None) -> int | None:
+    """The chosen-story position an objective asked about, or None when it asked about none."""
+    match = STORY_OBJECTIVE.match(objective_id or "")
+    return int(match.group(1)) if match else None
+
+
 def build_practice_plan(
     mode: PracticeMode,
     focus: PracticeFocus,
     source: InterviewPlannerInput,
     *,
     theme: str | None = None,
+    stories: Sequence[str] = (),
 ) -> InterviewPlan:
     shape = MODE_SHAPE[mode]
-    questions = practice_questions(focus, shape.questions, source, theme)
+    questions = practice_questions(focus, shape.questions, source, theme, stories)
     per_question = max(30, shape.total_seconds // len(questions))
     area = _AREA_NAME[focus] if focus != PracticeFocus.ROLE or not theme else theme.lower()
     matching_competencies = [
@@ -201,7 +245,7 @@ def build_practice_plan(
     ]
     objectives = [
         InterviewObjective(
-            objective_id=f"practice-{focus.value}-{index + 1}",
+            objective_id=_objective_id(focus, index, len(stories)),
             phase=_PHASES[min(index, len(_PHASES) - 1)],
             objective=f"Practise {area}.",
             priority=ObjectivePriority.HIGH,

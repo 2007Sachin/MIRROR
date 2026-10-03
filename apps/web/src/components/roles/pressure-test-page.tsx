@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, Minus } from "@phosphor-icons/react";
+import { ArrowRight, Check } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -10,13 +10,15 @@ import { PageAlert, PageHeader, PageLoading, PageShell, usePageData } from "@/co
 import {
   ApiError,
   mirrorApi,
-  type AnswerChecks,
   type PressureReadiness,
   type PressureTest,
   type StoryPart,
 } from "@/lib/api";
+import { answerFeedback, type AnswerFeedback } from "@/lib/api-stories-guided";
 import { experience as experienceCopy, pressureTest as t, roles as rolesCopy } from "@/lib/copy";
+import { digDeeperFeedback as f } from "@/lib/copy-stories";
 import { storyFromAnswers } from "@/lib/story-view";
+import "@/styles/stories-guided.css";
 
 type Item = PressureTest["items"][number];
 
@@ -145,7 +147,11 @@ function PressureItemView({
   );
 }
 
-/** One question at a time, the candidate's own words, and a note on what the answer contains. */
+/**
+ * One question at a time, the person's own words, and feedback in three parts: what came
+ * through clearly, the detail still missing, and a sentence opening to try next.
+ * The typed answer is never cleared by an error; a calm inline message offers Try again.
+ */
 function PressureDrill({
   item,
   roleProfileId,
@@ -159,36 +165,44 @@ function PressureDrill({
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState("");
   const [answers, setAnswers] = useState<Array<{ part: StoryPart; answer: string }>>([]);
-  const [checks, setChecks] = useState<AnswerChecks | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<AnswerFeedback | null>(null);
+  const [pending, setPending] = useState<"check" | "save" | null>(null);
+  const busy = pending !== null;
   const [message, setMessage] = useState("");
+  const [retry, setRetry] = useState<"check" | "save" | null>(null);
   const question = item.questions[step];
   const last = step === item.questions.length - 1;
+  // Everything answered so far, including what is in the box now. Nothing is cleared until saved.
+  const collected = draft.trim() ? [...answers, { part: question.story_part, answer: draft.trim() }] : answers;
 
   async function check() {
     if (!draft.trim()) return;
-    setBusy(true);
+    setPending("check");
     setMessage("");
+    setRetry(null);
     try {
-      setChecks(await mirrorApi.answerChecks(question.kind, draft.trim()));
+      setFeedback(await answerFeedback(question.kind, draft.trim()));
     } catch {
       setMessage(t.errors.check);
+      setRetry("check");
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   }
 
-  function keep() {
-    const next = draft.trim() ? [...answers, { part: question.story_part, answer: draft.trim() }] : answers;
-    setAnswers(next);
+  function nextQuestion() {
+    setAnswers(collected);
     setDraft("");
-    setChecks(null);
-    return next;
+    setFeedback(null);
+    setMessage("");
+    setRetry(null);
+    setStep(step + 1);
   }
 
-  async function save(collected: Array<{ part: StoryPart; answer: string }>) {
-    setBusy(true);
+  async function save() {
+    setPending("save");
     setMessage("");
+    setRetry(null);
     try {
       const story = await mirrorApi.createStory(
         storyFromAnswers({
@@ -203,7 +217,8 @@ function PressureDrill({
       router.push(`/stories/${story.id}`);
     } catch (reason) {
       setMessage(reason instanceof ApiError ? reason.message : t.errors.save);
-      setBusy(false);
+      setRetry("save");
+      setPending(null);
     }
   }
 
@@ -215,42 +230,62 @@ function PressureDrill({
 
       <label className="dh-form is-wide">
         <span>{t.answerLabel}</span>
-        <textarea className="field" rows={5} value={draft} onChange={(event) => setDraft(event.target.value)} disabled={busy} />
+        <textarea className="field" rows={5} value={draft} onChange={(event) => setDraft(event.target.value)} readOnly={busy} aria-busy={busy} />
         <small>{t.answerHint}</small>
       </label>
 
-      {checks ? (
-        <div className="dh-answer-note">
-          <h3>{t.noticed}</h3>
-          <ul className="dh-check-list">
-            {checks.checks.map((item) => (
-              <li key={item.key} className={item.present ? "is-present" : "is-absent"}>
-                {item.present ? <Check size={15} aria-hidden="true" /> : <Minus size={15} aria-hidden="true" />}
-                <span>{item.text}</span>
-              </li>
-            ))}
-          </ul>
-          {checks.follow_up ? <p className="dh-prose"><strong>{t.tryFollowUp}:</strong> {checks.follow_up}</p> : null}
+      {feedback ? (
+        <div className="dh-answer-note sg-feedback">
+          <h3>{f.clear}</h3>
+          {feedback.clear.length ? (
+            <ul className="dh-check-list">
+              {feedback.clear.map((text) => (
+                <li key={text} className="is-present">
+                  <Check size={15} aria-hidden="true" />
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="dh-prose">{f.nothingClearYet}</p>
+          )}
+          {feedback.missing ? (
+            <>
+              <h3>{f.missing}</h3>
+              <p className="dh-prose">{feedback.missing}</p>
+            </>
+          ) : null}
+          <h3>{f.nextSentence}</h3>
+          <p className="sg-next-sentence">{feedback.next_sentence}</p>
           <p className="dh-fine-print">{t.checksNote}</p>
         </div>
       ) : null}
-      {message ? <p className="dh-inline-error" role="alert">{message}</p> : null}
+      {message ? (
+        <div className="sg-inline-error" role="alert">
+          <span>{message}</span>
+          {retry ? (
+            <button className="dh-text-action" type="button" onClick={() => void (retry === "check" ? check() : save())} disabled={busy}>
+              {f.retry}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="dh-action-row">
         <button className="dh-primary-action is-quiet" type="button" onClick={() => void check()} disabled={busy || !draft.trim()}>
-          {busy && !checks ? t.checking : t.check}
+          {pending === "check" ? t.checking : t.check}
         </button>
         {!last ? (
-          <button className="dh-primary-action" type="button" onClick={() => { keep(); setStep(step + 1); }} disabled={busy}>
+          <button className="dh-primary-action" type="button" onClick={nextQuestion} disabled={busy}>
             {t.next} <ArrowRight size={16} aria-hidden="true" />
           </button>
         ) : (
-          <button className="dh-primary-action" type="button" onClick={() => void save(keep())} disabled={busy || (!draft.trim() && !answers.length)}>
-            {busy ? t.saving : t.saveStory}
+          <button className="dh-primary-action" type="button" onClick={() => void save()} disabled={busy || !collected.length}>
+            {pending === "save" ? t.saving : t.saveStory}
           </button>
         )}
         {!last && answers.length ? (
-          <button className="dh-text-action" type="button" onClick={() => void save(keep())} disabled={busy}>
+          <button className="dh-text-action" type="button" onClick={() => void save()} disabled={busy}>
             {t.saveStory}
           </button>
         ) : null}

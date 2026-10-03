@@ -138,9 +138,13 @@ from .dashboard_service import DashboardService
 
 if TYPE_CHECKING:
     from .progress_summary import ProgressService
+    from .home_service import HomeService
+    from .role_progress import RoleProgressService
     from .readiness_service import ReadinessService
     from .attempt_service import AttemptRepository, AttemptService
     from .story_repository import PressureResponseRepository, StoryRepository
+    from .practice_story_usage import PracticeStoryUsageRepository
+    from .story_suggestions import StorySuggestionService
 
 
 def _agent_provider(settings: Settings) -> ChatCompletionsProvider:
@@ -202,6 +206,64 @@ def get_interview_planning_service() -> InterviewPlanningService:
         intro_reserve_seconds=settings.planner_intro_reserve_seconds,
         transition_reserve_seconds=settings.planner_transition_reserve_seconds,
         closing_reserve_seconds=settings.planner_closing_reserve_seconds,
+        story_versions=_pinned_story_versions,
+    )
+
+
+async def _pinned_story_versions(session_id, user_id):
+    """The story versions a practice was created with, for the practice plan."""
+    from .practice_story_usage import practice_story_versions
+
+    return await practice_story_versions(
+        get_practice_story_usage_repository(), get_story_repository(), session_id, user_id
+    )
+
+
+def get_practice_story_usage_repository() -> "PracticeStoryUsageRepository":
+    from .practice_story_usage import MemoryPracticeStoryUsageRepository, SupabasePracticeStoryUsageRepository
+    from .story_repository import StoriesUnavailable
+
+    if not get_settings().supabase_enabled:
+        return MemoryPracticeStoryUsageRepository(get_repository(), get_story_repository())
+    try:
+        return SupabasePracticeStoryUsageRepository(get_settings())
+    except StoriesUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Story storage is not configured",
+        ) from exc
+
+
+def get_story_suggestion_service() -> "StorySuggestionService":
+    from .story_repository import StoriesUnavailable
+    from .story_suggestions import (
+        MemoryReviewFindingSource,
+        MemoryStorySuggestionRepository,
+        StorySuggestionService,
+        SupabaseReviewFindingSource,
+        SupabaseStorySuggestionRepository,
+    )
+
+    settings = get_settings()
+    try:
+        suggestions, findings = (
+            (SupabaseStorySuggestionRepository(settings), SupabaseReviewFindingSource(settings))
+            if settings.supabase_enabled
+            else (MemoryStorySuggestionRepository(), MemoryReviewFindingSource())
+        )
+    except StoriesUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Story storage is not configured",
+        ) from exc
+    return StorySuggestionService(
+        suggestions,
+        findings,
+        get_practice_story_usage_repository(),
+        get_story_repository(),
+        get_repository(),
+        # The same bar the Skeptic must clear before it may act on a finding live.
+        min_confidence=settings.skeptic_live_probe_min_confidence,
     )
 
 
@@ -622,6 +684,36 @@ def get_progress_service() -> "ProgressService":
     return ProgressService(get_dashboard_service(), get_report_service())
 
 
+def get_role_progress_service() -> "RoleProgressService":
+    from .role_progress import RoleProgressService
+
+    dashboard = get_dashboard_service()
+    return RoleProgressService(
+        get_role_analysis_service(),
+        dashboard,
+        get_report_service(),
+        get_text_interview_service(),
+        get_attempt_repository(),
+        dashboard.answered_counts,
+    )
+
+
+def get_home_service() -> "HomeService":
+    from .home_service import HomeService
+    from .routes_active_role import stored_role_preference
+
+    dashboard = get_dashboard_service()
+    return HomeService(
+        get_role_analysis_service(),
+        dashboard,
+        get_role_progress_service(),
+        get_readiness_service(),
+        get_story_repository(),
+        get_interview_event_repository(),
+        active_role=stored_role_preference,
+    )
+
+
 @lru_cache
 def get_dashboard_service() -> DashboardService:
     if not get_settings().supabase_enabled:
@@ -695,7 +787,19 @@ def get_readiness_service() -> "ReadinessService":
         get_story_repository(),
         get_progress_service(),
         get_pressure_response_repository(),
+        evidence=_career_evidence_service(),
     )
+
+
+def _career_evidence_service():
+    from .routes_evidence import get_career_evidence_service
+
+    return get_career_evidence_service()
+
+@lru_cache
+def get_dig_deeper_repository():
+    from .dig_deeper_repository import MemoryDigDeeperRepository, SupabaseDigDeeperRepository
+    return MemoryDigDeeperRepository() if not get_settings().supabase_enabled else SupabaseDigDeeperRepository(get_settings())
 
 
 @lru_cache
@@ -752,3 +856,18 @@ def get_attempt_service() -> "AttemptService":
         get_retry_comparison_runner(),
         model=get_settings().interviewer_model,
     )
+
+
+@lru_cache
+def get_interview_event_repository():
+    from .interview_event_repository import MemoryInterviewEventRepository, SupabaseInterviewEventRepository
+
+    if not get_settings().supabase_enabled:
+        return MemoryInterviewEventRepository()
+    return SupabaseInterviewEventRepository(get_settings())
+
+
+def get_interview_event_service():
+    from .interview_event_service import InterviewEventService
+
+    return InterviewEventService(get_interview_event_repository(), get_readiness_service(), get_story_repository())

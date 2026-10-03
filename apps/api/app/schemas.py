@@ -335,6 +335,7 @@ class SessionStatus(StrEnum):
     ASSESSING = "ASSESSING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    ABANDONED = "ABANDONED"  # discarded before it finished: never reviewed, never counted
 
 
 class Question(ApiModel):
@@ -365,10 +366,14 @@ class SessionCreate(ApiModel):
     # Optional explicit role. When omitted, planning falls back to the account's
     # mutable profiles.current_role_profile_id (legacy behaviour, unchanged).
     role_profile_id: UUID | None = None
+    idempotency_key: UUID | None = None
+    # Stories the candidate chose to practise. Each one's current version is pinned when the
+    # session is created and the practice plan is built from it (practice_story_usage.py).
+    story_ids: list[UUID] = Field(default_factory=list, max_length=4)
 
     @model_validator(mode="after")
     def practice_is_consistent(self) -> "SessionCreate":
-        from .practice_modes import PracticeFocus, PracticeMode
+        from .practice_modes import MODE_SHAPE, PracticeFocus, PracticeMode
 
         mode = PracticeMode(self.practice_mode)  # raises for an unknown mode
         focus = PracticeFocus(self.practice_focus) if self.practice_focus else None
@@ -376,6 +381,15 @@ class SessionCreate(ApiModel):
             raise ValueError("a focused practice or quick drill needs one area to work on")
         if self.practice_theme and focus != PracticeFocus.ROLE:
             raise ValueError("a theme can only be chosen for role-specific practice")
+        if self.story_ids:
+            if mode == PracticeMode.FULL_INTERVIEW or focus != PracticeFocus.STORY:
+                raise ValueError("stories can only be chosen for a story practice or quick drill")
+            if self.role_profile_id is None:
+                raise ValueError("practising a story needs the exact role it is for")
+            if len(set(self.story_ids)) != len(self.story_ids):
+                raise ValueError("each story can be chosen once")
+            if len(self.story_ids) > MODE_SHAPE[mode].questions:
+                raise ValueError("choose at most one story per question")
         return self
 
 

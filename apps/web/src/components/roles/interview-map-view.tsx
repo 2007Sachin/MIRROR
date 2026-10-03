@@ -2,8 +2,8 @@ import { ArrowRight, Check } from "@phosphor-icons/react";
 import Link from "next/link";
 
 import { Section } from "@/components/workspace/page-shell";
-import type { InterviewMap } from "@/lib/api";
-import { interviewMap as t } from "@/lib/copy";
+import type { InterviewMap, PracticeRecommendation } from "@/lib/api";
+import { interviewMap as t, practice as practiceCopy } from "@/lib/copy";
 import {
   areaActionLabel,
   areaHref,
@@ -12,9 +12,21 @@ import {
   experienceNotice,
   mapStrengths,
   pressureTestHref,
+  recommendationHref,
+  recommendationTitle,
+  storyToPractise,
 } from "@/lib/map-view";
+import { practiseStoryHref } from "@/lib/story-view";
 
-export function InterviewMapView({ map }: { map: InterviewMap }) {
+export function InterviewMapView({
+  map,
+  recommendation,
+}: {
+  map: InterviewMap;
+  /** The same deterministic "what to practise next" Home and Practice already use.
+   * Never computed here — only rendered. Absent whenever nothing rises above the rest. */
+  recommendation?: PracticeRecommendation | null;
+}) {
   if (map.state === "ROLE_PREPARING") return <p className="dh-review-empty">{t.states.preparing}</p>;
   if (map.state === "ROLE_UNREADABLE") return <p className="dh-review-empty">{t.states.unreadable}</p>;
 
@@ -23,6 +35,21 @@ export function InterviewMapView({ map }: { map: InterviewMap }) {
 
   return (
     <>
+      {recommendation ? (
+        <section className="dh-continue" aria-labelledby="map-next-title">
+          <div>
+            <p className="dh-section-label">{practiceCopy.recommendedTitle}</p>
+            <h2 id="map-next-title" className="display">{recommendationTitle(recommendation)}</h2>
+            <p className="dh-next-copy">{recommendation.reason}</p>
+          </div>
+          <div className="dh-continue-actions">
+            <Link className="dh-primary-action" href={recommendationHref(recommendation)}>
+              {t.actions.PRACTICE} <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <Section id="map-areas" label={t.eyebrow} title={t.areasTitle}>
         {map.preparation_areas.length ? (
           <ul className="dh-plain-list">
@@ -45,19 +72,27 @@ export function InterviewMapView({ map }: { map: InterviewMap }) {
         {notice ? <p className="dh-guidance">{notice}</p> : null}
         {strengths.length ? (
           <ul className="dh-change-list">
-            {strengths.map((theme) => (
-              <li key={theme.key} className="is-improved">
-                <Check size={17} aria-hidden="true" />
-                <span>
-                  <strong>{theme.name}</strong>
-                  {theme.matches[0] ? (
-                    <small className="dh-match">
-                      {t.matchKinds[theme.matches[0].kind] ?? t.matchKinds.WORK}: {theme.matches[0].label}
-                    </small>
+            {strengths.map((theme) => {
+              const storyId = storyToPractise(theme);
+              return (
+                <li key={theme.key} className="is-improved">
+                  <Check size={17} aria-hidden="true" />
+                  <span>
+                    <strong>{theme.name}</strong>
+                    {theme.matches[0] ? (
+                      <small className="dh-match">
+                        {t.matchKinds[theme.matches[0].kind] ?? t.matchKinds.WORK}: {theme.matches[0].label}
+                      </small>
+                    ) : null}
+                  </span>
+                  {storyId ? (
+                    <Link className="dh-text-action" href={practiseStoryHref(storyId)}>
+                      {t.practiseStory} <ArrowRight size={15} aria-hidden="true" />
+                    </Link>
                   ) : null}
-                </span>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="dh-review-empty">{t.strengthsEmpty}</p>

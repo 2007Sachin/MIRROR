@@ -1,0 +1,77 @@
+/* My plan: one card per role need. Shared tokens only (see docs/architecture/REDESIGN_BUILD.md). */
+
+.pl-areas { display: grid; gap: var(--space-5); min-width: 0; }
+
+.pl-card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+}
+.pl-card[data-recommended] { border-color: var(--ink); }
+
+.pl-card-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: .5rem .75rem; }
+.pl-start {
+  color: var(--slate);
+  flex-basis: 100%;
+  font-size: var(--text-xs, .75rem);
+  font-weight: 650;
+  letter-spacing: .06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+.pl-title { color: var(--ink); font-size: var(--text-lg, 1.125rem); font-weight: 650; margin: 0; }
+
+.pl-status {
+  background: var(--action-soft);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: var(--text-sm, .875rem);
+  font-weight: 600;
+  padding: .15rem .6rem;
+}
+.pl-status[data-status="STRONG"] { color: var(--success); }
+.pl-status[data-status="GOOD"] { color: var(--caution); }
+.pl-status[data-status="BUILD"] { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--slate); }
+
+.pl-why { color: var(--slate); line-height: 1.5; margin: 0; max-width: 65ch; }
+.pl-why-label { color: var(--ink); font-weight: 600; }
+
+.pl-block h3,
+.pl-subhead { color: var(--ink); font-size: var(--text-sm, .875rem); font-weight: 650; margin: 0 0 .4rem; }
+.pl-subhead { margin-top: var(--space-3); }
+.pl-block p { color: var(--ink); line-height: 1.5; margin: 0; max-width: 65ch; }
+.pl-muted { color: var(--slate); }
+
+.pl-links { display: grid; gap: .5rem; list-style: none; margin: 0; padding: 0; }
+.pl-links li {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1rem;
+  justify-content: space-between;
+  padding-top: .5rem;
+}
+.pl-link-main { display: flex; flex-wrap: wrap; gap: .25rem .6rem; min-width: 0; overflow-wrap: anywhere; }
+.pl-link-actions { display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+.pl-kind,
+.pl-reason { color: var(--slate); font-size: var(--text-sm, .875rem); }
+.pl-reason { background: var(--action-soft); border-radius: .35rem; color: var(--ink); padding: 0 .4rem; }
+
+.pl-actions { align-items: center; display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; }
+.pl-card :is(a, button) { min-height: 44px; }
+.pl-card :is(a, button):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.pl-card button:disabled { cursor: not-allowed; opacity: .55; }
+
+@media (max-width: 40rem) {
+  .pl-card { padding: var(--space-4); }
+  .pl-actions { align-items: stretch; flex-direction: column; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-card * { transition: none; }
+}

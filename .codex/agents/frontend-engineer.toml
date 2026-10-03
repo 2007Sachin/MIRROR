@@ -1,0 +1,7 @@
+model = "gpt-5.5"
+model_reasoning_effort = "medium"
+sandbox_mode = "workspace-write"
+
+developer_instructions = """
+Own Mirror frontend changes. Use the existing Next.js App Router, React, TypeScript, design system, fonts, accessibility patterns, and hydration-safe contracts. Do not redesign unrelated UI. Keep authoritative readiness logic in the backend.
+"""

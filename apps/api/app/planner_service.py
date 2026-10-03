@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from math import ceil
 from uuid import UUID, uuid4
@@ -37,9 +38,14 @@ from .practice_modes import (
 )
 from .repository import SessionRepository
 from .schemas import Phase, SessionStatus
+from .story_models import StoryVersion
 
 
 logger = logging.getLogger("mirror.interview_planning")
+
+
+# (session_id, user_id) -> the story versions pinned for that session, in plan order.
+StoryVersionLoader = Callable[[UUID, UUID], Awaitable[list[StoryVersion]]]
 
 
 class PlanNotFound(Exception):
@@ -65,6 +71,7 @@ class InterviewPlanningService:
         intro_reserve_seconds: int,
         transition_reserve_seconds: int,
         closing_reserve_seconds: int,
+        story_versions: StoryVersionLoader | None = None,
     ) -> None:
         if (
             min(
@@ -82,6 +89,7 @@ class InterviewPlanningService:
         self._intro_reserve = intro_reserve_seconds
         self._transition_reserve = transition_reserve_seconds
         self._closing_reserve = closing_reserve_seconds
+        self._story_versions = story_versions
 
     async def plan(self, session_id: UUID, user_id: UUID) -> InterviewPlanRecord:
         session = await self._sessions.get(session_id, user_id)
@@ -162,11 +170,20 @@ class InterviewPlanningService:
         )
         if not started:
             return record
+        focus = PracticeFocus(session.practice_focus)
+        # Stories the candidate chose for this session, at the exact versions pinned when it
+        # was created. Nothing is chosen here: only an explicit choice reaches the plan.
+        chosen = (
+            await self._story_versions(session.id, user_id)
+            if self._story_versions is not None and focus == PracticeFocus.STORY
+            else []
+        )
         plan = build_practice_plan(
             PracticeMode(session.practice_mode),
-            PracticeFocus(session.practice_focus),
+            focus,
             source,
             theme=session.practice_theme,
+            stories=[version.title for version in chosen],
         )
         return await self._plans.complete(record.id, user_id, uuid4(), plan)
 

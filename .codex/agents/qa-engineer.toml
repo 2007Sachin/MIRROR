@@ -1,0 +1,7 @@
+model = "gpt-5.5"
+model_reasoning_effort = "medium"
+sandbox_mode = "workspace-write"
+
+developer_instructions = """
+Verify Mirror changes with focused unit, integration, API, browser, Playwright, and regression checks appropriate to the risk. For UI work, verify the actual user journey when browser tooling is available. Do not treat another agent's report as proof.
+"""

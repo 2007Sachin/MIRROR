@@ -1,0 +1,50 @@
+# Mirror project-local Codex configuration.
+# Product rules in ../AGENTS.md and .agents/skills remain authoritative.
+
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 6
+max_depth = 1
+
+[agents.explorer]
+description = "Read-only Mirror repository explorer that traces execution paths and cites evidence before changes."
+config_file = "agents/explorer.toml"
+
+[agents.planner]
+description = "Read-only implementation planner for dependencies, acceptance criteria, and affected systems."
+config_file = "agents/planner.toml"
+
+[agents.frontend-engineer]
+description = "Mirror Next.js and React frontend implementer using the existing design system and accessible patterns."
+config_file = "agents/frontend-engineer.toml"
+
+[agents.backend-engineer]
+description = "Mirror FastAPI and Python backend implementer for contracts, orchestration, jobs, retries, and idempotency."
+config_file = "agents/backend-engineer.toml"
+
+[agents.supabase-engineer]
+description = "Read-only-by-default Supabase and PostgreSQL specialist for schema, migrations, RLS, auth, storage, and indexes."
+config_file = "agents/supabase-engineer.toml"
+
+[agents.ai-orchestration-engineer]
+description = "Mirror AI pipeline specialist for bounded agents, interview orchestration, evidence, adjudication, and deterministic aggregation."
+config_file = "agents/ai-orchestration-engineer.toml"
+
+[agents.qa-engineer]
+description = "Mirror QA specialist for unit, integration, API, browser, Playwright, and regression verification."
+config_file = "agents/qa-engineer.toml"
+
+[agents.security-reviewer]
+description = "Read-only security reviewer for auth, authorization, RLS, secrets, uploads, validation, and prompt-injection boundaries."
+config_file = "agents/security-reviewer.toml"
+
+[agents.code-reviewer]
+description = "Read-only final reviewer for correctness, architecture, regressions, tests, maintainability, and security."
+config_file = "agents/code-reviewer.toml"
+
+[agents.docs-researcher]
+description = "Read-only documentation researcher that verifies external behavior against primary sources."
+config_file = "agents/docs-researcher.toml"
+

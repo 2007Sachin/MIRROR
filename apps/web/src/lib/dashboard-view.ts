@@ -13,12 +13,17 @@ export type SessionKind =
   | "in_progress"
   | "ready"
   | "setup"
-  | "failed";
+  | "failed"
+  | "abandoned";
+
+// ABANDONED (a practice discarded before it finished) until the shared Session status type lists it.
+type InterviewStatus = DashboardDiagnostic["interview_status"] | "ABANDONED";
 
 /** Which stage a session is really at. A review is only "ready" when the report exists. */
 export function sessionKind(session: DashboardDiagnostic): SessionKind {
+  const status = session.interview_status as InterviewStatus;
+  if (status === "ABANDONED") return "abandoned"; // never previous practice, never Continue
   if (session.diagnostic_available) return "review_ready";
-  const status = session.interview_status;
   if (status === "ACTIVE") return "in_progress";
   if (status === "READY") return "ready";
   if (status === "FAILED") return "failed";
@@ -26,10 +31,6 @@ export function sessionKind(session: DashboardDiagnostic): SessionKind {
     return session.assessment?.status === "FAILED" ? "review_failed" : "review_processing";
   }
   return "setup";
-}
-
-export function reviewIsPending(session: DashboardDiagnostic | null) {
-  return session !== null && sessionKind(session) === "review_processing";
 }
 
 export function newSessionHref(role?: string) {
@@ -74,35 +75,11 @@ export function greetingForHour(hour: number) {
 
 // ------------------------------------------------------- candidate-facing Home view
 
-type Review = NonNullable<DashboardSummary["latest_review"]>;
-
 export type DevelopmentState =
   | "Coming through clearly"
   | "Developing"
   | "Needs more practice"
   | "Not explored yet";
-
-export type DevelopmentArea = {
-  key: string;
-  label: string;
-  state: DevelopmentState;
-  note: string;
-  href: string;
-};
-
-const developmentLabels: Record<string, string> = {
-  role_understanding: "Connecting your experience to the role",
-  examples: "Using real examples",
-  depth: "Explaining your decisions",
-  impact: "Showing your impact",
-};
-
-const notExploredNotes: Record<string, string> = {
-  role_understanding: "We haven't explored enough about how your experience connects to this role yet.",
-  examples: "We heard too little to understand how consistently you use real examples.",
-  depth: "We haven't asked enough about the decisions behind your work yet.",
-  impact: "We haven't heard enough about what changed because of your work yet.",
-};
 
 export function developmentState(value: string): DevelopmentState {
   if (value === "Strong" || value === "Clear") return "Coming through clearly";
@@ -111,22 +88,6 @@ export function developmentState(value: string): DevelopmentState {
   return "Not explored yet";
 }
 
-export function developmentAreas(review: Review): DevelopmentArea[] {
-  const byKey = new Map(review.dimensions.map((dimension) => [dimension.key, dimension]));
-  return Object.entries(developmentLabels).map(([key, label]) => {
-    const dimension = byKey.get(key);
-    const state = developmentState(dimension?.state ?? "");
-    return {
-      key,
-      label,
-      state,
-      note: state === "Not explored yet"
-        ? notExploredNotes[key]
-        : dimension?.note || "Complete another practice to learn more about this area.",
-      href: `/progress/${encodeURIComponent(key)}`,
-    };
-  });
-}
 
 export type PracticeOption = {
   role: string;
@@ -141,9 +102,9 @@ export function practiceOptions(sessions: DashboardDiagnostic[], onboarding: Onb
   const seen = new Set<string>();
   for (const session of sessions) {
     const key = session.target_role.trim().toLocaleLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
     const kind = sessionKind(session);
+    if (!key || seen.has(key) || kind === "abandoned") continue;
+    seen.add(key);
     if (kind === "in_progress") {
       options.push({ role: session.target_role, description: "Continue your saved practice", href: `/app/interview/${session.id}`, quickStart: false });
       continue;
@@ -227,6 +188,8 @@ export function sessionRow(session: DashboardDiagnostic, summary: DashboardSumma
       return { ...base, state: "Ready to begin", summary: "Role added · Experience ready", action: "Begin", href: `/app/interview/${session.id}` };
     case "failed":
       return { ...base, state: "Didn't finish", summary: "You can start again whenever you like", action: "Start again", href: newSessionHref(session.target_role) };
+    case "abandoned":
+      return { ...base, state: "Set aside", summary: "You stopped this practice", action: "Start again", href: newSessionHref(session.target_role) };
     default:
       return { ...base, state: "Setup in progress", summary: "Role added", action: "Continue", href: newSessionHref(session.target_role) };
   }

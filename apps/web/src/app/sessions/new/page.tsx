@@ -38,11 +38,14 @@ export default function NewSessionPage() {
   const [targetRole, setTargetRole] = useState("");
   // Carried through from Practice so the chosen way to practise survives setup.
   const [choice, setChoice] = useState<PracticeChoice | undefined>(undefined);
+  const [roleProfileId, setRoleProfileId] = useState<string | null>(null);
+  const idempotencyKey = useState(() => crypto.randomUUID())[0];
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const role = query.get("role");
     if (role) setTargetRole(role);
+    setRoleProfileId(query.get("role_profile_id"));
     setChoice(choiceFrom(query.get("mode"), query.get("focus"), query.get("theme")));
   }, []);
 
@@ -118,7 +121,7 @@ export default function NewSessionPage() {
 
       setStage(4);
       const practiceChoice = choice && choiceIsComplete(choice) ? choice : undefined;
-      const session = await mirrorApi.createSession(role, jdText, practiceChoice, roleAnalysis.id);
+      const session = await mirrorApi.createSession(role, jdText, practiceChoice, roleProfileId ?? roleAnalysis.id, idempotencyKey);
       await mirrorApi.linkSessionDocuments(session.id, [resumeDocument.id, roleBrief.id]);
       await mirrorApi.prepare(session.id);
       router.push(briefHref(session.id));

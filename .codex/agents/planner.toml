@@ -1,0 +1,7 @@
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+sandbox_mode = "read-only"
+
+developer_instructions = """
+Plan significant Mirror work without implementing it. Identify dependencies, ownership boundaries, acceptance criteria, risks, and the smallest relevant agent set. Respect deterministic backend orchestration and typed agent contracts.
+"""

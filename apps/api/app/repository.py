@@ -75,6 +75,7 @@ class SessionRepository(Protocol):
 class MemorySessionRepository:
     def __init__(self) -> None:
         self.sessions: dict[UUID, SessionRead] = {}
+        self.idempotency: dict[tuple[UUID, UUID], SessionRead] = {}
 
         self.events: dict[UUID, list[SessionEventRead]] = {}
 
@@ -86,6 +87,10 @@ class MemorySessionRepository:
         total_time_budget_seconds: int = 1200,
         phase_time_budget_seconds: int = 180,
     ) -> SessionRead:
+        if payload.idempotency_key:
+            existing = self.idempotency.get((user_id, payload.idempotency_key))
+            if existing:
+                return existing
         now = datetime.now(UTC)
         session = SessionRead(
             id=uuid4(),
@@ -111,6 +116,8 @@ class MemorySessionRepository:
             practice_theme=payload.practice_theme,
         )
         self.sessions[session.id] = session
+        if payload.idempotency_key:
+            self.idempotency[(user_id, payload.idempotency_key)] = session
         await self.record_event(session.id, user_id, "SESSION_CREATED", {})
         return session
 
@@ -183,12 +190,29 @@ class SupabaseSessionRepository:
     ) -> SessionRead:
         body = {
             "user_id": str(user_id),
-            **payload.model_dump(mode="json"),
+            **payload.model_dump(mode="json", exclude={"idempotency_key", "story_ids"}),
             "phase": "INTRO",
             "status": "CREATED",
             "total_time_budget_seconds": total_time_budget_seconds,
             "phase_time_budget_seconds": phase_time_budget_seconds,
         }
+        if payload.idempotency_key:
+            body["idempotency_key"] = str(payload.idempotency_key)
+            # A replayed request returns the session it already created, as the memory
+            # repository does, instead of hitting the unique (user_id, idempotency_key) index.
+            async with pooled(10) as client:
+                response = await client.get(
+                    f"{self.url}/rest/v1/sessions",
+                    headers=self.headers,
+                    params={
+                        "user_id": f"eq.{user_id}",
+                        "idempotency_key": f"eq.{payload.idempotency_key}",
+                        "select": SESSION_READ_COLUMNS,
+                    },
+                )
+                response.raise_for_status()
+                if rows := response.json():
+                    return SessionRead.model_validate(rows[0])
         async with pooled(10) as client:
             response = await client.post(
                 f"{self.url}/rest/v1/sessions",

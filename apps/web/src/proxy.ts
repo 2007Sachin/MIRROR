@@ -66,6 +66,8 @@ export const config = {
     "/evidence/:path*",
     "/roles/:path*",
     "/progress/:path*",
+    "/reflect/:path*",
+    "/plan/:path*",
     "/help/:path*",
     "/settings/:path*",
     "/onboarding",

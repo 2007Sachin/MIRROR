@@ -1,14 +1,15 @@
 /**
  * The full review of one practice.
  *
- * The plain-language reading of a review (what came through, what to improve, what
- * to practice next) is produced once by the backend and fetched from
+ * The plain-language reading of a review (what landed well, the one thing to strengthen,
+ * what to try next) is produced once by the backend and fetched from
  * `GET /api/v1/sessions/{id}/review`, so this page and the Home page always agree.
  * What is left here is presentation: pairing questions with answers, and attaching
  * the report's own notes to the answer they came from.
  */
 import type { PracticeChoice, PublicInterviewTurn, ReportEvidence, ReportResponse, SessionReview } from "@/lib/api";
 import { developmentState } from "@/lib/dashboard-view";
+import { focusFor } from "@/lib/practice-view";
 import { areaLabel } from "@/lib/progress-view";
 
 export type ReviewStrength = { key: string; label: string; note: string };
@@ -20,6 +21,18 @@ export function reviewStrengths(review: SessionReview | null, limit = 3): Review
     .filter((dimension) => developmentState(dimension.state) === "Coming through clearly")
     .slice(0, limit)
     .map((dimension) => ({ key: dimension.key, label: areaLabel(dimension.key), note: dimension.note }));
+}
+
+export type Strengthen = { title: string; note: string; from: string | null; need: string | null };
+
+/**
+ * The one thing to strengthen: the review's first improvement, which is its growth area when
+ * it has one. The role need is the practice area the server matched to that growth area.
+ */
+export function strengthenItem(review: SessionReview | null): Strengthen | null {
+  const first = review?.improvements[0];
+  if (!first) return null;
+  return { title: first.title, note: first.note, from: first.from_label, need: focusFor(review.practice_focus)?.title ?? null };
 }
 
 /**
@@ -92,21 +105,22 @@ function dedupe(quotes: ReportEvidence[]) {
   });
 }
 
-// ------------------------------------------------------------------- review -> retry
+// ------------------------------------------------------------------- review -> answers
 
-export type RetryTarget = { answerTurnId: string; question: string; answer: string };
+export type AnswerTarget = { answerTurnId: string; question: string; answer: string; quote: string | null };
 
 /**
- * Which answer each "needs more work" item can be retried on. An item is matched to an
- * answer the review itself marked as "could be clearer", in order, one answer per item.
- * When no such answer exists the item gets no retry, and offers practice instead.
+ * Which answer each reflection item came from. Items are matched, in order and one answer
+ * each, to answers the review itself marked the same way: "cameThrough" for what landed well,
+ * "couldBeClearer" for what to strengthen (and retry). With no such answer the item stands
+ * on its own; nothing is attached that the review did not record.
  */
-export function retryTargets(itemCount: number, blocks: AnswerBlock[]): Array<RetryTarget | null> {
-  const candidates = blocks.filter((block) => block.answerTurnId && block.answer && block.couldBeClearer.length);
+export function answerTargets(itemCount: number, blocks: AnswerBlock[], notes: "cameThrough" | "couldBeClearer"): Array<AnswerTarget | null> {
+  const matching = blocks.filter((block) => block.answerTurnId && block.answer && block[notes].length);
   return Array.from({ length: itemCount }, (_, index) => {
-    const block = candidates[index];
+    const block = matching[index];
     return block && block.answerTurnId && block.answer
-      ? { answerTurnId: block.answerTurnId, question: block.question, answer: block.answer }
+      ? { answerTurnId: block.answerTurnId, question: block.question, answer: block.answer, quote: block[notes][0]?.quote ?? null }
       : null;
   });
 }
