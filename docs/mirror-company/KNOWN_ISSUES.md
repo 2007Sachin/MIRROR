@@ -1,0 +1,34 @@
+# Known issues
+
+Severity: **H** blocks safe change · **M** degrades confidence/quality · **L** hygiene. Status: open unless stated. Labels: see `QUALITY_GATES.md`.
+
+| ID | Sev | Issue | Evidence | Suggested owner |
+|---|---|---|---|---|
+| KI-001 | M | `npm --workspace @mirror/web run typecheck` (and so `npm run lint`/`test`) fails on generated `apps/web/.next/dev/types/validator.ts` (TS1128) even though source has 0 type errors. `.next/` is gitignored output from an old dev run | VERIFIED-EXECUTED: tsc output; non-`.next` errors = 0 | Frontend Eng |
+| KI-002 | L | `node scripts/run-python.js` exits "stdin is not a tty" in non-interactive shells (child spawned with `stdio: 'inherit'`); `npm run test` therefore can't run headless this way | VERIFIED-EXECUTED | Backend Eng |
+| KI-003 | M | Doc drift: `READINESS_QA_STATUS.md` says 455 passed and migrations 0001–0007 not applied; actual 862 passed/13 skipped; commit `3a11221` says `202609240002–7` deployed | VERIFIED-EXECUTED (tests), STATIC-ONLY (docs) | CPO / QA |
+| KI-004 | **H** | PARTIALLY INSPECTED: retained exposed schema lacks four required objects; nine legacy tables had zero rows at inspection. Migration ledger, RLS/grants/triggers and enum compatibility remain UNKNOWN/BLOCKED. No hosted repair or replay authorized. | Historical read-only snapshot; independent Security follow-up; `HOSTED_SUPABASE_DRIFT.md` | Data/Supabase Eng + human |
+| KI-005 | **H** | CI configuration NOW EXISTS and scoped architecture/security review approves it. Actual GitHub/Linux clean CI execution remains NOT DONE; do not claim operational CI success. | `.github/workflows/ci.yml`; independent follow-up reports | Backend Eng |
+| KI-006 | **H** | Browser safety foundation NOW EXISTS (11 no-network tests pass) but actual build/browser execution intentionally refuses. Missing egress boundary, no-dotenv staging, minimal environment and build-identity proof; real desktop/mobile G3 remains BLOCKED. | Independently executed safety tests; `scripts/qa/browser/SAFETY.md` | QA Eng + Security/Data |
+| KI-007 | M | Executable AI evaluation exists (red-capable harness, independently approved). The five formerly strict known-gap contracts (B5 x2/B7/B12 x2) now PASS; `tests/ai_eval/README.md` still describes them as xfails and should be refreshed. | 1204 passed/3 skipped/0 xfailed (2026-10-04) | AI Evaluation Agent + AI Systems Eng |
+| KI-008 | M | Dormant legacy schema: `question_bank`, `question_reports`, `rubrics`, `outcomes`, `calibration_runs`, `golden_cases`, `colleges`, `roles`, `skills`; `company_id` columns with no FK | STATIC-ONLY (grep of migrations and app code) | Data/Supabase Eng |
+| KI-009 | M | Monoliths: `main.py` 2,540 lines; `api.ts` 1,360; `copy.ts` 1,503 | VERIFIED-EXECUTED (`wc -l`) | CTO |
+| KI-010 | M | `.env` + `.env.bak-*` live in an OneDrive-synced folder (gitignored, but synced to cloud). Contents not read | STATIC-ONLY | Human / Security Reviewer |
+| KI-011 | L | FastAPI `on_event` deprecation warnings (`main.py:306`) | VERIFIED-EXECUTED (pytest warnings) | Backend Eng |
+| KI-012 | M | Every agent uses one model/provider (`sarvam-105b-conversations`); no fallback or per-agent evaluation | STATIC-ONLY (`config.py`) | AI Systems Eng |
+| KI-013 | M | Attempt-aware Progress paused; Planner ignores Interview Map coverage and previous-session performance | STATIC-ONLY | CPO |
+| KI-014 | L | Repo root holds ~60 gitignored screenshots/logs from past QA; `docs/architecture.md` duplicates `docs/architecture/MIRROR_ARCHITECTURE.md` | STATIC-ONLY | Orchestrator |
+| KI-015 | M | Route naming/pathing inconsistencies (`/plan` vs `/roles/[id]`, `/reflect` vs `/progress`, `/app/*` prefix on only interview/report) | STATIC-ONLY | UX Lead |
+| KI-016 | **H** | B5 invented assessment evidence IDs (including quote-free outputs) accepted and persisted; unsupported support produces confident readiness. **Fix implemented 2026-10-04 (fresh/cached/report/aggregator); independently re-reviewed; B5 ACCEPTED. Residual: KI-016d document-sourced claim evidence not quote-verified.** Debt: KI-016a legacy provenance recovery not built; KI-016b UNAVAILABLE reports keep verdict code NOT_READY_YET; KI-016c one rejected specialist fails whole job. | B5 contracts pass; 1111 passed/3 skipped/3 xfailed | Backend / AI Systems Eng |
+| KI-017 | **H** | B7 adjudicator persisted rewritten specialist positions. **FIXED 2026-10-04, B7 ACCEPTED** (positions must equal detector-owned positions else decision dropped; repository/runner get deep copies; context divergence skipped; evidence allow-list snapshotted). Debt: KI-017a exact-echo brittleness vs live model (structural fix: remove specialist_positions from model output, schema change); KI-017b specialist models not frozen / append-only by convention+grants; KI-017c silent broad except + no drop metric in adjudication service. | 1123 passed/3 skipped/2 xfailed | Backend / AI Systems Eng |
+| KI-018 | **H** | B12 honest-beginner negation kept a contradiction probe; accusatory model text survived normalization. **FIXED 2026-10-04, B12 ACCEPTED** (negation-scope grounding; denial alone is not contradiction; hostile wording always replaced/rejected; discrepancy wording only when grounded; enforced at Skeptic store boundary and interviewer `_validated_decision`; no schema/prompt change). | 1204 passed/3 skipped/0 xfailed | AI Systems Eng |
+| KI-019 | M | B12 debt: grounding is lexical (4-char prefix, small stopword/irregular list); numeric/date/role conflicts without a negation cue are not grounded (pre-existing); denylist cannot be complete (e.g. 'making stuff up', 'you're overselling', 'level with me'); domain words block legitimate questions ('fraud detection', 'bogus alert', 'conflicts with', 'inconsistent') and fall back to the planned question; rejection uses fallback, not neutral_probe; OWNERSHIP_DRIFT retyping counts as grounded for wording; stored legacy flags and planned initial_question not re-scanned; replacement quotes a resume snippet (stiff aloud, deterministic repeat). | Independent reviews round 1-3 | AI Systems Eng / Conversation Designer |
+
+## Read-only SQL for KI-004 (for a human with project access)
+
+```sql
+select version from supabase_migrations.schema_migrations order by version;
+select relname, n_live_tup from pg_stat_user_tables
+ where relname in ('question_bank','question_reports','rubrics','outcomes','calibration_runs','golden_cases','colleges','roles','skills');
+select tablename, count(*) from pg_policies where schemaname='public' group by 1 order by 1;
+```
