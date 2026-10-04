@@ -1,6 +1,6 @@
-# LR-0001 — Trust baseline: LOOP 1 BLOCKED on G2 only (Gatekeeper 2026-10-04); G0, G1, G3, G4, G5 pass; B5, B7, B12 accepted
+# LR-0001 — Trust baseline: G2 PASS; closure PENDING final-branch CI / Gatekeeper
 
-Date: 2026-10-04. Baseline: `main` at `8e3193f`; work is uncommitted. This is a continuation receipt, NOT closure or release authorization.
+Date: 2026-10-04. Baseline: `main` at `8e3193f`; work is uncommitted. This is a continuation receipt, NOT closure or release authorization. Historical sections below describe their stated checkpoints; current disposition is in the hosted-remediation section.
 
 ## Objective
 Establish repeatable, truthful engineering and verification infrastructure before broad Interview Intelligence implementation. Scope is infrastructure/tests/organization documentation; production-service fixes and hosted mutations are deferred.
@@ -70,7 +70,7 @@ Reviews: round 1 AI-eval REJECT (paraphrases, unicode, 'actually' too broad, sni
 Tests: `apps/api/tests tests` -> **1204 passed, 3 skipped, 0 xfailed** (0 B5/B7/B12 xfails; the 3 skips are the pre-existing live-eval skipif). Two former xfails removed after XPASS and renamed; no test weakened.
 **G4 AI behaviour: PASS (deterministic fake-provider evaluation; no live-model evidence).** Known debt KI-019.
 
-## Failures and remaining blockers
+## Historical failures and remaining blockers (superseded by current disposition)
 1. **G3 browser BLOCKED:** approved OS/container egress boundary, isolated secret-free/no-dotenv staging/config, minimal runtime environment, exact build identity/provenance and real desktop/mobile browser integration absent. Current launcher and direct critical path refuse execution. See `scripts/qa/browser/SAFETY.md`.
 2. **G4 AI behaviour PASS (B5, B7, B12 accepted; deterministic evaluation).**
 3. **Hosted G2/catalog evidence BLOCKED:** migration ledger/RLS/grants/constraints/triggers and enum compatibility unknown. Retained exposed schema lacks four required objects, but specific migration history is NOT established. No replay/repair authorized.
@@ -85,11 +85,24 @@ Tests: `apps/api/tests tests` -> **1204 passed, 3 skipped, 0 xfailed** (0 B5/B7/
 - Independent review prevented false closure and exposed real defects that the original tests missed.
 - B5 fix demonstrates deterministic evidence validation: model-generated references cannot substitute for actual persisted content.
 
-## Next bounded work
+## Historical next bounded work (superseded)
 - B5: ACCEPTED (B5 only).
 - B5, B7, B12 ACCEPTED; known AI production-contract remediation phase complete. Remaining: G1 real CI, G2 hosted Supabase, G3 browser runtime, commit boundary.
 - Separate proposal needed for browser isolation environment or external blocker documentation.
 - Do not automatically start Loop2, migrations, paid infrastructure, or hosted actions.
 
-## Final closure attempt (2026-10-04) — LOOP 1 BLOCKED (G2 only)
+## Earlier closure attempt (2026-10-04) — historical G2 block, superseded
 Branch `loop1/trust-baseline` @ e885130, draft PR #1, not merged. Real CI (GitHub Linux): runs 37196654767 and 37196926810 green (Backend 1094 passed/1 skipped; AI eval 110 passed/2 skipped; copy lint; clean typecheck and production build; browser job 36 steps desktop+mobile). Local: 1204 passed/3 skipped/0 xfailed. Final reviews (Architecture, Security/Data, QA, Product): APPROVE, no blockers. Release Gatekeeper: **LOOP 1 BLOCKED** — G2: hosted RLS/policies/grants/migration ledger unknown; `202610010002` state unknown. Owner action: run `scripts/ops/hosted_catalog_readonly.sql` in the Supabase SQL editor (SELECT-only), save the JSON, state whether `202610010002` is applied (or waive G2 in RELEASES.md). Known debt: KI-016a-d, KI-017a-c, KI-019, KI-020, KI-021, KI-022. See QUALITY_GATES.md and RELEASES.md.
+
+## Hosted remediation and verification — 2026-10-04 (current)
+
+**G2 PASS; Loop 1 closure PENDING final-branch CI and Release Gatekeeper re-decision.** This is not Loop 1 acceptance, merge authorization or a production release. Earlier green CI runs certify their recorded commits only; historical red commits remain red.
+
+- Owner explicitly retired the nutrition application and authorized destruction of its obsolete nutrition data. Architecture, Data and Security independently approved the exact two-table scope; Security's generic retention condition was resolved by that explicit authorization, not by an asserted backup. After fresh live identity/dependency-closure refresh against the approved local manifest, the parent executed only `DROP TABLE public.detailed_food_logs RESTRICT;` and `DROP TABLE public.nutrition_goals RESTRICT;`. No CASCADE, Mirror-row mutation, shared/auth/storage removal or blanket migration replay was authorized. Raw catalogs and the deletion manifest remain local and ignored.
+- Hosted cleanup ledger: `20261004121203` / `retire_verified_nutrition_tables`. Repository parity file: `supabase/migrations/20261004121203_retire_verified_nutrition_tables.sql`; its two `IF EXISTS` drops are idempotent for clean checkouts where nutrition never existed. Deployed SQL lacked `IF EXISTS`: freshly verified table existence made the two forms equivalent for that execution. This records completed scoped cleanup, not permission to apply migrations elsewhere.
+- Independent fresh SELECT-only Security/Data review (`scratch/g2_post_remediation_review.md`): both nutrition tables and their inventoried automatic dependents absent; 49 retained public Mirror tables retain RLS and no anon table grants. Retained Mirror/auth/storage security metadata, policies, grants, constraints and triggers preserved except the explicitly approved lifecycle-function replacement; all 123 public foreign keys preserved. No application rows or storage objects were read for that review.
+- Hosted `20261004121238` / `session_abandoned` installs the exact existing repository `202610010002_session_abandoned.sql` enum/function behavior. Filename/ledger numbering differs: expected version drift, not missing behavior; do not replay the repository migration merely to force ledger equality. Four absent future-feature tables (`interview_events`, `interview_debriefs`, `evidence_items`, `coverage_links`) remain off Loop 1 paths and are not repaired or waived. Existing lowercase enum labels, `update_claim_status` service-role EXECUTE absence and excess authenticated story/practice privileges remain separately scoped debt.
+- Attributed executed evidence: 127 lifecycle/consumer tests passed (memory/fake persistence); exact migration applied twice to a minimal isolated PostgreSQL fixture, with 225 real-trigger transition pairs and 10 immutable-budget checks passing each time. This is not the full hosted schema. **Isolated real-RPC integration EXECUTED** (`scratch/abandonment_rpc_integration.md`): actual FastAPI router → InterviewStateMachine → SupabaseSessionRepository → local psql transport adapter → exact `apply_interview_state_change` SQL → persisted state/events. CREATED/PREPARING/READY/ACTIVE return 200 with one event; retries are idempotent; foreign/anonymous endpoint requests return 404/401; invalid states return 409 unchanged. Concurrent calls return 200/200 with exactly one event; forced event-insert failure rolls back the complete session update atomically. Fresh repository reads projected through DashboardDiagnostic exclude abandoned sessions from activity/practice eligibility. SQL EXECUTE denial for anon/authenticated roles was checked separately. Minimal synthetic schema and synthetic authentication are used; this does not verify PostgREST/JWT/browser/hosted RLS/service-role grants, full home/readiness recomputation, the deferred pending-write race or live review enqueue.
+- Post-remediation local regression (`scratch/post_remediation_regression.md`, checkout `3d08c9e`): 1204 passed, 3 skipped, 0 failed/0 xfailed; AI partition 110 passed/2 skipped, non-AI 1094 passed/1 skipped; Node tooling 5 passed and browser-safety 16 passed; frontend typecheck, copy lint (169 files, 0 banned hits, 3 soft warnings), production build (11/11 static pages) all exit 0. These are attributed local executions, not a new browser journey, live-model run or final-branch GitHub CI.
+
+KI-016..022 residual debt is retained without fixes or waivers (KI-021's original G2 blockers are resolved, not a blanket compatibility certification). Remaining closure work: review this reconciliation and migration parity file, obtain real CI on the final branch revision, then obtain the Gatekeeper's explicit final decision. Commit/push and exact-final-HEAD CI evidence are recorded separately in ignored `scratch/final_branch_ci.json` and `.md`; no merge, deployment, Loop 2 or acceptance is authorized by this documentation update.
