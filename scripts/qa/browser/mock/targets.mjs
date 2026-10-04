@@ -54,8 +54,16 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
 
   const err = (status, detail) => ({ status, body: { detail } });
   const disabled = () => state.scenario.targets === "disabled";
-  const view = (target) =>
-    state.scenario.blueprint === "no_notes" ? { ...target, company_key: null, company_label: "QA Company (synthetic)" } : target;
+  const view = (target) => {
+    if (state.scenario.blueprint === "researched") {
+      const synthetic = fixture("blueprint_researched.json").target;
+      return { ...target, company_label: synthetic.company_label, company_key: synthetic.company_key,
+        geography_key: synthetic.geography_key, geography_label: synthetic.geography_label, level_key: synthetic.level_key };
+    }
+    return state.scenario.blueprint === "no_notes"
+      ? { ...target, company_key: null, company_label: "QA Company (synthetic)" }
+      : target;
+  };
   const owned = (id) => {
     const target = state.targets.get(id);
     return target ? view(target) : null;

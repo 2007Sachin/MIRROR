@@ -59,6 +59,9 @@ test("error and unavailable states are deliberate mocked answers, not unmocked 4
 test("researched scenario carries a conflict side by side and a synthetic text only", () => {
   const { mock, get } = setup();
   mock.setScenario({ blueprint: "researched" });
+  const target = get("/api/v1/targets").body.targets[0];
+  assert.equal(target.company_label, "QA Fictional Company");
+  assert.equal(target.geography_key, "qa_land");
   const view = get(`/api/v1/targets/${TARGET_IDS.target}/blueprint`).body;
   assert.equal(view.match_state, "RESEARCHED");
   assert.equal(view.conflicts[0].claims.length, 2);
