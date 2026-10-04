@@ -1,0 +1,16 @@
+{
+  "name": "@mirror/qa-browser",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Hermetic browser QA for Mirror's critical candidate path (fake Supabase Auth + fake Mirror API, real Next build, system Chrome/Edge).",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node run.mjs",
+    "test:build": "node run.mjs --build",
+    "start-mock": "node start-mock.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.63.0"
+  }
+}

@@ -1,4 +1,5 @@
 const { spawn } = require("child_process");
+const { resolveExitCode } = require("./exit-code");
 const path = require("path");
 
 const projectRoot = path.resolve(__dirname, "..");
@@ -23,4 +24,4 @@ const child = spawn(
   },
 );
 
-child.on("exit", (code) => process.exit(code ?? 0));
+child.on("exit", (code, signal) => process.exit(resolveExitCode(code, signal)));

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -21,10 +22,13 @@ from .report_models import (
 )
 from .schemas import SessionEventRead, SessionRead, SessionStatus
 from .repository import SESSION_READ_COLUMNS
+from .evidence_validator import assessment_evidence_is_verifiable, candidate_turns_from_rows, quote_is_verifiable
 from .specialist_assessor_models import SpecialistAssessmentOutput
 from .verdict_models import VerdictCode
 from .verdict_service import SAFE_CONFIDENCE_NOTE, SAFE_SUMMARY
 
+logger = logging.getLogger("mirror.report")
+UNVERIFIABLE_LEGACY_PROVENANCE = "UNVERIFIABLE_LEGACY_PROVENANCE"
 SAFE_SKILL_NOTE = "This part of your conversation had something worth noting, and there is a little more to say as you practice."
 
 
@@ -142,6 +146,14 @@ class SupabaseReportRepository(SupabaseClaimsGraphRepository):
             "limit": "30",
         })
 
+    async def list_turns(self, session_id: UUID, user_id: UUID) -> list[dict[str, Any]]:
+        """Persisted turns of this owned session (same 100-turn horizon assessors saw)."""
+        sessions = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": "id", "limit": "1"})
+        if not sessions:
+            return []
+        rows = await self._get("turns", {"session_id": f"eq.{session_id}", "select": "id,speaker,text,turn_index", "order": "turn_index.asc", "limit": "100"})
+        return [{**row, "speaker": str(row.get("speaker", "")).upper()} for row in rows]
+
     async def count_candidate_turns(self, session_id: UUID, user_id: UUID) -> int:
         sessions = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": "id", "limit": "1"})
         if not sessions:
@@ -184,6 +196,18 @@ class ReportService:
             raise
         except ClaimsGraphUnavailable as exc:
             raise ReportUnavailable from exc
+        # B5: report evidence is trusted only if it resolves to candidate-authored
+        # turns of this session. Unknown provenance => unavailable, never a score.
+        candidate_turns = None
+        list_turns = getattr(self._repository, "list_turns", None)
+        if list_turns is not None:
+            try:
+                candidate_turns = candidate_turns_from_rows(await list_turns(session_id, user_id))
+            except ClaimsGraphUnavailable:
+                candidate_turns = None
+        provenance_ok = self._provenance_established(specialists, candidate_turns)
+        evidence_rows = self._verified_evidence_rows(evidence_rows, candidate_turns)
+        events = self._verified_events(events, candidate_turns)
         evidence_by_claim = self._evidence_by_claim(evidence_rows, events)
         answered: int | None = None
         counter = getattr(self._repository, "count_candidate_turns", None)
@@ -206,6 +230,13 @@ class ReportService:
             duration_seconds=self._duration(session),
             assessment_confidence=confidence,
         )
+        if not provenance_ok:
+            logger.warning("report result unavailable", extra={"session_id": str(session_id), "reason": UNVERIFIABLE_LEGACY_PROVENANCE})
+            result = {**result, "summary": "", "confidence_note": "", "root_cause_code": "UNAVAILABLE", "root_cause": "UNAVAILABLE",
+                      "role_readiness_low": None, "role_readiness_high": None,
+                      "interview_readiness_low": None, "interview_readiness_high": None,
+                      "availability_status": "UNAVAILABLE"}
+            specialists = []
         role = self._readiness(result, "role", confidence)
         interview = self._readiness(result, "interview", confidence)
         verdict_code = self._verdict_code(result)
@@ -232,6 +263,47 @@ class ReportService:
             prescription=None,
             shorter_conversation=shorter,
         )
+
+    @staticmethod
+    def _provenance_established(specialists: list[dict[str, Any]], candidate_turns) -> bool:
+        """True only if the final result's specialist inputs exist and all resolve to real candidate turns."""
+        if candidate_turns is None or not specialists:
+            return False
+        latest: dict[str, dict[str, Any]] = {}
+        for row in sorted(specialists, key=lambda r: str(r.get("created_at") or ""), reverse=True):
+            latest.setdefault(str(row.get("assessor_type", "")).upper(), row)
+        for row in latest.values():
+            try:
+                parsed = SpecialistAssessmentOutput.model_validate(row.get("result_json") or {})
+            except Exception:
+                return False
+            if not assessment_evidence_is_verifiable(parsed, candidate_turns):
+                return False
+        return True
+
+    @staticmethod
+    def _verified_evidence_rows(rows: list[dict[str, Any]], candidate_turns) -> list[dict[str, Any]]:
+        kept = []
+        for row in rows:
+            if row.get("turn_id"):
+                turn_id = _uuid(row.get("turn_id"))
+                if not quote_is_verifiable(turn_id, str(row.get("quote_text") or ""), candidate_turns):
+                    continue
+            elif not row.get("document_id"):
+                continue  # neither transcript turn nor source document: unresolvable
+            kept.append(row)
+        return kept
+
+    @staticmethod
+    def _verified_events(events: list[SessionEventRead], candidate_turns) -> list[SessionEventRead]:
+        out = []
+        for event in events:
+            quote, turn_id = event.payload.get("quote"), _uuid(event.payload.get("turn_id"))
+            if quote and not quote_is_verifiable(turn_id, str(quote), candidate_turns):
+                payload = {k: v for k, v in event.payload.items() if k not in {"quote", "turn_id"}}
+                event = event.model_copy(update={"payload": payload})
+            out.append(event)
+        return out
 
     @staticmethod
     def _duration(session: SessionRead) -> int:

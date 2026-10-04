@@ -25,6 +25,10 @@ from .skeptic_models import (
     SkepticContext,
     SkepticProcessSummary,
 )
+from .interviewer_models import TurnSpeaker
+from .probe_safety import (
+    neutral_reason, safe_probe_text, safe_reason_text, statements_conflict,
+)
 from .skeptic_repository import SkepticRepository
 
 
@@ -36,10 +40,6 @@ INSTRUCTION_PATTERNS = (
     "do not flag",
     "don't flag",
     "system prompt",
-)
-CONFLICT_MARKERS = re.compile(
-    r"\b(i did not|i didn't|i never|not me|instead of|actually did not|was not involved)\b",
-    re.IGNORECASE,
 )
 
 
@@ -222,48 +222,70 @@ class SkepticResultProcessor:
     def _conservative_normalization(
         cls, analysis: SkepticAnalysis, context: SkepticContext
     ) -> SkepticAnalysis:
-        if CONFLICT_MARKERS.search(context.current_turn.text):
-            return analysis
+        # B12: a model-asserted contradiction survives only if it is grounded in
+        # candidate-authored statements (see probe_safety.statements_conflict). A denial
+        # or negation in the current answer is not, by itself, a contradiction.
         claims = {
             claim.id: claim
             for claim in context.related_resume_claims + context.related_spoken_claims
         }
-        observations = [
-            item.model_copy(
-                update={
-                    "observation_type": cls._fallback_type(
-                        context.current_turn.text,
-                        claims.get(item.related_claim_ids[0]).claim_text
-                        if item.related_claim_ids and item.related_claim_ids[0] in claims
-                        else "",
-                    )
-                }
-            )
-            if item.observation_type == ObservationType.CONTRADICTION
-            else item
-            for item in analysis.observations
-        ]
-        flags = [
-            item.model_copy(
-                update={
-                    "flag_type": cls._fallback_type(
-                        context.current_turn.text,
-                        claims[item.claim_id].claim_text
-                        if item.claim_id in claims
-                        else "",
-                    )
-                }
-            )
-            if item.flag_type == ObservationType.CONTRADICTION
-            else item
-            for item in analysis.flag_proposals
-        ]
-        updates = [
-            item.model_copy(update={"proposed_status": ClaimStatus.INSUFFICIENT_EVIDENCE})
-            if item.proposed_status == ClaimStatus.CONTRADICTED
-            else item
-            for item in analysis.claim_updates
-        ]
+        current = context.current_turn
+        prior = {
+            turn.id: turn for turn in context.relevant_prior_turns
+            if turn.speaker == TurnSpeaker.CANDIDATE and turn.id != current.id
+        }
+
+        def grounded(claim_ids: list[UUID], turn_ids: list[UUID]) -> bool:
+            for claim_id in claim_ids:
+                claim = claims.get(claim_id)
+                if claim and statements_conflict(current.text, claim.claim_text, statement_is_spoken_turn=False):
+                    return True
+            for turn_id in turn_ids:
+                turn = prior.get(turn_id)
+                if turn and statements_conflict(current.text, turn.text, statement_is_spoken_turn=True):
+                    return True
+            return False
+
+        def claim_text_for(claim_ids: list[UUID]) -> str | None:
+            for claim_id in claim_ids:
+                if claim_id in claims:
+                    return claims[claim_id].claim_text
+            return None
+
+        observations = []
+        for item in analysis.observations:
+            ids = list(item.related_claim_ids)
+            is_contradiction = item.observation_type == ObservationType.CONTRADICTION
+            ok = is_contradiction and grounded(ids, list(item.related_turn_ids))
+            if is_contradiction and not ok:
+                item = item.model_copy(update={
+                    "observation_type": cls._fallback_type(current.text, claim_text_for(ids) or ""),
+                    "summary": neutral_reason(claim_text=claim_text_for(ids), grounded_discrepancy=False),
+                })
+            else:
+                item = item.model_copy(update={"summary": safe_reason_text(
+                    item.summary, claim_text=claim_text_for(ids), grounded_discrepancy=ok)})
+            observations.append(item)
+        flags = []
+        for item in analysis.flag_proposals:
+            ids = [item.claim_id] if item.claim_id else []
+            is_contradiction = item.flag_type == ObservationType.CONTRADICTION
+            ok = is_contradiction and grounded(ids, list(item.related_turn_ids))
+            update: dict = {}
+            if is_contradiction and not ok:
+                update["flag_type"] = cls._fallback_type(current.text, claim_text_for(ids) or "")
+            claim_text = claim_text_for(ids)
+            update["reason"] = safe_reason_text(item.reason, claim_text=claim_text, grounded_discrepancy=ok)
+            update["suggested_probe"] = safe_probe_text(item.suggested_probe, claim_text=claim_text, grounded_discrepancy=ok)
+            flags.append(item.model_copy(update=update))
+        updates = []
+        for item in analysis.claim_updates:
+            if item.proposed_status == ClaimStatus.CONTRADICTED and not grounded([item.claim_id], list(item.related_turn_ids)):
+                item = item.model_copy(update={
+                    "proposed_status": ClaimStatus.INSUFFICIENT_EVIDENCE,
+                    "reason": neutral_reason(claim_text=claim_text_for([item.claim_id]), grounded_discrepancy=False),
+                })
+            updates.append(item)
         return analysis.model_copy(
             update={"observations": observations, "flag_proposals": flags, "claim_updates": updates}
         )

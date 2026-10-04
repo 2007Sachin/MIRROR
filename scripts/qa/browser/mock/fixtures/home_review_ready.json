@@ -1,0 +1,70 @@
+{
+  "state": "REVIEW_READY",
+  "roles": [
+    {
+      "role_profile_id": "00000000-0000-4000-8000-000000000002",
+      "target_role": "QA Analyst (test role)"
+    }
+  ],
+  "selected": {
+    "role_profile_id": "00000000-0000-4000-8000-000000000002",
+    "target_role": "QA Analyst (test role)"
+  },
+  "active": null,
+  "other_active": null,
+  "review": {
+    "session_id": "00000000-0000-4000-8000-000000000101",
+    "kind": "REVIEW_READY",
+    "target_role": "QA Analyst (test role)",
+    "practice_mode": "QUICK_DRILL",
+    "practice_focus": "project",
+    "practice_theme": null,
+    "question_count": 3,
+    "finished_at": "2026-01-01T09:00:00Z"
+  },
+  "next_step": {
+    "role_profile_id": "00000000-0000-4000-8000-000000000002",
+    "target_role": "QA Analyst (test role)",
+    "mode": "QUICK_DRILL",
+    "focus": "impact",
+    "theme": null,
+    "reason": "Your project answer could say more about what changed because of your work.",
+    "dimension": "impact"
+  },
+  "progress": {
+    "stage": "BASELINE",
+    "practice_count": 1,
+    "last_practised_at": "2026-01-01T09:00:00Z",
+    "insights": [],
+    "highlights": [
+      {
+        "dimension": "examples",
+        "state": "Clear",
+        "note": "You used a concrete example."
+      }
+    ]
+  },
+  "map": {
+    "state": "READY",
+    "without_example": 2
+  },
+  "stories": {
+    "state": "READY",
+    "ready": 0,
+    "developing": 0
+  },
+  "activity": [
+    {
+      "kind": "PRACTICE",
+      "at": "2026-01-01T09:00:00Z",
+      "session_id": "00000000-0000-4000-8000-000000000101",
+      "story_id": null,
+      "title": "Quick drill",
+      "session_kind": "REVIEW_READY",
+      "practice_mode": "QUICK_DRILL",
+      "practice_focus": "project",
+      "practice_theme": null
+    }
+  ],
+  "upcoming_interview": null
+}

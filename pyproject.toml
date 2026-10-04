@@ -1,5 +1,8 @@
 [tool.pytest.ini_options]
 pythonpath = ["apps/api"]
-testpaths = ["apps/api/tests", "tests/unit", "tests/personas"]
+testpaths = ["apps/api/tests", "tests/unit", "tests/personas", "tests/ai_eval"]
 addopts = "-q -p no:logfire -p no:pytest_logfire"
+markers = [
+  "ai_eval: deterministic AI behavioural evaluation (fake provider, no network)",
+]
 

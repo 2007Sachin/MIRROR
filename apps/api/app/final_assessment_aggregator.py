@@ -11,14 +11,17 @@ class FinalAssessmentAggregator:
         self._high_width = high_signal_half_width
 
     def aggregate(self, bundle) -> AggregatedAssessment:
+        # A missing row (never produced, rejected by B5 evidence validation, or
+        # otherwise unverifiable) is UNKNOWN: it is excluded from the weighted
+        # score instead of being scored as weakness, and lowers confidence only.
         rows = {AssessorType.TECHNICAL: bundle.technical, AssessorType.BEHAVIOUR: bundle.behaviour, AssessorType.CLAIMS: bundle.claims}
         values = {kind: self._value(rows[kind]) for kind in rows}
         confidence = sum(row is not None and row.status == SpecialistStatus.COMPLETE for row in rows.values()) / 3
-        role = round(values[AssessorType.TECHNICAL] * .7 + values[AssessorType.CLAIMS] * .3, 1)
-        interview = round(values[AssessorType.BEHAVIOUR] * .7 + values[AssessorType.CLAIMS] * .3, 1)
+        role = self._weighted(((values[AssessorType.TECHNICAL], .7, rows[AssessorType.TECHNICAL]), (values[AssessorType.CLAIMS], .3, rows[AssessorType.CLAIMS])))
+        interview = self._weighted(((values[AssessorType.BEHAVIOUR], .7, rows[AssessorType.BEHAVIOUR]), (values[AssessorType.CLAIMS], .3, rows[AssessorType.CLAIMS])))
         width = round(self._low_width - (self._low_width - self._high_width) * confidence)
         verdict = self._verdict(role, interview, confidence)
-        root = self._root_cause(values)
+        root = self._root_cause({k: v for k, v in values.items() if rows[k] is not None} or values)
         return AggregatedAssessment(
             role_readiness_internal=role, interview_readiness_internal=interview,
             role_readiness_low=max(0, round(role-width)), role_readiness_high=min(100, round(role+width)),
@@ -27,6 +30,14 @@ class FinalAssessmentAggregator:
             availability_status="AVAILABLE" if confidence >= 2/3 else "LIMITED_SIGNAL",
             verdict_code=verdict, root_cause_code=root,
         )
+
+    @staticmethod
+    def _weighted(parts) -> float:
+        known = [(value, weight) for value, weight, row in parts if row is not None]
+        if not known:  # no verified input: unchanged legacy floor; confidence is 0 so the range stays widest and availability LIMITED_SIGNAL
+            return 25
+        total = sum(weight for _, weight in known)
+        return round(sum(value * weight for value, weight in known) / total, 1)
 
     @staticmethod
     def _value(row) -> float:

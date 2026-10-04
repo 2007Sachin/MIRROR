@@ -1,0 +1,35 @@
+{
+  "state": "FIRST_PRACTICE",
+  "roles": [
+    {
+      "role_profile_id": "00000000-0000-4000-8000-000000000002",
+      "target_role": "QA Analyst (test role)"
+    }
+  ],
+  "selected": {
+    "role_profile_id": "00000000-0000-4000-8000-000000000002",
+    "target_role": "QA Analyst (test role)"
+  },
+  "active": null,
+  "other_active": null,
+  "review": null,
+  "next_step": null,
+  "progress": {
+    "stage": "NONE",
+    "practice_count": 0,
+    "last_practised_at": null,
+    "insights": [],
+    "highlights": []
+  },
+  "map": {
+    "state": "READY",
+    "without_example": 2
+  },
+  "stories": {
+    "state": "READY",
+    "ready": 0,
+    "developing": 0
+  },
+  "activity": [],
+  "upcoming_interview": null
+}
