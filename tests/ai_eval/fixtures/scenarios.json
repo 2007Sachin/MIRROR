@@ -1,0 +1,132 @@
+{
+  "version": "ai-eval-scenarios-v1",
+  "source": "synthetic",
+  "note": "All people, products and numbers are invented. 'marker' is a unique token used by the cross-candidate leak check. 'category' is the ground-truth label used by checks; 'skeptic' is the scripted reference output of a well-behaved Skeptic model for that turn.",
+  "candidates": [
+    {
+      "id": "P1", "name": "Inflater", "marker": "Zephyrix",
+      "claims": [
+        {"key": "c1", "type": "SCALE", "text": "Led the Zephyrix payments migration serving 2 million users"}
+      ],
+      "turns": [
+        {"key": "t1", "category": "inflated",
+         "q": "Tell me about the Zephyrix payments migration you led.",
+         "text": "Yes, I led the whole Zephyrix payments migration for two million users, mostly by myself, in about a week.",
+         "skeptic": {
+           "flags": [{"flag_type": "UNSUPPORTED_SCALE", "claim": "c1", "severity": "HIGH", "confidence": 0.9,
+                      "reason": "A one-week solo migration of two million Zephyrix payments users is stated without any mechanism or rollout detail.",
+                      "probe": "How did you roll the Zephyrix payments migration out to two million users in a week?"}],
+           "observations": [{"observation_type": "UNSUPPORTED_SCALE", "claim": "c1", "confidence": 0.85,
+                             "summary": "Scale of two million users is asserted without rollout detail."}]}},
+        {"key": "t2", "category": "vague",
+         "q": "What was the hardest part of the migration?",
+         "text": "The traffic was big and we moved it over carefully with some tooling.",
+         "skeptic": {
+           "flags": [{"flag_type": "VAGUENESS", "claim": "c1", "severity": "MEDIUM", "confidence": 0.85,
+                      "reason": "The answer says traffic moved 'with some tooling' but names no tool or step for the payments migration.",
+                      "probe": "Which tooling moved the payments traffic, and what did you do with it?"}],
+           "observations": []}}
+      ]
+    },
+    {
+      "id": "P2", "name": "Underseller", "marker": "Brindle",
+      "claims": [
+        {"key": "c1", "type": "TOOL", "text": "Maintained the Brindle nightly reconciliation job in Python"}
+      ],
+      "turns": [
+        {"key": "t1", "category": "strong",
+         "q": "Walk me through the reconciliation job.",
+         "text": "I wrote the Brindle nightly reconciliation job in Python with pandas. It matched about 40,000 ledger rows against bank files, and I added a checksum step after a duplicate-row bug. It is only a small script though.",
+         "skeptic": {"flags": [], "observations": [{"observation_type": "CORROBORATION", "claim": "c1", "confidence": 0.8,
+                      "summary": "Concrete pandas matching and checksum detail supports the reconciliation job claim."}]}}
+      ]
+    },
+    {
+      "id": "P3", "name": "Rehearsed", "marker": "Calloway",
+      "claims": [
+        {"key": "c1", "type": "RESPONSIBILITY", "text": "Improved Calloway team delivery through data-driven collaboration"}
+      ],
+      "turns": [
+        {"key": "t1", "category": "vague",
+         "q": "How did you improve Calloway team delivery?",
+         "text": "I believe in iterative, data-driven collaboration with stakeholders to drive impact and align on priorities.",
+         "skeptic": {
+           "flags": [{"flag_type": "VAGUENESS", "claim": "c1", "severity": "MEDIUM", "confidence": 0.85,
+                      "reason": "The data-driven collaboration answer for Calloway delivery gives no example, metric or decision.",
+                      "probe": "Can you give one concrete example of how data changed Calloway team delivery?"}],
+           "observations": []}}
+      ]
+    },
+    {
+      "id": "P4", "name": "Collapser", "marker": "Oakhurst",
+      "claims": [
+        {"key": "c1", "type": "SKILL", "text": "Designed Oakhurst PostgreSQL indexes for reporting queries"}
+      ],
+      "turns": [
+        {"key": "t1", "category": "strong",
+         "q": "Describe your Oakhurst indexing work.",
+         "text": "For the Oakhurst PostgreSQL reporting queries I replaced a sequential scan with a composite index on account and date. Query time dropped from 12 seconds to under 1 second in staging.",
+         "skeptic": {"flags": [], "observations": [{"observation_type": "CORROBORATION", "claim": "c1", "confidence": 0.8,
+                      "summary": "Composite index and measured query-time drop support the PostgreSQL indexing claim."}]}},
+        {"key": "t2", "category": "collapse",
+         "q": "Why a composite index rather than two single-column indexes?",
+         "text": "Um, I, it was a while ago, I am not sure honestly.",
+         "skeptic": {"flags": [], "observations": [{"observation_type": "CLARIFICATION", "claim": "c1", "confidence": 0.5,
+                      "summary": "Candidate could not recall the index design rationale under follow-up."}]}}
+      ]
+    },
+    {
+      "id": "P5", "name": "Honest Beginner", "marker": "Quillon",
+      "claims": [
+        {"key": "c1", "type": "PROJECT", "text": "Built a Quillon to-do app with Flask while learning"}
+      ],
+      "turns": [
+        {"key": "t1", "category": "honest_beginner",
+         "q": "Tell me about the Quillon to-do app.",
+         "text": "I am just starting out. I followed a tutorial to build a Quillon to-do app with Flask, and I do not know how the database layer works yet.",
+         "skeptic": {"flags": [], "observations": [{"observation_type": "CLARIFICATION", "claim": "c1", "confidence": 0.7,
+                      "summary": "Candidate openly describes the Quillon to-do app as tutorial-based with limited database knowledge."}]}},
+        {"key": "t2", "category": "honest_beginner",
+         "q": "What would you learn next?",
+         "text": "Probably SQL first. I have only used the tutorial's built-in storage for the Quillon to-do app.",
+         "skeptic": {"flags": [], "observations": [{"observation_type": "ADDITIONAL_DETAIL", "claim": "c1", "confidence": 0.7,
+                      "summary": "Candidate adds that the Quillon app used tutorial storage only."}]}}
+      ]
+    },
+    {
+      "id": "P6", "name": "Coasting Contributor", "marker": "Harrowgate",
+      "claims": [
+        {"key": "c1", "type": "OWNERSHIP", "text": "Built the Harrowgate reporting dashboard"}
+      ],
+      "turns": [
+        {"key": "t1", "category": "ownership_drift",
+         "q": "What did you build on the Harrowgate reporting dashboard?",
+         "text": "My teammate designed most of the Harrowgate dashboard and I mainly connected the APIs.",
+         "skeptic": {
+           "flags": [{"flag_type": "OWNERSHIP_DRIFT", "claim": "c1", "severity": "HIGH", "confidence": 0.9,
+                      "reason": "The resume says the candidate built the Harrowgate dashboard, but the answer attributes most of the design to a teammate.",
+                      "probe": "Which parts of the Harrowgate dashboard did you personally build?"}],
+           "observations": [{"observation_type": "OWNERSHIP_DRIFT", "claim": "c1", "confidence": 0.85,
+                             "summary": "Ownership of the Harrowgate dashboard narrowed to API integration."}]}}
+      ]
+    },
+    {
+      "id": "P7", "name": "Strong Candidate", "marker": "Lindqvist",
+      "claims": [
+        {"key": "c1", "type": "OUTCOME", "text": "Cut Lindqvist API p95 latency from 800ms to 320ms with Redis caching"}
+      ],
+      "turns": [
+        {"key": "t1", "category": "strong",
+         "q": "Tell me about the Lindqvist latency improvement.",
+         "text": "I added a Redis read-through cache on the Lindqvist product endpoint. In the load test p95 went from 800ms to 320ms, and I checked the cache hit rate was 87 percent before shipping.",
+         "skeptic": {"flags": [], "observations": [{"observation_type": "CORROBORATION", "claim": "c1", "confidence": 0.9,
+                      "summary": "Redis read-through cache with measured p95 change supports the latency claim."}]}},
+        {"key": "t2", "category": "strong",
+         "q": "How did you handle cache invalidation?",
+         "text": "Writes to a Lindqvist product publish an event that deletes the key, and I set a five minute TTL as a safety net. I tested stale reads with a script that updates then immediately reads.",
+         "skeptic": {"flags": [], "observations": [{"observation_type": "ADDITIONAL_DETAIL", "claim": "c1", "confidence": 0.85,
+                      "summary": "Event-driven key deletion with TTL adds depth to the Redis caching claim."}]}}
+      ]
+    }
+  ]
+}
