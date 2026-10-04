@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowRight, Compass, Play } from "@phosphor-icons/react";
+import { ArrowRight } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { StepHeading, type Report } from "@/components/onboarding/shared";
 import { mirrorApi, type InterviewMap, type PracticeChoice } from "@/lib/api";
 import { getEvidence, type EvidenceItem } from "@/lib/api-evidence";
 import { onboardingCopy } from "@/lib/copy-onboarding";
+import { planHref } from "@/lib/copy-targets";
 import { isFocusKey, startPracticeHref } from "@/lib/practice-view";
 
 const t = onboardingCopy.plan;
@@ -125,12 +126,12 @@ export function PlanReadyStep({
           </section>
         </div>
       )}
-      <div className="op-exits">
-        <button type="button" className="op-exit op-target" disabled={leaving} onClick={() => void leave(practiceHref)}>
-          <Play size={18} aria-hidden="true" /> {leaving ? t.opening : t.start} <ArrowRight size={16} aria-hidden="true" />
+      <div className="op-exit-row">
+        <button type="button" className="button-primary op-target" disabled={leaving} onClick={() => void leave(planHref(roleProfileId))}>
+          {leaving ? t.opening : t.seePlan} <ArrowRight size={16} aria-hidden="true" />
         </button>
-        <button type="button" className="op-exit op-target" disabled={leaving} onClick={() => void leave("/dashboard")}>
-          <Compass size={18} aria-hidden="true" /> {leaving ? t.opening : t.explore} <ArrowRight size={16} aria-hidden="true" />
+        <button type="button" className="op-text op-target" disabled={leaving} onClick={() => void leave(practiceHref)}>
+          {t.startInstead}
         </button>
       </div>
       <p className="op-muted">{t.exitsNote}</p>

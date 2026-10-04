@@ -437,7 +437,7 @@ function Preparation({ data, roleId, roleName }: { data: HomeResponse; roleId: s
                 ? t.prep.map.preparing
                 : t.prep.map.unavailable}
           </p>
-          <Link className="hm-text-action" href={`/roles/${roleId}`}>{t.prep.map.open} <ArrowRight size={15} aria-hidden="true" /></Link>
+          <Link className="hm-text-action" href={`/plan?role=${encodeURIComponent(roleId)}`}>{t.prep.map.open} <ArrowRight size={15} aria-hidden="true" /></Link>
         </article>
         <article className="hm-prep-card">
           <h3>{t.prep.stories.title}</h3>

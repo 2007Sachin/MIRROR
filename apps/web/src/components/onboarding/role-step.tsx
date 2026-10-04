@@ -1,10 +1,12 @@
 "use client";
 
 import { ArrowRight, Check, FileText, UploadSimple } from "@phosphor-icons/react";
-import { ChangeEvent, FormEvent, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 
 import { StepHeading, type Report } from "@/components/onboarding/shared";
+import { TargetFields, looksLikeSde, targetBody, type TargetChoice } from "@/components/onboarding/target-fields";
 import { mirrorApi, uploadRoleBriefDocument, type MirrorDocument, type RoleAnalysis } from "@/lib/api";
+import { createTarget, targetsAvailable } from "@/lib/api-targets";
 import { onboardingCopy } from "@/lib/copy-onboarding";
 import { describeFileRejection, friendlyAnalysisError, friendlyDocumentError } from "@/lib/documents";
 
@@ -46,6 +48,23 @@ export function RoleStep({
   const [busy, setBusy] = useState(false);
   // Replacement controls stay locked while an upload or the role setup runs.
   const locked = busy || progress !== null;
+  // Optional interview target (company, SDE family, level, country): only offered when targets are available.
+  const [targetsOn, setTargetsOn] = useState(false);
+  const [targetOpen, setTargetOpen] = useState(false);
+  const [familyTouched, setFamilyTouched] = useState(false);
+  const [target, setTarget] = useState<Omit<TargetChoice, "company">>({ family: false, level: "not_sure", country: "not_sure" });
+  const sde = looksLikeSde(role);
+  const family = familyTouched ? target.family : sde;
+
+  useEffect(() => {
+    let active = true;
+    void targetsAvailable().then((on) => { if (active) setTargetsOn(on); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (targetsOn && sde) setTargetOpen(true);
+  }, [targetsOn, sde]);
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -88,6 +107,9 @@ export function RoleStep({
         ...(reuseId ? { role_profile_id: reuseId } : {}),
       });
       if (analysed.latest_analysis?.status !== "COMPLETED") return report(t.roleNotReady);
+      const body = targetsOn ? targetBody(analysed.id, { ...target, family, company }) : null;
+      // The target is optional: an existing one, or targets being unavailable, never blocks the role.
+      if (body) await createTarget(body).catch(() => null);
       await onReady({ role: analysed, company: company.trim(), brief: chosen, skipped: mode === "none" });
     } catch (reason) {
       report(friendlyAnalysisError(reason, "role"), reason);
@@ -99,16 +121,29 @@ export function RoleStep({
   return (
     <form onSubmit={submit} className="ob-step" aria-busy={busy}>
       <StepHeading eyebrow={eyebrow} title={t.title} intro={t.intro} />
-      <div className={withCompany ? "ob-fields ob-two-col" : "ob-fields"}>
+      <div className={withCompany && !targetsOn ? "ob-fields ob-two-col" : "ob-fields"}>
         <label>
           <span>{t.roleLabel}</span>
           <input className="field" value={role} onChange={(event) => setRole(event.target.value)} minLength={2} maxLength={160} required disabled={busy} placeholder={t.rolePlaceholder} />
         </label>
-        {withCompany && <label>
+        {withCompany && !targetsOn && <label>
           <span>{t.orgLabel} <small>{t.optional}</small></span>
           <input className="field" value={company} onChange={(event) => setCompany(event.target.value)} maxLength={160} disabled={busy} placeholder={t.orgPlaceholder} />
         </label>}
       </div>
+      {targetsOn && (
+        <TargetFields
+          value={{ ...target, family, company }}
+          onChange={(next) => {
+            if (next.family !== family) setFamilyTouched(true);
+            setCompany(next.company);
+            setTarget({ family: next.family, level: next.level, country: next.country });
+          }}
+          open={targetOpen}
+          onToggle={setTargetOpen}
+          disabled={busy}
+        />
+      )}
       <fieldset className="op-brief" disabled={locked}>
         <legend>{t.briefTitle}</legend>
         <p className="op-muted">{t.briefIntro}</p>
