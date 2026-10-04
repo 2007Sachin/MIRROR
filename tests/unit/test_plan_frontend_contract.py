@@ -36,7 +36,8 @@ def test_api_paths() -> None:
 
 
 def test_only_the_recommended_need_gets_the_filled_action() -> None:
-    assert 'recommended ? "dh-primary-action" : "dh-primary-action is-quiet"' in CARD
+    # Loop 2: when the interview-target section shows its practise action, the cards step back.
+    assert 'recommended && !demoted ? "dh-primary-action" : "dh-primary-action is-quiet"' in CARD
     assert "dh-text-action" in CARD
 
 

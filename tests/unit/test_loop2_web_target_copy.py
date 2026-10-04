@@ -49,6 +49,25 @@ def test_rounds_competencies_reasons_and_rationales_have_words() -> None:
     assert not missing, f"add words for these keys to copy-targets.ts: {missing}"
 
 
+def test_plan_pages_always_carry_the_role() -> None:
+    web = ROOT / "apps/web/src"
+    plan = (web / "components/plan/plan-page.tsx").read_text(encoding="utf-8")
+    assert "router.replace(planHref(resolvedRole))" in plan  # bare /plan pins the resolved role
+    route = (web / "app/plan/rounds/[round_key]/page.tsx").read_text(encoding="utf-8")
+    assert "await Promise.all([params, searchParams])" in route and 'redirect("/plan")' in route
+    home = (web / "components/dashboard/home-parts.tsx").read_text(encoding="utf-8")
+    assert "href={`/plan?role=${encodeURIComponent(roleId)}`}" in home
+    assert "Interview map" not in (web / "lib/copy.ts").read_text(encoding="utf-8").split("prep: {", 1)[1].split("stories:", 1)[0]
+
+
+def test_target_section_never_breaks_the_plan() -> None:
+    overview = (ROOT / "apps/web/src/components/plan/target-overview.tsx").read_text(encoding="utf-8")
+    # Any failure listing targets hides the section; blueprint failures stay inside it.
+    assert 'return setState({ kind: "hidden" }); // the plan works without this section' in overview
+    assert 'failureKind(reason.status) === "UNAVAILABLE"' in overview
+    assert "statement" not in overview  # raw catalog text is never rendered
+
+
 def test_target_copy_strings_pass_the_banned_word_list() -> None:
     strings = re.findall(r'"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`', COPY)
     texts = [a or b for a, b in strings if (a or b) and " " in (a or b)]
