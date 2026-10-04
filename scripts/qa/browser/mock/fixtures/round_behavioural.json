@@ -1,0 +1,117 @@
+{
+  "availability": "AVAILABLE",
+  "target": {
+    "id": "00000000-0000-4000-8000-000000000301",
+    "role_profile_id": "00000000-0000-4000-8000-000000000002",
+    "company_label": "Amazon",
+    "company_key": "amazon",
+    "role_family_key": "software_development_engineering",
+    "level_key": "not_sure",
+    "geography_key": "in",
+    "geography_label": "India",
+    "interview_date": null,
+    "status": "ACTIVE",
+    "archived_at": null,
+    "created_at": "2026-10-04T15:41:29.555059Z"
+  },
+  "round": {
+    "key": "behavioural",
+    "ordinal": 3,
+    "label_key": "round.behavioural",
+    "basis": "MIRROR_SUGGESTED",
+    "competency_keys": [
+      "behavioural_examples"
+    ]
+  },
+  "match_state": "NOT_RESEARCHED",
+  "research_label_key": "research.not_yet_researched",
+  "content_state": "SERVED",
+  "claims": [],
+  "conflicts": [],
+  "unknowns": [
+    {
+      "key": "amazon.sde.india_specific_process",
+      "reason": "NOT_PUBLISHED",
+      "note": "QA fixture note (synthetic)."
+    }
+  ],
+  "priorities": [
+    {
+      "rank": 1,
+      "competency_key": "behavioural_examples",
+      "reason_codes": [
+        "NOT_LINKED_TO_YOUR_PLAN",
+        "NOT_PRACTISED_YET"
+      ],
+      "suggested_mode": "FOCUSED_PRACTICE"
+    }
+  ],
+  "priority_rules_version": "priority-1",
+  "pack": {
+    "state": "FULL",
+    "minimum": 4,
+    "label_key": "prompts.written_by_mirror",
+    "prompts": [
+      {
+        "position": 1,
+        "text": "Tell me about a time you shipped something under a deadline that was not as complete as you wanted. What did you leave out, and what did you do afterwards?",
+        "competency_key": "behavioural_examples",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 2,
+        "text": "Tell me about a time you noticed a problem outside your own task and decided to act on it.",
+        "competency_key": "behavioural_examples",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 3,
+        "text": "Tell me about a time a user's need changed how you built something.",
+        "competency_key": "behavioural_examples",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 4,
+        "text": "In “QA story about a reporting tool (synthetic)”, which decision was yours alone, and what did you weigh up before making it?",
+        "competency_key": "behavioural_examples",
+        "rationale_code": "YOUR_STORY",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 5,
+        "text": "Tell me about a time you dug into the details to understand why something kept breaking.",
+        "competency_key": "behavioural_examples",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 6,
+        "text": "Tell me about a time you and a teammate disagreed about a technical choice. How did you settle it?",
+        "competency_key": "behavioural_examples",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 7,
+        "text": "Tell me about a time you made something simpler for the people who had to use it.",
+        "competency_key": "behavioural_examples",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 8,
+        "text": "Tell me about a time you held your own work to a higher standard than anyone asked for. What did that cost, and was it worth it?",
+        "competency_key": "behavioural_examples",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      }
+    ]
+  },
+  "practice": {
+    "count": 0,
+    "sessions": []
+  }
+}

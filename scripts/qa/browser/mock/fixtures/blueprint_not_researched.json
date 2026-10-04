@@ -1,0 +1,71 @@
+{
+  "availability": "AVAILABLE",
+  "target": {
+    "id": "00000000-0000-4000-8000-000000000301",
+    "role_profile_id": "00000000-0000-4000-8000-000000000002",
+    "company_label": "Amazon",
+    "company_key": "amazon",
+    "role_family_key": "software_development_engineering",
+    "level_key": "not_sure",
+    "geography_key": "in",
+    "geography_label": "India",
+    "interview_date": null,
+    "status": "ACTIVE",
+    "archived_at": null,
+    "created_at": "2026-10-04T15:41:29.555059Z"
+  },
+  "blueprint": {
+    "version": 1,
+    "catalog_version": 1,
+    "catalog_sha256": "21a4c5d7fa3cdddc1fbe51b78d296cd21cffd19a450a6a5cb9c6f8926fd76391",
+    "match_state": "NOT_RESEARCHED",
+    "rules_version": "blueprint-1",
+    "created_at": "2026-10-04T15:41:29.556065Z",
+    "latest_version": 1,
+    "refresh_available": false
+  },
+  "content_state": "SERVED",
+  "match_state": "NOT_RESEARCHED",
+  "research_label_key": "research.not_yet_researched",
+  "claims": [],
+  "conflicts": [],
+  "unknowns": [
+    {
+      "key": "amazon.sde.india_specific_process",
+      "reason": "NOT_PUBLISHED",
+      "note": "QA fixture note (synthetic)."
+    }
+  ],
+  "rounds": [
+    {
+      "key": "coding_reasoning",
+      "ordinal": 1,
+      "label_key": "round.coding_reasoning",
+      "basis": "MIRROR_SUGGESTED",
+      "competency_keys": [
+        "algorithmic_problem_solving",
+        "coding_quality",
+        "technical_communication"
+      ]
+    },
+    {
+      "key": "system_design",
+      "ordinal": 2,
+      "label_key": "round.system_design",
+      "basis": "MIRROR_SUGGESTED",
+      "competency_keys": [
+        "system_design",
+        "technical_communication"
+      ]
+    },
+    {
+      "key": "behavioural",
+      "ordinal": 3,
+      "label_key": "round.behavioural",
+      "basis": "MIRROR_SUGGESTED",
+      "competency_keys": [
+        "behavioural_examples"
+      ]
+    }
+  ]
+}

@@ -15,6 +15,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createTargetsMock } from "./targets.mjs";
+
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
@@ -362,19 +364,14 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   route("GET", "/api/v1/dashboard/summary", () => ({ body: { latest_review: state.ended ? review() : null } }));
   route("GET", `/api/v1/roles/${IDS.role}/practice-recommendation`, () => ({ body: { recommendation: null } }));
 
-  route("POST", "/api/sessions", ({ body }) => {
-    if (!body || typeof body.target_role !== "string" || body.target_role.length < 2) return err(422, "target_role is required");
-    const mode = body.practice_mode ?? "FULL_INTERVIEW";
-    if (!["FULL_INTERVIEW", "FOCUSED_PRACTICE", "QUICK_DRILL"].includes(mode)) return err(422, "unknown practice_mode");
-    if (mode !== "FULL_INTERVIEW" && !body.practice_focus) return err(422, "a focused practice or quick drill needs one area to work on");
-    state.createBodies.push(body);
-    if (body.idempotency_key && state.idempotency.has(body.idempotency_key)) return { status: 201, body: state.session };
+  // One place that creates the (single) mock session, for POST /api/sessions and round practice.
+  function createSession(body) {
     const created = clock();
     state.session = {
       ...fixture("session.json"),
       target_role: body.target_role,
       role_profile_id: body.role_profile_id ?? null,
-      practice_mode: mode,
+      practice_mode: body.practice_mode ?? "FULL_INTERVIEW",
       practice_focus: body.practice_focus ?? null,
       practice_theme: body.practice_theme ?? null,
       created_at: created,
@@ -384,7 +381,17 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     state.turns = [];
     state.ended = false;
     if (body.idempotency_key) state.idempotency.set(body.idempotency_key, state.session.id);
-    return { status: 201, body: state.session };
+    return state.session;
+  }
+
+  route("POST", "/api/sessions", ({ body }) => {
+    if (!body || typeof body.target_role !== "string" || body.target_role.length < 2) return err(422, "target_role is required");
+    const mode = body.practice_mode ?? "FULL_INTERVIEW";
+    if (!["FULL_INTERVIEW", "FOCUSED_PRACTICE", "QUICK_DRILL"].includes(mode)) return err(422, "unknown practice_mode");
+    if (mode !== "FULL_INTERVIEW" && !body.practice_focus) return err(422, "a focused practice or quick drill needs one area to work on");
+    state.createBodies.push(body);
+    if (body.idempotency_key && state.idempotency.has(body.idempotency_key)) return { status: 201, body: state.session };
+    return { status: 201, body: createSession({ ...body, practice_mode: mode }) };
   });
   route("POST", "/api/v1/sessions/([^/]+)/documents", ({ match, body }) => {
     const missing = needSession(match[1]);
@@ -468,7 +475,18 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   route("GET", "/api/v1/sessions/([^/]+)/attempts", ({ match }) => needSession(match[1]) ?? { body: [] });
   route("GET", "/api/v1/sessions/([^/]+)/story-suggestions", ({ match }) => needSession(match[1]) ?? { body: [] });
 
-  // Test-control surface (not part of the Mirror API). Read-only except reset.
+  // Loop 2: interview targets, plan and role-setup endpoints (./targets.mjs), with scenarios.
+  const targets = createTargetsMock({
+    fixture, clock, createSession, roleId: IDS.role, roleName: fixture("active_role.json").role?.target_role ?? "QA Analyst (test role)",
+  });
+  for (const [method, pattern, handler] of targets.routes) route(method, pattern, handler);
+
+  // Test-control surface (not part of the Mirror API). Read-only except reset and scenario.
+  route("POST", "/__qa/scenario", ({ body }) => targets.setScenario(body));
+  route("POST", "/__qa/targets/reset", () => {
+    targets.reset();
+    return { body: { ok: true } };
+  });
   route("GET", "/__qa/state", () => ({
     body: {
       sessionStatus: state.session?.status ?? null,
@@ -480,12 +498,21 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
       unmocked: state.unmocked,
       authLog,
       requests: state.requests,
+      targets: {
+        scenario: targets.state.scenario,
+        creates: targets.state.targetCreates,
+        roundPractice: targets.state.roundPracticeBodies,
+        analyze: targets.state.analyzeBodies,
+        activeRolePuts: targets.state.activeRolePuts,
+        links: targets.state.links,
+      },
     },
   }));
   route("POST", "/__qa/reset", () => {
     Object.assign(state, { session: null, turns: [], ended: false, createBodies: [], answers: [], heartbeats: 0, unmocked: [], requests: [] });
     state.idempotency.clear();
     state.clientTurns.clear();
+    targets.reset();
     return { body: { ok: true } };
   });
 
@@ -507,6 +534,8 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
       const match = entry.pattern.exec(pathname);
       if (entry.method !== request.method || !match) continue;
       const result = entry.handler({ match, body, url }) ?? err(500, "handler returned nothing");
+      // A scenario may slow one answer down so loading states can be seen (never used by default).
+      if (result.delayMs) await new Promise((resolve) => setTimeout(resolve, Math.min(result.delayMs, 5000)));
       const status = result.status ?? 200;
       if (!control) state.requests.push(`${request.method} ${pathname} ${status}`);
       return send(request, response, status, result.body);

@@ -1,0 +1,20 @@
+{
+  "role_profile_id": "00000000-0000-4000-8000-000000000004",
+  "target_role": "Software Development Engineer (test role)",
+  "state": "READY",
+  "experience_state": "READY",
+  "role_from_job_description": false,
+  "themes": [],
+  "preparation_areas": [
+    {
+      "key": "qa_prep_one",
+      "title": "Talking through a coding approach",
+      "body": "QA fixture area (synthetic).",
+      "action": "PRACTICE",
+      "theme_key": null,
+      "focus": "role"
+    }
+  ],
+  "questions": [],
+  "also_expected": []
+}
