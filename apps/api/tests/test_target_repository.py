@@ -89,15 +89,20 @@ def test_blueprints_are_appended_versions_never_rewritten() -> None:
         run(repo.create_blueprint(USER_B, target.id, pin))
 
 
-def test_questions_are_unique_per_target_and_owner_scoped() -> None:
+def test_questions_are_unique_per_session_set_and_owner_scoped() -> None:
     repo = MemoryTargetRepository()
     target = run(repo.create_target(USER_A, values()))
     set_id = uuid4()
     run(repo.record_questions(USER_A, [question(target.id, set_id)]))
     assert len(run(repo.questions_for_set(set_id, USER_A))) == 1
     assert run(repo.questions_for_set(set_id, USER_B)) == []
+    # The same prompt can never appear twice in one practice set ...
     with pytest.raises(TargetConflict):
-        run(repo.record_questions(USER_A, [question(target.id, uuid4())]))
+        run(repo.record_questions(USER_A, [question(target.id, set_id, position=2)]))
+    # ... but a later practice may reuse it; the 30-day repeat window lives in the originality guard.
+    later = uuid4()
+    run(repo.record_questions(USER_A, [question(target.id, later)]))
+    assert len(run(repo.questions_for_set(later, USER_A))) == 1
     with pytest.raises(LookupError):
         run(repo.record_questions(USER_B, [question(target.id, uuid4(), text="Another prompt that is long enough.")]))
 

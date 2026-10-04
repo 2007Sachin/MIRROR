@@ -117,7 +117,10 @@ def test_generated_questions_are_mirror_generated_unique_and_immutable() -> None
     assert "provenance_class text not null default 'mirror_generated' check (provenance_class = 'mirror_generated')" in table
     assert "novelty_sha256 text not null check (novelty_sha256 ~ '^[0-9a-f]{64}$')" in table
     assert "char_length(trim(question_text)) between 20 and 400" in table
-    assert "unique (user_id, candidate_target_id, novelty_sha256)" in table
+    # A prompt cannot repeat inside one practice set; reuse across sessions is governed by the
+    # originality guard's 30-day repeat window, so packs do not run out after one or two practices.
+    assert "unique (user_id, prompt_set_id, novelty_sha256)" in table
+    assert "unique (user_id, candidate_target_id, novelty_sha256)" not in table
     assert "generated questions are immutable" in SQL
 
 

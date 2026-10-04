@@ -475,6 +475,25 @@ def test_short_pack_refuses_before_any_session(world) -> None:
     assert detail["practice"]["count"] == 1
 
 
+def test_prompts_return_once_they_are_outside_the_repeat_window(world) -> None:
+    from datetime import timedelta
+
+    c = client(world)
+    target = create(c).json()["target"]
+    first = start(c, target["id"], round_key="system_design")
+    assert first.status_code == 201
+    old = datetime.now(UTC) - timedelta(days=31)
+    world.repo.questions = [q.model_copy(update={"created_at": old}) for q in world.repo.questions]
+    second = start(c, target["id"], round_key="system_design")
+    assert second.status_code == 201, second.text
+    sets = {}
+    for q in world.repo.questions:
+        sets.setdefault(q.prompt_set_id, []).append(q.novelty_sha256)
+    assert len(sets) == 2
+    assert all(len(hashes) == len(set(hashes)) for hashes in sets.values())  # never repeated within a set
+    assert set.intersection(*(set(h) for h in sets.values()))  # earlier prompts came back after 30 days
+
+
 def test_session_target_of_someone_elses_session_is_404(world) -> None:
     c = client(world)
     target = create(c).json()["target"]

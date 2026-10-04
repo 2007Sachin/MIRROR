@@ -57,7 +57,9 @@ create table public.generated_questions (
   provenance_class text not null default 'MIRROR_GENERATED' check (provenance_class = 'MIRROR_GENERATED'),
   novelty_sha256 text not null check (novelty_sha256 ~ '^[0-9a-f]{64}$'),
   created_at timestamptz not null default now(),
-  constraint generated_questions_novel unique (user_id, candidate_target_id, novelty_sha256),
+  -- A prompt never repeats inside one practice set (one session). Reuse across sessions is
+  -- allowed once the prompt is outside the originality guard's 30-day repeat window.
+  constraint generated_questions_novel_in_set unique (user_id, prompt_set_id, novelty_sha256),
   constraint generated_questions_one_position unique (prompt_set_id, position)
 );
 

@@ -222,7 +222,9 @@ class MemoryTargetRepository:
             ):
                 raise LookupError("blueprint does not belong to the question target")
             for existing in self.questions:
-                if existing.user_id == user_id and existing.candidate_target_id == row.candidate_target_id and (
+                # Same rule as the database: no repeat inside one practice set; reuse across
+                # sessions is limited by the originality guard's 30-day window, not here.
+                if existing.user_id == user_id and existing.prompt_set_id == row.prompt_set_id and (
                     existing.novelty_sha256 == row.novelty_sha256
                 ):
                     raise TargetConflict(existing.id)

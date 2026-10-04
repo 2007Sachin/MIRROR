@@ -614,10 +614,9 @@ class TargetService:
             today=self._today(),
         )
         researched = match is not None and bool(_round_claims(match, round_))
-        return build_round_pack(
-            round_, await self._material(user_id, target), context,
-            researched=researched, used_hashes=frozenset(q.novelty_sha256 for q in stored),
-        )
+        # Earlier prompts are excluded only while inside the guard's 30-day repeat window
+        # (``recent_prompts``); older ones may be served again, so packs do not run out.
+        return build_round_pack(round_, await self._material(user_id, target), context, researched=researched)
 
     async def round_detail(self, target_id: UUID, round_key: str, user_id: UUID) -> RoundDetail:
         try:
