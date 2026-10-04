@@ -1,0 +1,39 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000101",
+  "target_role": "QA Analyst (test role)",
+  "role_profile_id": "00000000-0000-4000-8000-000000000002",
+  "completed_at": "2026-01-01T09:00:00Z",
+  "counts": {
+    "clear": 1,
+    "could_be_stronger": 1,
+    "worth_revisiting": 0
+  },
+  "dimensions": [
+    {
+      "key": "examples",
+      "label": "Using real examples",
+      "state": "Clear",
+      "note": "You gave a concrete example to anchor the answer."
+    },
+    {
+      "key": "impact",
+      "label": "Showing your impact",
+      "state": "Developing",
+      "note": "The result of the work was not spelled out yet."
+    }
+  ],
+  "improvements": [
+    {
+      "title": "Say what changed because of your work",
+      "note": "Add one sentence on the outcome, ideally with a number or a before/after.",
+      "from_label": "Showing your impact"
+    }
+  ],
+  "next_step": {
+    "title": "Show your impact",
+    "body": "A quick drill on impact is the most useful next step."
+  },
+  "shorter_conversation": false,
+  "root_cause": null,
+  "practice_focus": "impact"
+}

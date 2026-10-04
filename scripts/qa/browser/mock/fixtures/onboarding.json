@@ -1,0 +1,19 @@
+{
+  "career_stage": "EARLY_CAREER",
+  "career_intent": "JOB_SWITCH",
+  "target_role": "QA Analyst (test role)",
+  "interview_timeline": "THIS_MONTH",
+  "preferred_language": "ENGLISH",
+  "college_id": null,
+  "target_company": null,
+  "onboarding_step": 5,
+  "onboarding_resume_document_id": "00000000-0000-4000-8000-000000000003",
+  "onboarding_role_brief_document_id": null,
+  "onboarding_role_brief_skipped": true,
+  "onboarding_role_profile_id": "00000000-0000-4000-8000-000000000002",
+  "onboarding_session_id": null,
+  "inquiry_depth": [
+    "COMPLETE_READINESS"
+  ],
+  "onboarding_completed": true
+}

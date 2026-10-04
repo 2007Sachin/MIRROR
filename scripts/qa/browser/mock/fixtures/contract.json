@@ -1,0 +1,22 @@
+{
+  "_comment": "Every *.json fixture in this directory except this file MUST be listed here; tests/unit/test_qa_mock_contract.py validates each against the real backend pydantic model.",
+  "session.json": "app.schemas:SessionRead",
+  "prepare.json": "app.schemas:PrepareResponse",
+  "assessment.json": "app.assessment_pipeline_models:AssessmentPipelineState",
+  "completion.json": "app.assessment_pipeline_models:SessionCompletionResponse",
+  "profile.json": "app.schemas:ProfileRead",
+  "onboarding.json": "app.schemas:OnboardingRead",
+  "active_role.json": "app.routes_active_role:ActiveRoleResponse",
+  "voice_turn.json": "app.voice_models:VoiceTurnResponse",
+  "text_turn.json": "app.interviewer_models:TextTurnResponse",
+  "turn.json": "app.interviewer_models:PublicTurn",
+  "home_first_practice.json": "app.home_service:HomeResponse",
+  "home_active_practice.json": "app.home_service:HomeResponse",
+  "home_review_ready.json": "app.home_service:HomeResponse",
+  "dashboard_empty.json": "app.dashboard_models:DashboardResponse",
+  "dashboard_diagnostic.json": "app.dashboard_models:DashboardDiagnostic",
+  "review.json": "app.dashboard_summary:LatestReview",
+  "report.json": "app.report_models:ReportResponse",
+  "dashboard_summary.json": "app.dashboard_summary:DashboardSummaryResponse",
+  "session_create_request.json": "app.schemas:SessionCreate"
+}

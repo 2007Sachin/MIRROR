@@ -1,0 +1,9 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000101",
+  "status": "COMPLETED",
+  "retry_count": 0,
+  "failure_code": null,
+  "queued_at": "2026-01-01T09:00:00Z",
+  "started_at": "2026-01-01T09:00:00Z",
+  "completed_at": "2026-01-01T09:00:00Z"
+}

@@ -1,0 +1,46 @@
+{
+  "state": "ACTIVE_PRACTICE",
+  "roles": [
+    {
+      "role_profile_id": "00000000-0000-4000-8000-000000000002",
+      "target_role": "QA Analyst (test role)"
+    }
+  ],
+  "selected": {
+    "role_profile_id": "00000000-0000-4000-8000-000000000002",
+    "target_role": "QA Analyst (test role)"
+  },
+  "active": {
+    "session_id": "00000000-0000-4000-8000-000000000101",
+    "role_profile_id": "00000000-0000-4000-8000-000000000002",
+    "target_role": "QA Analyst (test role)",
+    "kind": "READY",
+    "practice_mode": "QUICK_DRILL",
+    "practice_focus": "project",
+    "practice_theme": null,
+    "question_number": 0,
+    "question_total": 3,
+    "last_active_at": "2026-01-01T09:00:00Z"
+  },
+  "other_active": null,
+  "review": null,
+  "next_step": null,
+  "progress": {
+    "stage": "NONE",
+    "practice_count": 0,
+    "last_practised_at": null,
+    "insights": [],
+    "highlights": []
+  },
+  "map": {
+    "state": "READY",
+    "without_example": 2
+  },
+  "stories": {
+    "state": "READY",
+    "ready": 0,
+    "developing": 0
+  },
+  "activity": [],
+  "upcoming_interview": null
+}

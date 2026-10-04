@@ -1,0 +1,14 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000101",
+  "turn_id": "00000000-0000-4000-8000-000000000201",
+  "question_text": "Hello, this is a short synthetic practice.\n\nTell me about one project you worked on.",
+  "audio_url": null,
+  "audio_status": "FAILED",
+  "turn_index": 1,
+  "phase": "PROJECTS",
+  "turn_type": "PLANNED",
+  "remaining_time_seconds": 300,
+  "welcome_back": false,
+  "welcome_text": null,
+  "welcome_audio_url": null
+}
