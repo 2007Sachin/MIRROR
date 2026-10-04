@@ -18,6 +18,7 @@ from .interview_engine import (
     PHASE_ORDER,
 )
 from .interviewer_context import InterviewerContextBuilder
+from .probe_safety import question_is_safe
 from .interviewer_models import (
     InterviewerAction,
     InterviewerContext,
@@ -415,6 +416,16 @@ class TextInterviewService:
         if decision.question_text.count("?") > 1:
             raise InterviewerOutputRejected
         pending = context.pending_flag
+        # B12: candidate-facing wording is gated in code, not only by the prompt. Hostile or
+        # dishonesty-implying wording never passes; asserting that statements disagree passes
+        # only when the pending flag is a grounded contradiction probe being used.
+        discrepancy_grounded = (
+            pending is not None
+            and decision.used_flag_id == pending.flag_id
+            and pending.recommended_turn_type == InterviewerTurnType.CONTRADICTION_PROBE
+        )
+        if not question_is_safe(decision.question_text, discrepancy_grounded=discrepancy_grounded):
+            raise InterviewerOutputRejected
         if decision.used_flag_id is not None:
             if (
                 pending is None
