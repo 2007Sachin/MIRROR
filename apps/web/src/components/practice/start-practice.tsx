@@ -17,6 +17,7 @@ import { roundLabel, targetCopy, targetLine } from "@/lib/copy-targets";
 import { newSessionHref, practiceOptions, type PracticeOption } from "@/lib/dashboard-view";
 import { MODES, briefHref, choiceFrom, choiceIsComplete, focusFor, modeCopy, sameRole, setupHref } from "@/lib/practice-view";
 import { canStartDirectly, createPractice } from "@/lib/start-practice";
+import { documentsForRoundRole } from "@/lib/round-practice-documents";
 
 type StartData = { workspace: DashboardResponse; onboarding: Onboarding; story: Story | null; active: ActiveRoleState | null; target: TargetView | null };
 
@@ -107,9 +108,8 @@ export function StartPractice() {
         // The round's guarded prompts are stored and the session linked by the target service;
         // documents and preparation then follow the usual practice path.
         const started = await startRoundPractice(round.targetId, round.key, choice.mode === "QUICK_DRILL" ? "QUICK_DRILL" : "FOCUSED_PRACTICE", idempotencyKey.current);
-        const documentIds = [data.onboarding.onboarding_resume_document_id, data.onboarding.onboarding_role_brief_document_id].filter(
-          (value): value is string => Boolean(value),
-        );
+        const documentIds = documentsForRoundRole(data.target?.role_profile_id, data.onboarding);
+
         if (documentIds.length) await mirrorApi.linkSessionDocuments(started.session.id, documentIds);
         await mirrorApi.prepare(started.session.id);
         router.push(briefHref(started.session.id));

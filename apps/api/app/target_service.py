@@ -693,16 +693,21 @@ class TargetService:
             pack = await self._pack(user_id, target, round_, match, catalog)
             if pack.state != "FULL" or len(pack.prompts) < max(needed, PACK_MIN):
                 raise ShortPack(len(pack.prompts))
-            stored = await self._repo.record_questions(user_id, [
-                QuestionCreate(
-                    candidate_target_id=target.id, blueprint_id=pin.id, prompt_set_id=set_id, position=index,
-                    round_key=round_.key, competency_key=p.competency_key, family_key=p.family_key,
-                    template_id=p.template_id, generator_version=ROUND_PACK_VERSION,
-                    originality_rules_version=ORIGINALITY_RULES_VERSION, question_text=p.text,
-                    rationale_code=p.rationale_code, derived_from=p.derived_from, novelty_sha256=p.novelty_sha256,
-                )
-                for index, p in enumerate(pack.prompts[:needed], start=1)
-            ])
+            try:
+                stored = await self._repo.record_questions(user_id, [
+                    QuestionCreate(
+                        candidate_target_id=target.id, blueprint_id=pin.id, prompt_set_id=set_id, position=index,
+                        round_key=round_.key, competency_key=p.competency_key, family_key=p.family_key,
+                        template_id=p.template_id, generator_version=ROUND_PACK_VERSION,
+                        originality_rules_version=ORIGINALITY_RULES_VERSION, question_text=p.text,
+                        rationale_code=p.rationale_code, derived_from=p.derived_from, novelty_sha256=p.novelty_sha256,
+                    )
+                    for index, p in enumerate(pack.prompts[:needed], start=1)
+                ])
+            except TargetConflict:
+                stored = await self._repo.questions_for_set(set_id, user_id)
+                if not stored:
+                    raise
         session = await self._engine.create_session_state(user_id, SessionCreate(
             target_role=role.target_role,
             role_profile_id=target.role_profile_id,
@@ -711,6 +716,15 @@ class TargetService:
             practice_theme=round_.theme,
             idempotency_key=payload.idempotency_key,
         ))
+        existing_link = await self._repo.link_for_session(session.id, user_id)
+        if (
+            session.role_profile_id != target.role_profile_id
+            or session.practice_focus != PracticeFocus.ROLE.value
+            or session.practice_theme != round_.theme
+            or session.practice_mode != mode.value
+            or (existing_link is not None and existing_link.prompt_set_id != set_id)
+        ):
+            raise LinkConflict
         wanted = TargetSessionLinkCreate(
             session_id=session.id, candidate_target_id=target.id, blueprint_id=pin.id,
             round_key=round_.key, competency_key=None, prompt_set_id=set_id,
@@ -751,11 +765,9 @@ def _empty_match() -> ScopeMatch:
 async def linked_prompt_texts(
     repo: TargetRepository, capability: TargetCapability, session_id: UUID, user_id: UUID
 ) -> list[str]:
-    """For the practice planner: the stored Mirror prompts a session was started with, in order.
+    """Load prompts linked to a session; unavailable capability or no link keeps legacy planning."""
+    from .planner_repository import InterviewPlanningUnavailable
 
-    Empty (so the planner keeps today's role questions) when targets are not available, the
-    session has no target link, or storage cannot be read.
-    """
     try:
         if await capability.state() != TargetAvailability.AVAILABLE:
             return []
@@ -764,6 +776,6 @@ async def linked_prompt_texts(
             return []
         questions: list[GeneratedQuestion] = await repo.questions_for_set(link.prompt_set_id, user_id)
         return [q.question_text for q in sorted(questions, key=lambda q: q.position)]
-    except Exception:  # noqa: BLE001 - planning must never fail because of the target side table
+    except Exception as exc:  # noqa: BLE001
         logger.warning("target prompts unavailable for planning", extra={"session_id": str(session_id)}, exc_info=True)
-        return []
+        raise InterviewPlanningUnavailable from exc

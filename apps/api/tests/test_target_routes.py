@@ -452,6 +452,22 @@ def test_same_key_for_another_round_cannot_rewrite_the_link(world) -> None:
     assert world.repo.links[UUID(first["session"]["id"])].round_key == "behavioural"
 
 
+def test_reused_key_for_mismatched_existing_session_returns_409(world) -> None:
+    import asyncio
+    from app.schemas import SessionCreate
+
+    c = client(world)
+    target = create(c).json()["target"]
+    key = uuid4()
+    existing = asyncio.run(world.engine.create_session_state(USER_A, SessionCreate(
+        target_role="Software Development Engineer", role_profile_id=ROLE_A,
+        practice_mode="QUICK_DRILL", practice_focus="story", practice_theme=None, idempotency_key=key,
+    )))
+    response = start(c, target["id"], key=key)
+    assert response.status_code == 409
+    assert existing.id not in world.repo.links
+
+
 def test_archiving_after_practice_never_changes_the_link(world) -> None:
     c = client(world)
     target = create(c).json()["target"]
@@ -545,6 +561,32 @@ def test_writes_are_refused_before_any_side_effect(world, state) -> None:
     assert world.sessions.sessions == {}
 
 
+def test_unauthenticated_writes_return_401_without_availability_probe(world) -> None:
+    class CountingCapability:
+        def __init__(self, state):
+            self.state_value = state
+            self.calls = 0
+
+        async def state(self):
+            self.calls += 1
+            return self.state_value
+
+    c = client(world)
+    target = create(c).json()["target"]
+    for state in (TargetAvailability.DISABLED, TargetAvailability.AVAILABLE):
+        capability = CountingCapability(state)
+        world.capability = capability
+        c = client(world)
+        responses = [
+            c.post("/api/v1/targets", json={"role_profile_id": str(ROLE_A), "company": "Amazon"}),
+            c.post(f"/api/v1/targets/{target['id']}/archive"),
+            c.post(f"/api/v1/targets/{target['id']}/blueprint/refresh"),
+            c.post(f"/api/v1/targets/{target['id']}/rounds/behavioural/practice", json={"mode": "FOCUSED_PRACTICE", "idempotency_key": str(uuid4())}),
+        ]
+        assert [response.status_code for response in responses] == [401] * 4
+        assert capability.calls == 0
+
+
 def test_transient_probe_error_is_503_not_empty(world) -> None:
     world.capability = FixedCapability(error=True)
     assert client(world).get("/api/v1/targets", headers=A).status_code == 503
@@ -595,4 +637,37 @@ def test_planner_loader_returns_stored_prompts_only_for_the_owner_when_available
     assert asyncio.run(linked_prompt_texts(world.repo, world.capability, session_id, USER_B)) == []
     for state in (TargetAvailability.UNAVAILABLE, TargetAvailability.DISABLED):
         assert asyncio.run(linked_prompt_texts(world.repo, FixedCapability(state), session_id, USER_A)) == []
-    assert asyncio.run(linked_prompt_texts(world.repo, FixedCapability(error=True), session_id, USER_A)) == []
+    from app.planner_repository import InterviewPlanningUnavailable
+
+    try:
+        asyncio.run(linked_prompt_texts(world.repo, FixedCapability(error=True), session_id, USER_A))
+    except InterviewPlanningUnavailable:
+        pass
+    else:
+        raise AssertionError("a failed capability probe must fail planning visibly")
+
+
+def test_available_planner_link_read_error_fails_visibly(world) -> None:
+    import asyncio
+
+    from app.planner_repository import InterviewPlanningUnavailable
+    from app.target_service import linked_prompt_texts
+
+    c = client(world)
+    target = create(c).json()["target"]
+    session_id = UUID(start(c, target["id"]).json()["session"]["id"])
+    original = world.repo.link_for_session
+
+    async def fail_link_read(session, user):
+        raise RuntimeError("temporary repository failure")
+
+    world.repo.link_for_session = fail_link_read
+    try:
+        try:
+            asyncio.run(linked_prompt_texts(world.repo, world.capability, session_id, USER_A))
+        except InterviewPlanningUnavailable:
+            pass
+        else:
+            raise AssertionError("available linked-prompt read errors must fail planning visibly")
+    finally:
+        world.repo.link_for_session = original

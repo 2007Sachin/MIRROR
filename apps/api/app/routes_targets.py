@@ -117,8 +117,11 @@ async def availability(capability: TargetCapability = Depends(get_target_capabil
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=UNAVAILABLE) from exc
 
 
-async def require_available(state: TargetAvailability = Depends(availability)) -> None:
-    """Writes stop here, before any storage, catalog or session call."""
+async def require_available(
+    _: AuthenticatedUser = Depends(get_current_user),
+    state: TargetAvailability = Depends(availability),
+) -> None:
+    """Writes stop here, after auth but before storage, catalog or session calls."""
     if state != TargetAvailability.AVAILABLE:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=NOT_AVAILABLE)
 
@@ -285,7 +288,7 @@ async def start_round_practice(
 ) -> PracticeStarted:
     try:
         return await service.start_round_practice(target_id, round_key, user.id, payload)
-    except (TargetNotFound, RoleProfileNotFoundForUser) as exc:
+    except (TargetNotFound, RoleProfileNotFoundForUser, LookupError) as exc:
         raise HTTPException(status_code=404, detail=NOT_FOUND) from exc
     except RoundNotFound as exc:
         raise HTTPException(status_code=404, detail=NOT_FOUND_ROUND) from exc
