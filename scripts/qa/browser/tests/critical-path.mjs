@@ -204,7 +204,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.getByRole("button", { name: "Continue with typing" }).click();
     await page.locator("#typed-answer").waitFor();
     await heading(QUESTIONS[0], 1).waitFor();
-    await page.getByText("Hello, this is a short synthetic practice.").waitFor(); // spoken welcome shown as text
+    await page.getByText("Hello, this is a short synthetic practice.").first().waitFor(); // spoken welcome shown as text
     await overflow("interview-room");
   });
 
