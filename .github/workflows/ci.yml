@@ -76,3 +76,50 @@ jobs:
 
       - name: Production build
         run: npm --workspace @mirror/web run build
+
+  browser:
+    name: Browser critical path (isolated, synthetic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The ephemeral, secret-free GitHub-hosted runner IS the isolation boundary; scripts/qa/browser/lib/isolation.mjs
+    # verifies that (no credentials, no dotenv, loopback-only URLs) and refuses to run anywhere else.
+    # Fake Supabase Auth + fake Mirror API on loopback; real Next production build; system Chrome.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Install browser QA harness
+        run: npm ci --prefix scripts/qa/browser
+
+      - name: Browser QA safety unit tests (isolation policy, network rail, mock guards)
+        run: node --test scripts/qa/browser/tests/safety.test.mjs scripts/qa/browser/tests/mock-safety.test.mjs scripts/qa/browser/tests/network.test.mjs
+
+      - name: Build web against loopback fakes
+        run: npm --workspace @mirror/web run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54399
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: qa-sentinel-anon-key
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:8099
+
+      - name: Critical path (desktop + mobile)
+        run: node scripts/qa/browser/run-ci.mjs
+        env:
+          MIRROR_QA_GITHUB_HOSTED: "1"
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54399
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:8099
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-critical-path
+          path: scripts/qa/browser/artifacts
+          if-no-files-found: warn
+          retention-days: 14

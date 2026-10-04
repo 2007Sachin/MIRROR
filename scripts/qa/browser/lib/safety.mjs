@@ -1,5 +1,7 @@
-// Browser routing is not an SSR/build egress boundary. No approved adapter exists.
-// Intentionally has no env/flag override: unsupported execution must not proceed.
+// Browser routing is not an SSR/build egress boundary. The only approved boundary is an ephemeral,
+// secret-free GitHub-hosted runner, and it is verified (lib/isolation.mjs), not merely asserted.
+import { requireEphemeralRunner } from './isolation.mjs';
+
 export function parseArgs(args) {
   const result = { build: false, only: undefined };
   const seen = new Set();
@@ -39,6 +41,6 @@ export function authorizeMockRequest(request, policy) {
   return true;
 }
 
-export function requireSupportedIsolation() {
-  throw new Error('BLOCKED: independent SSR and build egress isolation is not implemented or approved; browser/build execution is disabled.');
+export function requireSupportedIsolation(options) {
+  requireEphemeralRunner(options);
 }
