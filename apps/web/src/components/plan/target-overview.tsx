@@ -8,6 +8,7 @@ import { PageAlert } from "@/components/workspace/page-shell";
 import { getBlueprint, targetForRole, type BlueprintView, type ClaimView, type TargetView } from "@/lib/api-targets";
 import {
   claimCopy,
+  claimMatchesTargetScope,
   conflictCopy,
   countryLabel,
   failureKind,
@@ -106,8 +107,8 @@ export function TargetOverview({
 
 function Ready({ target, view, roleProfileId, roleName }: { target: TargetView; view: BlueprintView; roleProfileId: string; roleName: string }) {
   const research = researchState(view);
-  const claims = view.claims.filter((claim) => claimCopy(claim.key));
-  const conflicts = view.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimCopy(claim.key)));
+  const claims = view.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key));
+  const conflicts = view.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key)));
   const unknowns = view.unknowns.filter((unknown) => unknownCopy(unknown.key));
   const researched = research === "RESEARCHED" || research === "GENERAL_ONLY";
   const rounds = [...view.rounds].sort((a, b) => a.ordinal - b.ordinal).filter((round) => roundLabel(round.label_key));

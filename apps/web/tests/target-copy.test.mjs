@@ -45,7 +45,17 @@ test("every round, competency and reason code has words; unknown keys fall back 
   }
 });
 
-test("catalog claims render only through mapped copy, never raw catalog text", () => {
+test("claims are renderable only when every published scope dimension matches the target", () => {
+  const claim = { scope: { company: "amazon", role_family: "software_development_engineering", level: "sde_ii", geography: "global" } };
+  const indiaTarget = target({ level_key: "sde_ii" });
+  assert.equal(m.claimMatchesTargetScope(claim, indiaTarget), false, "global claims are not India guidance");
+  assert.equal(m.claimMatchesTargetScope({ ...claim, scope: { ...claim.scope, geography: "in" } }, indiaTarget), true);
+  assert.equal(m.claimMatchesTargetScope({ ...claim, scope: { ...claim.scope, company: "qa_company", geography: "qa_land" } }, target({ company_key: "qa_company", geography_key: "qa_land", level_key: "sde_ii" })), true);
+  assert.equal(m.claimMatchesTargetScope({ ...claim, scope: { ...claim.scope, company: "other", geography: "in" } }, target()), false);
+  assert.equal(m.claimMatchesTargetScope({ ...claim, scope: { ...claim.scope, level: "sde_iii", geography: "in" } }, target()), false);
+});
+
+ test("catalog claims render only through mapped copy, never raw catalog text", () => {
   assert.equal(m.claimCopy("amazon.sde.not_a_real_claim"), null);
   const oa = m.claimCopy("amazon.sde.sde_ii.oa_components");
   assert.match(oa, /online coding round \(Amazon calls it the OA\)/);

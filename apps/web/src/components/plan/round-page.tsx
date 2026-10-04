@@ -12,6 +12,7 @@ import { getRound, targetForRole, type RoundDetail, type TargetView } from "@/li
 import {
   cannotDo,
   claimCopy,
+  claimMatchesTargetScope,
   competencyLabel,
   conflictCopy,
   countryLabel,
@@ -107,8 +108,8 @@ export function RoundPage({ roleProfileId, roundKey }: { roleProfileId: string; 
 
 function RoundBody({ target, detail, roleProfileId }: { target: TargetView; detail: RoundDetail; roleProfileId: string }) {
   const round = detail.round!;
-  const claims = detail.claims.filter((claim) => claimCopy(claim.key));
-  const conflicts = detail.conflicts.filter((conflict) => conflictCopy(conflict.key));
+  const claims = detail.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key));
+  const conflicts = detail.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key)));
   const unknowns = detail.unknowns.filter((unknown) => unknownCopy(unknown.key));
   const researched = detail.match_state === "RESEARCHED" || detail.match_state === "GENERAL_ONLY";
   const pack = detail.pack;
@@ -152,7 +153,7 @@ function RoundBody({ target, detail, roleProfileId }: { target: TargetView; deta
                 <p className="pl-state-title">{targetCopy.section.conflictTitle}</p>
                 <p>{conflictCopy(conflict.key)}</p>
                 <ul className="pl-conflict-sides">
-                  {conflict.claims.filter((claim) => claimCopy(claim.key)).map((claim) => (
+                  {conflict.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key)).map((claim) => (
                     <li key={claim.key}>
                       <p>{claimCopy(claim.key)}</p>
                       <p className="pl-source">{sourceLabel(claim, target.company_label)}</p>

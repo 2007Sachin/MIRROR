@@ -241,6 +241,17 @@ export function reasonLabel(code: string): string | null {
   return targetCopy.reason[code] ?? null;
 }
 
+export function claimMatchesTargetScope(claim: Pick<ClaimView, "scope">, target: TargetView): boolean {
+  const scope = claim.scope;
+  return Boolean(
+    target.company_key && target.geography_key &&
+    scope.company === target.company_key &&
+    (scope.role_family === "all" || scope.role_family === target.role_family_key) &&
+    (scope.level === "all" || scope.level === target.level_key) &&
+    scope.geography === target.geography_key
+  );
+}
+
 export function claimCopy(key: string): string | null {
   return targetCopy.claims[key] ?? null;
 }

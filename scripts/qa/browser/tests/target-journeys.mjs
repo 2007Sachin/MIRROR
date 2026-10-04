@@ -106,18 +106,15 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await screen("plan-not-researched", { primaries: 1 });
   });
 
-  // T3b Synthetic researched fixture: ordered stages with text source labels, conflict side by side.
+  // T3b Synthetic researched fixture: the target and claim scope are fictional, so no company claim copy is renderable.
   await step("t03b-plan-researched-fixture", async () => {
     await scenario({ blueprint: "researched" });
     await page.goto(planUrl(IDS.role));
-    await page.locator(".pl-stages > li").first().waitFor();
-    const labels = await page.locator(".pl-stages .pl-source").allInnerTexts();
-    assert.ok(labels.length >= 3 && labels.every((label) => label.startsWith("From Amazon's published guidance for India")), labels.join(" | "));
-    await heading("These sources disagree", 3).waitFor();
-    assert.equal(await page.locator(".pl-conflict-sides > li").count(), 2);
-    await page.getByText(/online coding round \(Amazon calls it the OA\)/).first().waitFor();
-    await page.locator("details.pl-sources summary", { hasText: "Where this comes from" }).waitFor();
-    assert.equal(await page.getByText("QA fixture statement", { exact: false }).count(), 0, "raw catalog text never shown");
+    await page.getByText("QA Fictional Company · QA Fictional Country · SDE II").waitFor();
+    await page.getByText("From published guidance for where you're applying.").waitFor();
+    assert.equal(await page.locator(".pl-stages").count(), 0, "unmapped synthetic claim ids are not rendered as real company claims");
+    assert.equal(await page.locator(".pl-conflict").count(), 0, "synthetic conflict ids do not resolve to company copy");
+    assert.equal(await page.getByText(/Amazon|India/).count(), 0, "fictional researched fixture does not impersonate a real scope");
     await screen("plan-researched", { primaries: 1 });
   });
 
