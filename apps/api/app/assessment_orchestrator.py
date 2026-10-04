@@ -7,6 +7,7 @@ from uuid import UUID
 from .agents import AgentRunner
 from .agents.definitions import AgentExecutionContext
 from .evidence_service import EvidenceQuoteValidator
+from .evidence_validator import EvidenceValidator, EvidenceValidationError
 from .specialist_assessment_repository import SpecialistAssessmentRepository
 from .specialist_assessor_models import (
     AssessorType, SpecialistAssessmentBundle, SpecialistAssessmentOutput,
@@ -28,10 +29,12 @@ class AssessmentOrchestrator:
         self, repository: SpecialistAssessmentRepository,
         runners: dict[AssessorType, AgentRunner],
         quote_validator: EvidenceQuoteValidator,
+        evidence_validator: EvidenceValidator | None = None,
     ) -> None:
         self._repository = repository
         self._runners = runners
         self._quotes = quote_validator
+        self._evidence_validator = evidence_validator or EvidenceValidator()
 
     async def assess(self, session_id: UUID, user_id: UUID) -> SpecialistAssessmentBundle:
         results = await asyncio.gather(*[
@@ -55,7 +58,26 @@ class AssessmentOrchestrator:
         if get_latest is not None:
             existing = await get_latest(session_id, user_id, assessor_type)
             if existing is not None:
-                return existing
+                # B5: Revalidate cached specialist against current context
+                # Unverifiable cached rows (invalid evidence, or no context to verify
+                # against) are never reused; fall through to fresh generation, whose
+                # newer row supersedes the stale one. Nothing is deleted.
+                context = await self._repository.load_context(session_id, user_id, assessor_type)
+                try:
+                    if context is None:
+                        raise SpecialistAssessmentRejected("no context to revalidate cached assessment")
+                    await self._validate_evidence_b5(existing.result_json, context)
+                    return existing
+                except SpecialistAssessmentRejected:
+                    logger.warning(
+                        "B5 cached specialist unverifiable; regenerating",
+                        extra={
+                            "session_id": str(session_id),
+                            "user_id": str(user_id),
+                            "assessor_type": assessor_type.value,
+                            "cached_id": str(existing.id),
+                        },
+                    )
         context = await self._repository.load_context(session_id, user_id, assessor_type)
         if context is None:
             return None
@@ -82,12 +104,54 @@ class AssessmentOrchestrator:
         output = SpecialistAssessmentOutput.model_validate(execution.output)
         if output.assessor_type != assessor_type:
             raise SpecialistAssessmentRejected("assessor output type mismatch")
+        # B5: Validate evidence before storage
+        await self._validate_evidence_b5(output, context)
         await self._validate_quotes(output, context, user_id)
         return await self._repository.store(
             session_id, assessor_type, output.status, output,
             execution.model, execution.model, execution.prompt_version,
             context.rubric_version,
         )
+
+    async def _validate_evidence_b5(self, output, context) -> None:
+        """B5: Validate that all evidence resolves to actual candidate content."""
+        candidate_turns = EvidenceValidator.extract_candidate_turns(
+            context.transcript_turns,
+            turn_horizon=100,
+        )
+        
+        # Collect nested assessments
+        nested_assessments = []
+        for assessment in output.dimensions + output.competency_or_domain_assessments:
+            nested_assessments.append({
+                "evidence_turn_ids": assessment.evidence_turn_ids,
+                "evidence_quotes": [
+                    {"turn_id": q.turn_id, "quote": q.quote}
+                    for q in assessment.evidence_quotes
+                ],
+            })
+        
+        # Validate all evidence
+        try:
+            self._evidence_validator.validate_assessment_output(
+                evidence_turn_ids=output.evidence_turn_ids,
+                evidence_quotes=[
+                    {"turn_id": q.turn_id, "quote": q.quote}
+                    for q in output.evidence_quotes
+                ],
+                candidate_turns=candidate_turns,
+                nested_assessments=nested_assessments,
+            )
+        except EvidenceValidationError as e:
+            logger.error(
+                "B5 evidence validation failed",
+                extra={
+                    "session_id": str(context.session_id),
+                    "assessor_type": output.assessor_type.value,
+                    "error": str(e),
+                },
+            )
+            raise SpecialistAssessmentRejected(f"Evidence validation failed: {e}")
 
     async def _validate_quotes(self, output, context, user_id: UUID) -> None:
         allowed = {turn.id: turn.text for turn in context.transcript_turns}

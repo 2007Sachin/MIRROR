@@ -47,13 +47,25 @@ def claim(status):
     )
 
 
+def verified_specialists():
+    """Specialist inputs with provenance: valid, evidence-free NOT_ENOUGH_SIGNAL rows."""
+    return [{"assessor_type": kind.value, "status": "NOT_ENOUGH_SIGNAL", "result_json": SpecialistAssessmentOutput(
+        assessor_type=kind, status=SpecialistStatus.NOT_ENOUGH_SIGNAL, signal_strength=SignalStrength.NONE,
+        confidence=.5, reason_summary="Not enough yet.").model_dump(mode="json")} for kind in AssessorType]
+
+
+def default_turns():
+    return [{"id": TURN, "speaker": "CANDIDATE", "text": "I only supported the dashboard filters. SQL trade-offs.", "turn_index": 0}]
+
+
 class FakeReportRepository:
-    def __init__(self, *, current=session(), result=None, claims=None, evidence=None, specialists=None, events=None):
+    def __init__(self, *, current=session(), result=None, claims=None, evidence=None, specialists=None, events=None, turns="default"):
+        self.turn_rows = default_turns() if turns == "default" else turns
         self.current = current
         self.result = result
         self.claims = claims or []
         self.evidence = evidence or []
-        self.specialists = specialists or []
+        self.specialists = verified_specialists() if specialists is None else specialists
         self.events = events or []
 
     async def get_session(self, session_id, user_id):
@@ -73,6 +85,12 @@ class FakeReportRepository:
 
     async def list_events(self, session_id, user_id):
         return self.events
+
+    async def list_turns(self, session_id, user_id):
+        if self.turn_rows is None:
+            from app.claims_repository import ClaimsGraphUnavailable
+            raise ClaimsGraphUnavailable
+        return self.turn_rows
 
 
 RESULT = {
