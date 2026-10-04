@@ -3,16 +3,16 @@
   "target": {
     "id": "00000000-0000-4000-8000-000000000301",
     "role_profile_id": "00000000-0000-4000-8000-000000000002",
-    "company_label": "Amazon",
-    "company_key": "amazon",
+    "company_label": "QA Fictional Company",
+    "company_key": "qa_company",
     "role_family_key": "software_development_engineering",
     "level_key": "sde_ii",
-    "geography_key": "in",
-    "geography_label": "India",
+    "geography_key": "qa_land",
+    "geography_label": "QA Fictional Country",
     "interview_date": null,
     "status": "ACTIVE",
     "archived_at": null,
-    "created_at": "2026-10-04T15:41:29.787200Z"
+    "created_at": "2026-10-04T00:00:00Z"
   },
   "round": {
     "key": "coding_reasoning",
@@ -30,15 +30,15 @@
   "content_state": "SERVED",
   "claims": [
     {
-      "key": "amazon.sde.sde_ii.oa_components",
+      "key": "qa.synthetic.claim_7e0bad646a35",
       "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
       "provenance_class": "FACT",
       "class_label_key": "class.fact",
       "scope": {
-        "company": "amazon",
+        "company": "qa_company",
         "role_family": "software_development_engineering",
         "level": "sde_ii",
-        "geography": "in"
+        "geography": "qa_land"
       },
       "scope_label_key": "scope.this_level_here",
       "confidence_band": "MEDIUM",
@@ -65,15 +65,15 @@
       "conflict_set": null
     },
     {
-      "key": "amazon.sde.all.interview_topics",
+      "key": "qa.synthetic.claim_3c7994946e0a",
       "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
       "provenance_class": "FACT",
       "class_label_key": "class.fact",
       "scope": {
-        "company": "amazon",
+        "company": "qa_company",
         "role_family": "software_development_engineering",
         "level": "all",
-        "geography": "in"
+        "geography": "qa_land"
       },
       "scope_label_key": "scope.all_levels_here",
       "confidence_band": "MEDIUM",
@@ -100,15 +100,15 @@
       "conflict_set": null
     },
     {
-      "key": "amazon.sde.sde_ii.oa_required",
+      "key": "qa.synthetic.claim_0bfcc985f223",
       "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
       "provenance_class": "FACT",
       "class_label_key": "class.fact",
       "scope": {
-        "company": "amazon",
+        "company": "qa_company",
         "role_family": "software_development_engineering",
         "level": "sde_ii",
-        "geography": "in"
+        "geography": "qa_land"
       },
       "scope_label_key": "scope.this_level_here",
       "confidence_band": "MEDIUM",
@@ -141,15 +141,15 @@
       "conflict_set": null
     },
     {
-      "key": "amazon.sde.sde_ii.coding_expectations",
+      "key": "qa.synthetic.claim_a278ca80141c",
       "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
       "provenance_class": "FACT",
       "class_label_key": "class.fact",
       "scope": {
-        "company": "amazon",
+        "company": "qa_company",
         "role_family": "software_development_engineering",
         "level": "sde_ii",
-        "geography": "in"
+        "geography": "qa_land"
       },
       "scope_label_key": "scope.this_level_here",
       "confidence_band": "MEDIUM",
@@ -178,19 +178,19 @@
   ],
   "conflicts": [
     {
-      "key": "amazon.sde.sde_ii.oa_section_timing",
+      "key": "qa.synthetic.claim_b04a66adb097",
       "note": "QA fixture note (synthetic).",
       "claims": [
         {
-          "key": "amazon.sde.sde_ii.oa_section_timing.interview_prep_page",
+          "key": "qa.synthetic.claim_7218f9ba5ebf",
           "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
           "provenance_class": "FACT",
           "class_label_key": "class.fact",
           "scope": {
-            "company": "amazon",
+            "company": "qa_company",
             "role_family": "software_development_engineering",
             "level": "sde_ii",
-            "geography": "in"
+            "geography": "qa_land"
           },
           "scope_label_key": "scope.this_level_here",
           "confidence_band": "MEDIUM",
@@ -208,18 +208,18 @@
               "published_at": null
             }
           ],
-          "conflict_set": "amazon.sde.sde_ii.oa_section_timing"
+          "conflict_set": "qa.synthetic.claim_b04a66adb097"
         },
         {
-          "key": "amazon.sde.sde_ii.oa_section_timing.oa_prep_page",
+          "key": "qa.synthetic.claim_f0f9264ef977",
           "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
           "provenance_class": "FACT",
           "class_label_key": "class.fact",
           "scope": {
-            "company": "amazon",
+            "company": "qa_company",
             "role_family": "software_development_engineering",
             "level": "sde_ii",
-            "geography": "in"
+            "geography": "qa_land"
           },
           "scope_label_key": "scope.this_level_here",
           "confidence_band": "MEDIUM",
@@ -237,19 +237,19 @@
               "published_at": null
             }
           ],
-          "conflict_set": "amazon.sde.sde_ii.oa_section_timing"
+          "conflict_set": "qa.synthetic.claim_b04a66adb097"
         }
       ]
     }
   ],
   "unknowns": [
     {
-      "key": "amazon.sde.india_specific_process",
+      "key": "qa.synthetic.claim_2794c18cdf35",
       "reason": "NOT_PUBLISHED",
       "note": "QA fixture note (synthetic)."
     },
     {
-      "key": "amazon.sde.sde_ii.oa_section_timing",
+      "key": "qa.synthetic.claim_b04a66adb097",
       "reason": "CONFLICT",
       "note": "QA fixture note (synthetic)."
     }

@@ -57,6 +57,19 @@ def test_the_seeded_catalog_satisfies_research_policy() -> None:
     assert _codes(_doc()) == []
 
 
+def test_browser_researched_fixture_never_rescopes_real_amazon_claims_to_india() -> None:
+    fixture_path = CONTENT_DIR.parents[3] / "scripts" / "qa" / "browser" / "mock" / "fixtures" / "blueprint_researched.json"
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    real_claim_ids = {claim["id"] for claim in _doc()["claims"]}
+    assert not (real_claim_ids & {claim["key"] for claim in fixture["claims"]})
+    assert fixture["target"]["company_label"] == "QA Fictional Company"
+    assert fixture["target"]["company_key"] == "qa_company"
+    assert fixture["target"]["geography_key"] == "qa_land"
+    assert all(claim["scope"]["company"] == "qa_company" for claim in fixture["claims"])
+    assert all(claim["scope"]["geography"] == "qa_land" for claim in fixture["claims"])
+    assert "amazon." not in json.dumps(fixture)
+
+
 def test_fact_requires_a_t1_official_supporting_source() -> None:
     document = _doc()
     for source in document["sources"]:

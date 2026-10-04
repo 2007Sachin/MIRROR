@@ -9,6 +9,7 @@ catalog text anyway (it maps claim keys to reviewed copy).
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 from uuid import UUID
@@ -45,11 +46,29 @@ def world(catalogs):
     )
 
 
-def scrub(value, ids):
+def scrub(value, ids, synthetic_scope=False):
     if isinstance(value, dict):
         out = {}
         for key, item in value.items():
-            if key in ("statement",):
+            if key == "created_at":
+                out[key] = "2026-10-04T00:00:00Z"
+            elif synthetic_scope and key == "key" and isinstance(item, str) and item.startswith("amazon."):
+                out[key] = "qa.synthetic.claim_" + hashlib.sha256(item.encode("utf-8")).hexdigest()[:12]
+            elif synthetic_scope and key == "catalog_sha256":
+                out[key] = hashlib.sha256(b"mirror-loop2-qa-synthetic-catalog-v1").hexdigest()
+            elif synthetic_scope and key == "company_label":
+                out[key] = "QA Fictional Company"
+            elif synthetic_scope and key == "company_key":
+                out[key] = "qa_company"
+            elif synthetic_scope and key == "geography_key":
+                out[key] = "qa_land"
+            elif synthetic_scope and key == "geography_label":
+                out[key] = "QA Fictional Country"
+            elif synthetic_scope and key == "company" and item == "amazon":
+                out[key] = "qa_company"
+            elif synthetic_scope and key == "geography" and item == "in":
+                out[key] = "qa_land"
+            elif key in ("statement",):
                 out[key] = "QA fixture statement (synthetic; the web shows reviewed copy for this key instead)."
             elif key == "note":
                 out[key] = "QA fixture note (synthetic)."
@@ -61,18 +80,20 @@ def scrub(value, ids):
                     for i, s in enumerate(item)
                 ]
             else:
-                out[key] = scrub(item, ids)
+                out[key] = scrub(item, ids, synthetic_scope)
         return out
     if isinstance(value, list):
-        return [scrub(item, ids) for item in value]
+        return [scrub(item, ids, synthetic_scope) for item in value]
     if isinstance(value, str):
+        if synthetic_scope and value.startswith("amazon."):
+            return "qa.synthetic.claim_" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
         for real, fake in ids.items():
             value = value.replace(real, fake)
         return value
     return value
 
 
-def build(catalogs, level, label):
+def build(catalogs, level, label, synthetic_scope=False):
     w = world(catalogs)
     c = tr.client(w)
     created = tr.create(c, level=level).json()
@@ -86,7 +107,8 @@ def build(catalogs, level, label):
     ids[started["link"]["prompt_set_id"]] = "00000000-0000-4000-8000-000000000401"
     if started["link"].get("blueprint_id"):
         ids[started["link"]["blueprint_id"]] = "00000000-0000-4000-8000-000000000501"
-    return scrub(target, ids), scrub(blueprint, ids), {k: scrub(v, ids) for k, v in rounds.items()}, scrub(started["link"], ids)
+    return (scrub(target, ids, synthetic_scope), scrub(blueprint, ids, synthetic_scope),
+            {k: scrub(v, ids, synthetic_scope) for k, v in rounds.items()}, scrub(started["link"], ids, synthetic_scope))
 
 
 def write(name, payload):
@@ -103,7 +125,7 @@ def main():
         write(f"round_{key}.json", detail)
     write("round_practice_link.json", link)
 
-    _, researched, rounds_r, _ = build({1: load_catalog(), 2: tr.india_catalog(2)}, "sde_ii", "synthetic-researched")
+    _, researched, rounds_r, _ = build({1: load_catalog(), 2: tr.india_catalog(2)}, "sde_ii", "synthetic-researched", synthetic_scope=True)
     assert researched["match_state"] == "RESEARCHED" and researched["claims"] and researched["conflicts"]
     write("blueprint_researched.json", researched)
     write("round_coding_reasoning_researched.json", rounds_r["coding_reasoning"])
