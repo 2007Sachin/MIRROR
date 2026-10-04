@@ -549,3 +549,31 @@ def test_main_app_serves_targets_and_flag_is_off_by_default() -> None:
         assert response.status_code == 503 and response.json()["detail"]["code"] == "TARGETS_NOT_AVAILABLE"
     finally:
         app.dependency_overrides.pop(get_token_verifier, None)
+
+
+# ------------------------------------------------------------------ progress and planner hand-off
+
+
+def test_target_progress_is_built_from_linked_sessions_only(world) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    session_id = start(c, target["id"]).json()["session"]["id"]
+    body = c.get(f"/api/v1/targets/{target['id']}/progress", headers=A).json()
+    assert body["availability"] == "AVAILABLE"
+    assert world.progress.calls == [(ROLE_A, USER_A, frozenset({UUID(session_id)}))]
+
+
+def test_planner_loader_returns_stored_prompts_only_for_the_owner_when_available(world) -> None:
+    import asyncio
+
+    from app.target_service import linked_prompt_texts
+
+    c = client(world)
+    target = create(c).json()["target"]
+    session_id = UUID(start(c, target["id"]).json()["session"]["id"])
+    stored = [q.question_text for q in sorted(world.repo.questions, key=lambda q: q.position)]
+    assert asyncio.run(linked_prompt_texts(world.repo, world.capability, session_id, USER_A)) == stored
+    assert asyncio.run(linked_prompt_texts(world.repo, world.capability, session_id, USER_B)) == []
+    for state in (TargetAvailability.UNAVAILABLE, TargetAvailability.DISABLED):
+        assert asyncio.run(linked_prompt_texts(world.repo, FixedCapability(state), session_id, USER_A)) == []
+    assert asyncio.run(linked_prompt_texts(world.repo, FixedCapability(error=True), session_id, USER_A)) == []

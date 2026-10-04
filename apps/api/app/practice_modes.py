@@ -235,9 +235,16 @@ def build_practice_plan(
     *,
     theme: str | None = None,
     stories: Sequence[str] = (),
+    questions: Sequence[str] = (),
 ) -> InterviewPlan:
+    """``questions``, when given, replace the fixed questions (e.g. Mirror-written prompts stored
+    for a target practice); ids, phases, budgets and follow-up limits are unchanged."""
     shape = MODE_SHAPE[mode]
-    questions = practice_questions(focus, shape.questions, source, theme, stories)
+    questions = (
+        list(questions)[: shape.questions]
+        if questions
+        else practice_questions(focus, shape.questions, source, theme, stories)
+    )
     per_question = max(30, shape.total_seconds // len(questions))
     area = _AREA_NAME[focus] if focus != PracticeFocus.ROLE or not theme else theme.lower()
     matching_competencies = [
