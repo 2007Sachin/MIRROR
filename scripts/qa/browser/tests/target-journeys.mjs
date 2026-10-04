@@ -11,8 +11,9 @@ import { TARGET_IDS } from "../mock/targets.mjs";
 
 // Same list as docs/copy-guide.md (whole word, case-insensitive, inflections).
 const BANNED = /\b(evidence|diagnostics?|assessments?|assessor|skeptic|scor(e|ed|es|ing)|weakness(es)?|gaps?|deficienc(y|ies)|fail(s|ed|ure|ing)?|incorrect|wrong|red flag|critical|candidates?|verdicts?|evaluat\w*|analys\w*|audit\w*|test(s|ed|ing)?|verif\w*|proof|performance|scrutiny|substantiat\w*|flag(s|ged)?)\b/i;
-// Fixture names that are deliberately marked as test data.
-const FIXTURE_TEXT = [/\(test role\)/g, /\(test only\)/g, /QA fixture[^.]*\./g];
+// Fixture names that are deliberately marked as test data. The whole marked name goes, not just the
+// marker: the Loop 1 fixture role "QA Analyst (test role)" is user data shown in the role switcher.
+const FIXTURE_TEXT = [/QA Analyst \(test role\)/g, /\(test role\)/g, /\(test only\)/g, /QA fixture[^.]*\./g];
 
 export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, overflow, getState }) {
   const control = { "x-qa-control-token": mock.controlToken, "content-type": "application/json" };
