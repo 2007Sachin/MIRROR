@@ -11,6 +11,13 @@ hosted service. This is NOT an OS-level egress firewall; Chrome additionally run
 The journey drives a fake Supabase Auth and a fake Mirror API (fixtures), so it verifies the web application end to end, not the
 Python assessment pipeline (that is covered by the pytest/AI-evaluation gates).
 
+Update (Loop 2, local commits only): the CI journey also runs the interview-target steps T1-T15 (`tests/target-journeys.mjs`)
+before sign-out. Their fake endpoints live in `mock/targets.mjs` (pure; unit-tested without sockets by
+`tests/targets-mock.test.mjs`). Error and unavailable states are deliberate mocked answers selected with the token-guarded
+`POST /__qa/scenario` (`/__qa/targets/reset` resets only that state), never unmocked 404s; each deliberate 4xx/5xx is
+allow-listed for exactly one step in `lib/collector.mjs`. These journeys have NOT been executed on a developer machine (local
+execution stays BLOCKED); they run only in the CI `browser` job.
+
 Historical text below describes the original, stricter requirements and the foundations that remain in force.
 
 `run.mjs` deliberately exits nonzero before filesystem artifacts, listeners, Next, or browser activity. Direct `runCriticalPath()` also refuses execution. There is no environment variable, CLI flag, or caller assertion that enables isolation. This is not a working hermetic browser suite or a hermetic PASS.

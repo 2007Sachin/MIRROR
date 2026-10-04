@@ -44,6 +44,9 @@ jobs:
       - name: Wrapper exit-code tests (a killed or failing child must never look green)
         run: node --test scripts/exit-code.test.js
 
+      - name: Interview-target web copy and view helpers (pure, Node type stripping)
+        run: node --test apps/web/tests/target-copy.test.mjs
+
       - name: Copy lint
         run: python scripts/copy_lint.py
 
@@ -99,7 +102,7 @@ jobs:
         run: npm ci --prefix scripts/qa/browser
 
       - name: Browser QA safety unit tests (isolation policy, network rail, mock guards)
-        run: node --test scripts/qa/browser/tests/safety.test.mjs scripts/qa/browser/tests/mock-safety.test.mjs scripts/qa/browser/tests/network.test.mjs
+        run: node --test scripts/qa/browser/tests/safety.test.mjs scripts/qa/browser/tests/mock-safety.test.mjs scripts/qa/browser/tests/network.test.mjs scripts/qa/browser/tests/targets-mock.test.mjs
 
       - name: Build web against loopback fakes
         run: npm --workspace @mirror/web run build
