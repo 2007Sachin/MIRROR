@@ -155,7 +155,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.locator(".hm-role strong", { hasText: ROLE }).waitFor();
     await heading(`Start your first ${ROLE} practice`, 2).waitFor();
     await page.getByRole("link", { name: `Start ${ROLE} practice` }).waitFor();
-    await page.getByText(QA_NAME).first().waitFor(); // profile loaded from /api/v1/me
+    await page.getByText(QA_NAME).first().waitFor({ state: "attached" }); // profile loaded from /api/v1/me (name sits in a menu on narrow screens)
     await overflow("home");
   });
 
@@ -164,10 +164,10 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.getByRole("link", { name: `Start ${ROLE} practice` }).click();
     await page.waitForURL((url) => url.pathname === "/practice/start");
     await heading("What would you like to work on?", 1).waitFor();
-    await page.locator("label", { hasText: "Quick drill" }).click();
+    await page.locator("label", { hasText: "5-minute drill" }).click();
     await page.locator("label", { hasText: "Explain a project" }).click();
     const check = page.locator(".pr-check");
-    await check.getByText("Quick drill", { exact: true }).waitFor();
+    await check.getByText("5-minute drill", { exact: true }).waitFor();
     await check.getByText("Explain a project", { exact: true }).waitFor();
     await overflow("start-practice");
   });
@@ -184,7 +184,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
 
   await step("session-brief", async () => {
     await heading("Before we begin", 1).waitFor();
-    await page.getByText("Quick drill · Explain a project").waitFor();
+    await page.getByText("5-minute drill · Explain a project").waitFor();
     await page.getByRole("link", { name: /Begin the conversation/ }).waitFor();
     await overflow("brief");
     await page.getByRole("link", { name: /Begin the conversation/ }).click();
