@@ -3,13 +3,16 @@
 import "@/styles/plan.css";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { PlanAreaCard, type PlanHrefs } from "@/components/plan/plan-area-card";
+import { TargetOverview } from "@/components/plan/target-overview";
 import { EmptyState, PageAlert, PageHeader, PageLoading, PageShell, usePageData } from "@/components/workspace/page-shell";
 import { ApiError } from "@/lib/api";
 import { choosePlanLink, getPlan, type Plan, type PlanArea, type PlanLink } from "@/lib/api-plan";
 import { planCopy as t } from "@/lib/copy-plan";
+import { planHref } from "@/lib/copy-targets";
 import { findStoryHref } from "@/lib/map-view";
 import { startPracticeHref } from "@/lib/practice-view";
 
@@ -35,6 +38,13 @@ export function PlanPage({ roleProfileId }: { roleProfileId: string | null }) {
   const { state, data: plan, error, reload, setData } = usePageData(() => getPlan(roleProfileId), t.errors.load, [roleProfileId]);
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const router = useRouter();
+
+  // Plan pages always carry the role: a bare /plan pins the role it resolved, so links and reloads stay on it.
+  const resolvedRole = plan?.role?.role_profile_id ?? null;
+  useEffect(() => {
+    if (!roleProfileId && resolvedRole) router.replace(planHref(resolvedRole));
+  }, [roleProfileId, resolvedRole, router]);
 
   async function choose(area: PlanArea, link: PlanLink, confirmed: boolean) {
     if (!plan?.role) return;
@@ -75,6 +85,8 @@ function PlanBody({
   onChoose: (area: PlanArea, link: PlanLink, confirmed: boolean) => void;
   reload: () => void;
 }) {
+  // Section A (interview target) owns the page's one filled action when it shows rounds.
+  const [targetPrimary, setTargetPrimary] = useState(false);
   if (plan.state === "NEEDS_REVIEW") {
     return (
       <EmptyState title={t.states.reviewTitle} body={t.states.reviewBody}>
@@ -104,17 +116,24 @@ function PlanBody({
     );
   }
   return (
-    <div className="pl-areas">
-      {plan.areas.map((area) => (
-        <PlanAreaCard
-          key={area.key}
-          area={area}
-          recommended={area.key === plan.recommended_area_key}
-          hrefs={hrefsFor(plan, area)}
-          busy={busy}
-          onChoose={(link, confirmed) => onChoose(area, link, confirmed)}
-        />
-      ))}
-    </div>
+    <>
+      <TargetOverview roleProfileId={plan.role.role_profile_id} roleName={plan.role.target_role} onPrimary={setTargetPrimary} />
+      <section className="pl-areas-section" aria-labelledby="pl-areas-title">
+        <h2 id="pl-areas-title" className="pl-run-title">{t.areasTitle}</h2>
+        <div className="pl-areas">
+          {plan.areas.map((area) => (
+            <PlanAreaCard
+              key={area.key}
+              area={area}
+              recommended={area.key === plan.recommended_area_key}
+              demoted={targetPrimary}
+              hrefs={hrefsFor(plan, area)}
+              busy={busy}
+              onChoose={(link, confirmed) => onChoose(area, link, confirmed)}
+            />
+          ))}
+        </div>
+      </section>
+    </>
   );
 }
