@@ -2,7 +2,10 @@
   "name": "mirror-by-pathwisse",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["apps/web", "packages/*"],
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
   "scripts": {
     "predev": "node scripts/free-ports.js",
     "dev": "concurrently -n web,api,assessor -c green,cyan,yellow \"npm run dev:web\" \"npm run dev:api\" \"npm run dev:worker\"",
@@ -13,10 +16,12 @@
     "build": "node scripts/run-web.js build",
     "test": "npm run lint:copy && node scripts/run-python.js -m pytest && npm --workspace @mirror/web run typecheck",
     "lint:copy": "node scripts/run-python.js scripts/copy_lint.py",
-    "lint": "npm run lint:copy && npm --workspace @mirror/web run lint"
+    "lint": "npm run lint:copy && npm --workspace @mirror/web run lint",
+    "test:scripts": "node --test scripts/exit-code.test.js",
+    "test:py": "node scripts/run-python.js -m pytest",
+    "verify:web": "npm --workspace @mirror/web run clean && npm --workspace @mirror/web run typecheck && npm run lint:copy && npm --workspace @mirror/web run build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
   }
 }
-

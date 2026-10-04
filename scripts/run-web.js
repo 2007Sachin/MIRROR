@@ -1,4 +1,5 @@
 const { spawn } = require("child_process");
+const { resolveExitCode } = require("./exit-code");
 const path = require("path");
 const { loadEnvConfig } = require("@next/env");
 
@@ -18,4 +19,4 @@ const child = spawn("npm", ["--workspace", "@mirror/web", "run", command], {
   stdio: "inherit",
 });
 
-child.on("exit", (code) => process.exit(code ?? 0));
+child.on("exit", (code, signal) => process.exit(resolveExitCode(code, signal)));
