@@ -3,8 +3,8 @@
 A practice round is what a person can rehearse in Mirror; it is not a claim about any
 company's hiring stages. Every prompt is written by Mirror (class MIRROR_GENERATED) from the
 templates below and may only be personalised with the person's own story titles. Each prompt
-must pass ``prompt_originality.check_prompt`` and must never have been stored for this person's
-target before. A pack with fewer than ``PACK_MIN`` prompts is reported as ``SHORT_PACK`` rather
+must pass ``prompt_originality.check_prompt`` (which refuses a repeat of anything served to this
+person in the last 30 days) and never repeats inside one practice set. A pack with fewer than ``PACK_MIN`` prompts is reported as ``SHORT_PACK`` rather
 than padded.
 """
 
