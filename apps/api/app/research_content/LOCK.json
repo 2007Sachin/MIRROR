@@ -1,0 +1,10 @@
+{
+  "lock_version": 1,
+  "catalogs": {
+    "catalog_v1.json": {
+      "version": 1,
+      "status": "PUBLISHED",
+      "sha256": "21a4c5d7fa3cdddc1fbe51b78d296cd21cffd19a450a6a5cb9c6f8926fd76391"
+    }
+  }
+}
