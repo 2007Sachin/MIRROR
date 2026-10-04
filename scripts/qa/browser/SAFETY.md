@@ -1,4 +1,17 @@
-# Browser QA safety status: BLOCKED
+# Browser QA safety status: LOCAL EXECUTION BLOCKED; CI EXECUTION APPROVED ON AN ISOLATED RUNNER
+
+Update 2026-10-04 (Loop 1 closure): the browser critical path now runs, and only runs, on an **ephemeral, secret-free GitHub-hosted
+Actions runner** (job `browser` in `.github/workflows/ci.yml`, entry `run-ci.mjs`). `lib/isolation.mjs` *verifies* that environment
+before anything listens, builds or launches a browser: `MIRROR_QA_GITHUB_HOSTED=1` set by the job, `GITHUB_ACTIONS=true`,
+`RUNNER_ENVIRONMENT=github-hosted`, no provider/hosted-database credentials in the environment, no dotenv file in the product tree,
+and loopback-only `NEXT_PUBLIC_*` URLs. Any other host (including a developer machine) stays BLOCKED exactly as before; the
+local `run.mjs` is unchanged and still refuses. The boundary is the fresh VM plus the absence of any credential: nothing in the
+browser path holds a secret, a hosted URL or a real account, so a request that escaped could neither authenticate to nor mutate a
+hosted service. This is NOT an OS-level egress firewall; Chrome additionally runs behind the exact-origin network rail below.
+The journey drives a fake Supabase Auth and a fake Mirror API (fixtures), so it verifies the web application end to end, not the
+Python assessment pipeline (that is covered by the pytest/AI-evaluation gates).
+
+Historical text below describes the original, stricter requirements and the foundations that remain in force.
 
 `run.mjs` deliberately exits nonzero before filesystem artifacts, listeners, Next, or browser activity. Direct `runCriticalPath()` also refuses execution. There is no environment variable, CLI flag, or caller assertion that enables isolation. This is not a working hermetic browser suite or a hermetic PASS.
 

@@ -32,3 +32,24 @@ Trigger/internal functions (e.g. `enforce_session_lifecycle`, `*_verify_ownershi
 2. Establish catalog and migration-ledger evidence before deciding reconciliation or rollout. Review `202609300001`, `202610010001`, `202610010002`, `202610010003` individually with G2 and rollback notes; **do not automatically replay them**. `202610010002` replaces a lifecycle trigger function, so describing all four as merely additive understates semantic risk. Do not deploy paths depending on missing objects.
 3. Decide whether Mirror should move to its own Supabase project (D3), or at minimum confirm the nutrition app's tables are intentionally co-hosted and covered by RLS.
 4. Investigate dependencies/ownership of empty legacy tables (D4); any retirement or repurposing requires a separate decision and explicit authorization.
+
+
+## Re-verification 2026-10-04 (Loop 1 closure, read-only)
+
+Re-ran `scripts/ops/hosted_readonly_snapshot.py` (GET/HEAD only; nothing written to the hosted project): 51 exposed tables, 26 REST RPC functions, 2 private buckets. Catalog probes again returned `schema_migrations` HTTP 406 and postgres-meta HTTP 404, so **migration ledger, RLS policies, grants, constraints, triggers and indexes remain unreadable with the available credentials** (no database URL, management token, `psql` or Supabase CLI exists on this machine).
+
+Static diff of repository migrations against the exposed schema:
+
+| Difference | Class | Detail |
+|---|---|---|
+| `interview_events`, `interview_debriefs` absent (migration `202609300001`) | **BLOCKING for the interviews/role-events feature; not on any Loop 1 path** | Used only by `interview_event_repository.py` and the `/roles/{id}/interviews` endpoints |
+| `evidence_items` absent (`202610010001`) | **BLOCKING for career-evidence; not on any Loop 1 path** | `career_evidence.py` |
+| `coverage_links` absent (`202610010003`) | **BLOCKING for coverage/plan; not on any Loop 1 path** | `plan_service.py` |
+| `202610010002_session_abandoned` (ABANDONED enum value + lifecycle trigger replacement) | **UNKNOWN** | Cannot be observed through REST |
+| `users` absent, `profiles` present | EXPECTED | `202608310002` renames it |
+| `detailed_food_logs`, `nutrition_goals` exposed, no repo migration | LEGACY / cross-application (UNKNOWN grants) | Co-hosted non-Mirror app; ownership and RLS uninspected |
+| Empty legacy tables (`question_bank`, `rubrics`, ...) | LEGACY | Emptiness does not prove safe retirement |
+| All repo-added columns present on observed tables | none | no missing columns found |
+| Loop 1 tables present: `sessions`, `turns`, `claims`, `claim_evidence`, `flags`, `jobs`, `session_events`, `specialist_assessments`, `assessment_adjudications`, `session_results` | none | exposure only; policies/grants unverified |
+
+Conclusion: the three missing tables do not sit on the assessment, adjudication, report, Skeptic or interviewer paths changed in Loop 1, so Loop 1's product contracts do not depend on them; the interview-events, career-evidence and coverage features of the repository head cannot work against this hosted project until their migrations are applied (not done; not authorized). **What is still not known is the security-relevant catalog state (RLS enabled, policies, grants) of any hosted table.** Closing that needs the owner to run `scripts/ops/hosted_catalog_readonly.sql` (SELECT-only) in the Supabase SQL editor and save the JSON result.
