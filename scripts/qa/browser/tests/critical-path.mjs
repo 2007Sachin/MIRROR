@@ -295,6 +295,11 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
 
   const state = await getState();
   const findings = collector.findings();
+  // Sign-out navigates away while the logout POST is in flight; the browser then reports ERR_ABORTED even though
+  // the fake auth server received it (asserted above via authLog). That one abort is not a failed request.
+  if (state.authLog.includes("POST /auth/v1/logout")) {
+    findings.failedRequests = findings.failedRequests.filter((f) => !(f.step === "sign-out" && /\/auth\/v1\/logout/.test(f.url) && f.error === "net::ERR_ABORTED"));
+  }
   findings.deniedRequests = deniedRequests;
   result.findings = findings;
   result.consoleWarnings = collector.bag.consoleWarnings.length;

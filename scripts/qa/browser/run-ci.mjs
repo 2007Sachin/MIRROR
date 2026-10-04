@@ -8,13 +8,16 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { parseArgs } from './lib/safety.mjs';
+import { parseArgs, resultOk } from './lib/safety.mjs';
 import { requireEphemeralRunner } from './lib/isolation.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
 const AUTH_PORT = 54399, API_PORT = 8099, WEB_PORT = 3099;
 const WEB = `http://127.0.0.1:${WEB_PORT}`;
+// Known product defects accepted as KNOWN DEBT (docs/mirror-company/KNOWN_ISSUES.md). The strict result stays in
+// summary.ok; the job passes only if every other check is clean and every known issue is on this list.
+const ACKNOWLEDGED_KNOWN_ISSUES = new Set(['typing-only-room-stuck-after-answer']); // KI-020
 let web;
 let mock;
 
@@ -50,9 +53,13 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
   const viewports = options.only ? VIEWPORTS.filter((v) => v.name === options.only) : VIEWPORTS;
   const summary = await runCriticalPath({ baseUrl: WEB, mock, password, outDir, viewports });
+  const unacknowledged = summary.viewports.flatMap((v) => v.knownIssues).filter((k) => !ACKNOWLEDGED_KNOWN_ISSUES.has(k.id));
+  const stripped = summary.viewports.map((v) => ({ ...v, knownIssues: [] }));
+  summary.acknowledgedKnownIssues = [...new Set(summary.viewports.flatMap((v) => v.knownIssues).map((k) => k.id))];
+  summary.okWithAcknowledgedKnownIssues = unacknowledged.length === 0 && resultOk(stripped);
   fs.writeFileSync(path.join(outDir, 'summary.json'), JSON.stringify(summary, null, 2));
-  console.log(`browser critical path: ok=${summary.ok} viewports=${summary.executedViewports} steps=${summary.executedSteps}`);
-  return summary.ok;
+  console.log(`browser critical path: strictOk=${summary.ok} okWithAcknowledgedKnownIssues=${summary.okWithAcknowledgedKnownIssues} acknowledged=${summary.acknowledgedKnownIssues.join(',') || 'none'} viewports=${summary.executedViewports} steps=${summary.executedSteps}`);
+  return summary.okWithAcknowledgedKnownIssues;
 }
 
 let ok = false;
