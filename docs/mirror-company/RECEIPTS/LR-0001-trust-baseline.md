@@ -1,4 +1,4 @@
-# LR-0001 — Trust baseline: interim receipt (OPEN / BLOCKED; B5 ACCEPTED)
+# LR-0001 — Trust baseline: LOOP 1 BLOCKED on G2 only (Gatekeeper 2026-10-04); G0, G1, G3, G4, G5 pass; B5, B7, B12 accepted
 
 Date: 2026-10-04. Baseline: `main` at `8e3193f`; work is uncommitted. This is a continuation receipt, NOT closure or release authorization.
 
@@ -90,3 +90,6 @@ Tests: `apps/api/tests tests` -> **1204 passed, 3 skipped, 0 xfailed** (0 B5/B7/
 - B5, B7, B12 ACCEPTED; known AI production-contract remediation phase complete. Remaining: G1 real CI, G2 hosted Supabase, G3 browser runtime, commit boundary.
 - Separate proposal needed for browser isolation environment or external blocker documentation.
 - Do not automatically start Loop2, migrations, paid infrastructure, or hosted actions.
+
+## Final closure attempt (2026-10-04) — LOOP 1 BLOCKED (G2 only)
+Branch `loop1/trust-baseline` @ e885130, draft PR #1, not merged. Real CI (GitHub Linux): runs 37196654767 and 37196926810 green (Backend 1094 passed/1 skipped; AI eval 110 passed/2 skipped; copy lint; clean typecheck and production build; browser job 36 steps desktop+mobile). Local: 1204 passed/3 skipped/0 xfailed. Final reviews (Architecture, Security/Data, QA, Product): APPROVE, no blockers. Release Gatekeeper: **LOOP 1 BLOCKED** — G2: hosted RLS/policies/grants/migration ledger unknown; `202610010002` state unknown. Owner action: run `scripts/ops/hosted_catalog_readonly.sql` in the Supabase SQL editor (SELECT-only), save the JSON, state whether `202610010002` is applied (or waive G2 in RELEASES.md). Known debt: KI-016a-d, KI-017a-c, KI-019, KI-020, KI-021, KI-022. See QUALITY_GATES.md and RELEASES.md.

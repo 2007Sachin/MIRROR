@@ -6,7 +6,22 @@
 - **STATIC-ONLY** — conclusion from reading code/docs. Never call this "verified".
 - **NOT DONE** — stated explicitly, with the reason.
 
-## Current Loop 1 status — NOT APPROVED
+## Current Loop 1 status — BLOCKED on G2 only (Release Gatekeeper, 2026-10-04, branch loop1/trust-baseline @ e885130)
+
+| Gate | Status | Evidence (VERIFIED-EXECUTED unless noted) |
+|---|---|---|
+| G0 repository integrity | **PASS** | Clean tree; `.env.example` identical to main; `apps/web/next-env.d.ts` untracked on purpose; no secrets in diff; `scratch/` excluded; 7 logical commits + follow-ups |
+| G1 automated verification / real CI | **PASS** | GitHub Actions on Linux, runs 37196654767 (02afc70) and 37196926810 (e885130): Backend 1094 passed/1 skipped, AI evaluation 110 passed/2 skipped, copy lint 169 files 0 hits, wrapper tests 5/5, clean-checkout typecheck and production build, browser job. Local: 1204 passed/3 skipped/0 xfailed |
+| G2 hosted data/security state | **BLOCKED** | Read-only re-verification: 4 repo objects absent on hosted (`interview_events`, `interview_debriefs`, `evidence_items`, `coverage_links`; not on any Loop 1 path); all Loop 1 tables present, no missing columns. RLS, policies, grants, triggers, migration ledger and migration `202610010002` are UNKNOWN (unreadable with available credentials). See HOSTED_SUPABASE_DRIFT.md |
+| G3 browser/runtime | **PASS (CI job only)** | Ephemeral secret-free GitHub-hosted runner, real Chrome, fake Supabase Auth + fake Mirror API, real Next build; 36 steps desktop+mobile; no console errors/failed/denied/unmocked requests; no overflow. Strict result false only for acknowledged KI-020. Not exercised: Python assessment pipeline, unavailable-diagnostic UI (KI-022). Local execution stays blocked |
+| G4 AI behaviour | **PASS (deterministic only)** | B5, B7, B12 independently ACCEPTED; AI evaluation 110 passed/2 skipped; no live-model evidence (KI-019) |
+| G5 independent review | **PASS for Loop 1 scope** | Architecture, Security/Data, QA, Product all APPROVE, no blockers. Release-level G5 not met: no human confirmation of hosted migration state |
+
+**Decision: LOOP 1 BLOCKED.** Minimum blocker (B1): the owner runs `scripts/ops/hosted_catalog_readonly.sql` (SELECT-only) in the Supabase SQL editor, saves the JSON, and states in writing whether migration `202610010002` is applied; the Gatekeeper then re-decides (G2 passes if RLS is enabled with owner-scoped policies and anon grants are revoked on the Loop 1 tables). Alternative: a human waives G2 in writing in `RELEASES.md`. No further engineering work is required for Loop 1.
+
+### Superseded history (kept for the record)
+
+#### Earlier status (NOT APPROVED, superseded)
 
 ### Correction verification (review still pending)
 
