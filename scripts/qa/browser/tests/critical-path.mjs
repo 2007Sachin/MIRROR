@@ -151,7 +151,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
   // 2. Home: greeting, role/target context, one clear primary action.
   await step("home", async () => {
     await heading(/, QA$/, 1).waitFor();
-    await page.getByText("Preparing for:").waitFor();
+    await page.getByText(`Preparing for: ${ROLE}`).waitFor();
     await page.locator(".hm-role strong", { hasText: ROLE }).waitFor();
     await heading(`Start your first ${ROLE} practice`, 2).waitFor();
     await page.getByRole("link", { name: `Start ${ROLE} practice` }).waitFor();
