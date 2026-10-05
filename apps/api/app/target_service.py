@@ -770,6 +770,21 @@ class TargetService:
             or (existing_link is not None and existing_link.prompt_set_id != set_id)
         ):
             raise LinkConflict
+        wanted = TargetSessionLinkCreate(
+            session_id=session.id, candidate_target_id=target.id, blueprint_id=pin.id,
+            round_key=round_.key, competency_key=None, prompt_set_id=set_id,
+        )
+        try:
+            link = await self._repo.create_link(user_id, wanted)
+        except LinkAlreadyExists as exc:
+            existing = exc.link
+            same = existing is not None and (existing.candidate_target_id, existing.round_key, existing.prompt_set_id) == (
+                wanted.candidate_target_id, wanted.round_key, wanted.prompt_set_id,
+            )
+            if not same:
+                raise LinkConflict from exc
+            link = existing
+        assert link is not None
         if not stored:
             try:
                 stored = await self._repo.record_questions(user_id, [
@@ -786,21 +801,6 @@ class TargetService:
                 stored = await self._repo.questions_for_set(set_id, user_id)
                 if not stored:
                     raise
-        wanted = TargetSessionLinkCreate(
-            session_id=session.id, candidate_target_id=target.id, blueprint_id=pin.id,
-            round_key=round_.key, competency_key=None, prompt_set_id=set_id,
-        )
-        try:
-            link = await self._repo.create_link(user_id, wanted)
-        except LinkAlreadyExists as exc:
-            existing = exc.link
-            same = existing is not None and (existing.candidate_target_id, existing.round_key, existing.prompt_set_id) == (
-                wanted.candidate_target_id, wanted.round_key, wanted.prompt_set_id,
-            )
-            if not same:
-                raise LinkConflict from exc
-            link = existing
-        assert link is not None
         return PracticeStarted(
             session=session,
             link=LinkView(**link.model_dump(exclude={"user_id"})),

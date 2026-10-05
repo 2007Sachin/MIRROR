@@ -457,6 +457,33 @@ def test_replay_with_same_key_returns_same_session_and_single_link(world) -> Non
     assert len(world.repo.links) == 1 and len(world.repo.questions) == 4
 
 
+def test_concurrent_same_key_different_targets_does_not_leave_loser_prompts(world) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    c = client(world)
+    target_a = create(c).json()["target"]
+    target_b = create(c, company="Amazon alternate").json()["target"]
+    key = uuid4()
+    original = world.repo.link_for_session
+    rendezvous = threading.Barrier(2)
+
+    async def synchronized_read(session_id, user_id):
+        result = await original(session_id, user_id)
+        rendezvous.wait(timeout=10)
+        return result
+
+    world.repo.link_for_session = synchronized_read
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(start, c, target_id, key=key) for target_id in (target_a["id"], target_b["id"])]
+        responses = [future.result(timeout=30) for future in futures]
+
+    assert sorted(response.status_code for response in responses) == [201, 409]
+    linked_sets = {link.prompt_set_id for link in world.repo.links.values()}
+    question_sets = {question.prompt_set_id for question in world.repo.questions}
+    assert question_sets == linked_sets
+
+
 def test_same_key_for_another_round_cannot_rewrite_the_link(world) -> None:
     c = client(world)
     target = create(c).json()["target"]
