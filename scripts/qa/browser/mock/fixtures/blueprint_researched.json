@@ -31,7 +31,7 @@
     {
       "key": "qa.synthetic.claim_one",
       "version": 2,
-      "statement": "A fictional company uses a fictional coding interview process.",
+      "statement": "QA fixture statement (synthetic).",
       "provenance_class": "FACT",
       "class_label_key": "class.fact",
       "scope": {
@@ -67,7 +67,7 @@
         {
           "key": "qa.synthetic.claim_conflict_a",
           "version": 2,
-          "statement": "A fictional round may include a puzzle discussion.",
+          "statement": "QA fixture statement (synthetic).",
           "provenance_class": "FACT",
           "class_label_key": "class.fact",
           "scope": {
@@ -97,7 +97,7 @@
         {
           "key": "qa.synthetic.claim_conflict_b",
           "version": 2,
-          "statement": "A fictional round may include a design discussion.",
+          "statement": "QA fixture statement (synthetic).",
           "provenance_class": "FACT",
           "class_label_key": "class.fact",
           "scope": {

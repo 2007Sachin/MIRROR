@@ -76,6 +76,18 @@ def test_researched_fixture_generator_uses_no_real_catalog() -> None:
     assert "load_catalog" not in source
 
 
+def test_scrubbed_researched_claim_text_is_explicitly_synthetic() -> None:
+    import sys
+
+    sys.path.insert(0, str(FIXTURES.parent))
+    import make_target_fixtures as generator
+
+    _, blueprint, _, _ = generator.build(
+        generator.synthetic_catalogs(), "sde_ii", "synthetic-researched", synthetic_scope=True,
+    )
+    assert all(claim["statement"].startswith("QA fixture") for claim in blueprint["claims"])
+
+
 def test_fictional_company_alias_matches_the_synthetic_catalog() -> None:
     import sys
 

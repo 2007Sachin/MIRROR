@@ -75,7 +75,7 @@ def scrub(value, ids, synthetic_scope=False):
             elif synthetic_scope and key == "geography" and item == "in":
                 out[key] = "qa_land"
             elif key in ("statement",):
-                out[key] = item
+                out[key] = "QA fixture statement (synthetic)." if synthetic_scope else item
             elif key == "note":
                 out[key] = "QA fixture note (synthetic)."
             elif key == "limits":
