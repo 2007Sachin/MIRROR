@@ -295,6 +295,7 @@ def validate_history(documents: Sequence[CatalogDocument]) -> list[str]:
         codes.append("catalog_versions_not_contiguous")
     seen: dict[tuple[str, int], str] = {}
     latest: dict[str, int] = {}
+    latest_scope: dict[str, Scope] = {}
     for document in ordered:
         if document.version > 1 and document.supersedes_version != document.version - 1:
             codes.append(f"catalog_version_must_supersede_previous:{document.version}")
@@ -307,6 +308,10 @@ def validate_history(documents: Sequence[CatalogDocument]) -> list[str]:
                 continue
             previous = latest.get(claim.id)
             if previous is not None:
+                previous_scope = latest_scope[claim.id]
+                for field in ("company", "role_family", "level", "geography"):
+                    if getattr(claim.scope, field) != getattr(previous_scope, field):
+                        codes.append(f"claim_scope_changed:{claim.id}@{claim.version}:{field}")
                 if claim.version < previous:
                     codes.append(f"claim_version_regressed:{claim.id}@{claim.version}")
                 elif claim.supersedes != previous:
@@ -314,7 +319,8 @@ def validate_history(documents: Sequence[CatalogDocument]) -> list[str]:
             elif claim.version > 1 and claim.supersedes is None:
                 codes.append(f"claim_version_must_supersede_previous:{claim.id}@{claim.version}")
             seen[key] = digest
-            latest[claim.id] = max(claim.version, previous or 0)
+            latest[key[0]] = max(claim.version, previous or 0)
+            latest_scope[claim.id] = claim.scope
     return sorted(set(codes))
 
 

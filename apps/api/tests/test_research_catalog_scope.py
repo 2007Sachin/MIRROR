@@ -143,6 +143,16 @@ def test_a_change_creates_a_new_claim_version_that_supersedes_the_old() -> None:
     assert f"claim_version_must_supersede_previous:{C2}@2" in _history(v1, v2)
 
 
+def test_a_claim_version_cannot_change_geography() -> None:
+    v1 = _v1()
+    v2 = _v2_from(v1)
+    claim = _claim(v2, C2)
+    claim["version"] = 2
+    claim["supersedes"] = 1
+    claim["scope"]["geography"] = "in"
+    assert f"claim_scope_changed:{C2}@2:geography" in _history(v1, v2)
+
+
 def test_catalog_versions_are_contiguous_and_chained() -> None:
     v1 = _v1()
     v2 = _v2_from(v1)

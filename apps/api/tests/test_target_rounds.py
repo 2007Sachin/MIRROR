@@ -34,6 +34,12 @@ def test_three_rounds_with_distinct_keys_and_enough_templates() -> None:
         assert set(t.competency_key for t in round_.templates) <= set(round_.competency_keys)
 
 
+def test_every_round_has_twelve_templates_for_three_focused_packs() -> None:
+    assert {r.key: len(r.templates) for r in ROUNDS} == {
+        "coding_reasoning": 12, "system_design": 14, "behavioural": 12,
+    }
+
+
 def test_every_template_and_fallback_passes_the_originality_guard_with_real_excerpts() -> None:
     ctx = context()
     for round_ in ROUNDS:

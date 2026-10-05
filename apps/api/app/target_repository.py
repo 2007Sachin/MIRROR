@@ -134,7 +134,7 @@ class TargetRepository(Protocol):
     async def blueprints(self, target_id: UUID, user_id: UUID) -> list[InterviewBlueprint]: ...
     async def record_questions(self, user_id: UUID, rows: Sequence[QuestionCreate]) -> list[GeneratedQuestion]: ...
     async def questions_for_set(self, prompt_set_id: UUID, user_id: UUID) -> list[GeneratedQuestion]: ...
-    async def questions_for_target(self, target_id: UUID, user_id: UUID) -> list[GeneratedQuestion]: ...
+    async def questions_for_target(self, target_id: UUID, user_id: UUID, since: datetime | None = None) -> list[GeneratedQuestion]: ...
     async def create_link(self, user_id: UUID, link: TargetSessionLinkCreate) -> TargetSessionLink: ...
     async def link_for_session(self, session_id: UUID, user_id: UUID) -> TargetSessionLink | None: ...
     async def links_for_target(self, target_id: UUID, user_id: UUID) -> list[TargetSessionLink]: ...
@@ -239,8 +239,17 @@ class MemoryTargetRepository:
         rows = [q for q in self.questions if q.prompt_set_id == prompt_set_id and q.user_id == user_id]
         return sorted(rows, key=lambda row: row.position)
 
-    async def questions_for_target(self, target_id: UUID, user_id: UUID) -> list[GeneratedQuestion]:
-        return [q for q in self.questions if q.candidate_target_id == target_id and q.user_id == user_id]
+    async def questions_for_target(self, target_id: UUID, user_id: UUID, since: datetime | None = None) -> list[GeneratedQuestion]:
+        linked_sets = {
+            row.prompt_set_id for row in self.links.values()
+            if row.candidate_target_id == target_id and row.user_id == user_id and row.prompt_set_id is not None
+        }
+        return [
+            q for q in self.questions
+            if q.candidate_target_id == target_id and q.user_id == user_id
+            and q.prompt_set_id in linked_sets
+            and (since is None or q.created_at >= since)
+        ]
 
     async def create_link(self, user_id: UUID, link: TargetSessionLinkCreate) -> TargetSessionLink:
         if link.session_id in self.links:
@@ -383,11 +392,21 @@ class SupabaseTargetRepository:
         )
         return [GeneratedQuestion.model_validate(row) for row in rows]
 
-    async def questions_for_target(self, target_id: UUID, user_id: UUID) -> list[GeneratedQuestion]:
-        rows = await self._rows(
-            "GET", "generated_questions",
-            {"candidate_target_id": f"eq.{target_id}", "user_id": f"eq.{user_id}", "select": "*", "limit": "1000"},
+    async def questions_for_target(self, target_id: UUID, user_id: UUID, since: datetime | None = None) -> list[GeneratedQuestion]:
+        links = await self._rows(
+            "GET", "target_session_links",
+            {"candidate_target_id": f"eq.{target_id}", "user_id": f"eq.{user_id}", "select": "prompt_set_id"},
         )
+        set_ids = sorted({str(row["prompt_set_id"]) for row in links if row.get("prompt_set_id")})
+        if not set_ids:
+            return []
+        params = {
+            "candidate_target_id": f"eq.{target_id}", "user_id": f"eq.{user_id}",
+            "prompt_set_id": f"in.({','.join(set_ids)})", "select": "*", "order": "created_at.desc",
+        }
+        if since is not None:
+            params["created_at"] = f"gte.{since.isoformat()}"
+        rows = await self._rows("GET", "generated_questions", params)
         return [GeneratedQuestion.model_validate(row) for row in rows]
 
     async def create_link(self, user_id: UUID, link: TargetSessionLinkCreate) -> TargetSessionLink:

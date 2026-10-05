@@ -39,3 +39,27 @@ def test_database_enforces_scored_evidence() -> None:
     assert "constraint scored_requires_evidence" in MIGRATION
     assert "cardinality(evidence_quotes) >= 1" in MIGRATION
 
+
+def test_candidate_targets_rollback_locks_and_fails_closed() -> None:
+    rollback = (
+        Path(__file__).parents[2]
+        / "supabase"
+        / "rollbacks"
+        / "20261004200000_loop2_candidate_targets_down.sql"
+    ).read_text(encoding="utf-8").lower()
+    lock = "lock table public.candidate_targets, public.interview_blueprints, public.generated_questions, public.target_session_links in access exclusive mode"
+    assert rollback.index(lock) < rollback.index("if exists")
+    assert rollback.index(lock) < rollback.index("drop table")
+    assert "loop2_targets_enabled" in rollback
+    assert "off" in rollback
+    assert "no user rows" in rollback
+    for table in (
+        "candidate_targets",
+        "interview_blueprints",
+        "generated_questions",
+        "target_session_links",
+    ):
+        assert f"public.{table}" in rollback
+    assert " restrict" in rollback
+    assert "cascade" not in rollback
+

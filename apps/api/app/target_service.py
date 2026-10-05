@@ -15,16 +15,18 @@ Rules kept here (each has a route test):
 from __future__ import annotations
 
 import logging
+import json
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Literal, Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .practice_modes import MODE_SHAPE, PracticeFocus, PracticeMode
-from .prompt_originality import ORIGINALITY_RULES_VERSION, GuardContext, RecentPrompt, excerpts_from_catalog
+from .prompt_originality import ORIGINALITY_RULES_VERSION, REPEAT_WINDOW_DAYS, GuardContext, RecentPrompt, excerpts_from_catalog
 from .research_catalog import (
     KEY_PATTERN,
     Claim,
@@ -44,6 +46,7 @@ from .target_repository import (
     InterviewBlueprint,
     LinkAlreadyExists,
     QuestionCreate,
+    TargetConflict,
     TargetRepository,
     TargetSessionLink,
     TargetSessionLinkCreate,
@@ -206,6 +209,7 @@ class SourceRef(_Api):
 
 class ClaimView(_Api):
     key: str
+    version: int
     statement: str
     provenance_class: str
     class_label_key: str
@@ -262,7 +266,6 @@ class PriorityView(_Api):
 
 class PromptView(_Api):
     position: int
-    text: str
     competency_key: str
     rationale_code: str
     provenance_class: str
@@ -369,6 +372,7 @@ def _claim_view(claim: Claim, catalog: RepoResearchCatalog) -> ClaimView:
     ]
     return ClaimView(
         key=claim.id,
+        version=catalog.version,
         statement=claim.statement,
         provenance_class=claim.provenance_class,
         class_label_key=f"class.{claim.provenance_class.lower()}",
@@ -384,23 +388,76 @@ def _claim_view(claim: Claim, catalog: RepoResearchCatalog) -> ClaimView:
     )
 
 
-def _content(match: ScopeMatch, catalog: RepoResearchCatalog, subjects: frozenset[str] | None = None):
+def _content(match: ScopeMatch, catalog: RepoResearchCatalog, subjects: frozenset[str] | None = None, *, round_key: str | None = None):
     """(flat claims, conflicts side by side, unknowns) of a match, optionally limited to subjects."""
     chosen = [c for c in match.claims if subjects is None or c.subject in subjects]
-    flat = [_claim_view(c, catalog) for c in chosen if c.conflict_set is None]
+    derivative_ids = _round_specific_claim_ids(match, round_key)
+    flat = [_claim_view(c, catalog) for c in chosen if c.conflict_set is None and c.id not in derivative_ids]
     conflicts = []
     for conflict in match.conflict_sets:
-        members = [c for c in chosen if c.conflict_set == conflict.key]
+        members = [c for c in chosen if c.conflict_set == conflict.key and c.id not in derivative_ids]
         if members:
             conflicts.append(ConflictView(key=conflict.key, note=conflict.note, claims=[_claim_view(c, catalog) for c in members]))
     unknowns = [UnknownView(key=u.key, reason=u.reason, note=u.note) for u in match.unknowns]
     return flat, conflicts, unknowns
 
 
-def _round_claims(match: ScopeMatch, round_: PracticeRound) -> list[Claim]:
+def _mapping_for(match: ScopeMatch) -> dict[str, Any] | None:
     if match.state == "NOT_RESEARCHED":
+        return None
+    mapping_path = Path(__file__).parent / "research_content" / "round_mapping_v1.json"
+    lock_path = mapping_path.parent / "LOCK.json"
+    try:
+        raw = mapping_path.read_bytes()
+        mapping = json.loads(raw.decode("utf-8"))
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        entry = lock["round_mappings"][mapping_path.name]
+        from .research_catalog import content_sha256
+        if content_sha256(raw) != entry["sha256"]:
+            return None
+        if (mapping.get("schema") != "mirror.research_round_mapping/1"
+                or mapping.get("catalog_version") != match.catalog_version
+                or entry.get("catalog_version") != match.catalog_version):
+            return None
+        if not isinstance(mapping.get("round_specific_claims", []), list):
+            return None
+        for item in mapping.get("round_specific_claims", []):
+            if (not isinstance(item, dict) or set(item) != {"claim_id", "round_key", "copy_key"}
+                    or not all(isinstance(item[k], str) for k in item)):
+                return None
+        return mapping
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _round_specific_claim_ids(match: ScopeMatch, round_key: str | None) -> set[str]:
+    mapping = _mapping_for(match)
+    if mapping is None or round_key is None:
+        return set()
+    return {item["claim_id"] for item in mapping.get("round_specific_claims", []) if item["round_key"] == round_key}
+
+
+def _round_specific_claims(match: ScopeMatch, round_: PracticeRound) -> list[Claim]:
+    mapping = _mapping_for(match)
+    if mapping is None:
         return []
-    return [c for c in match.claims if c.process_content and c.subject in round_.claim_subjects]
+    claim_ids = {item["claim_id"] for item in mapping.get("round_specific_claims", []) if item["round_key"] == round_.key}
+    available = {claim.id: claim for claim in match.claims if claim.process_content}
+    return [available[key] for key in sorted(claim_ids & available.keys())]
+
+
+def _round_claims(match: ScopeMatch, round_: PracticeRound) -> list[Claim]:
+    mapping = _mapping_for(match)
+    if mapping is None:
+        return []
+    try:
+        allowed = set(mapping["rounds"][round_.key])
+        allowed.update(item["claim_id"] for item in mapping.get("round_specific_claims", []) if item["round_key"] == round_.key)
+        if not allowed <= {c.id for c in match.claims if c.process_content}:
+            return []
+    except (KeyError, TypeError):
+        return []
+    return [c for c in match.claims if c.process_content and c.id in allowed]
 
 
 def round_summaries(match: ScopeMatch) -> list[RoundSummary]:
@@ -606,7 +663,8 @@ class TargetService:
         self, user_id: UUID, target: CandidateTarget, round_: PracticeRound, match: ScopeMatch | None,
         catalog: RepoResearchCatalog,
     ) -> RoundPack:
-        stored = await self._repo.questions_for_target(target.id, user_id)
+        cutoff = datetime.combine(self._today() - timedelta(days=REPEAT_WINDOW_DAYS), datetime.min.time(), tzinfo=UTC)
+        stored = await self._repo.questions_for_target(target.id, user_id, since=cutoff)
         context = GuardContext(
             source_excerpts=excerpts_from_catalog(catalog),
             company_names=tuple(name for name in {target.company_label, target.company_key or ""} if name),
@@ -654,15 +712,17 @@ class TargetService:
         detail = detail.model_copy(update={"priorities": priorities})
         if match is None or catalog is None:
             return detail
-        claims, conflicts, unknowns = _content(match, catalog, frozenset(round_.claim_subjects))
+        claims, conflicts, unknowns = _content(match, catalog, frozenset(round_.claim_subjects), round_key=round_.key)
+        round_claim_views = [_claim_view(c, catalog) for c in _round_specific_claims(match, round_)
+                             if c.id not in {claim.key for claim in claims}]
         pack = await self._pack(user_id, target, round_, match, catalog)
         return detail.model_copy(update={
             "match_state": match.state, "research_label_key": _RESEARCH_LABEL[match.state],
-            "claims": claims, "conflicts": conflicts, "unknowns": unknowns,
+            "claims": claims + round_claim_views, "conflicts": conflicts, "unknowns": unknowns,
             "pack": PackView(
                 state=pack.state, minimum=pack.minimum,
                 prompts=[
-                    PromptView(position=p.position, text=p.text, competency_key=p.competency_key,
+                    PromptView(position=p.position, competency_key=p.competency_key,
                                rationale_code=p.rationale_code, provenance_class=p.provenance_class)
                     for p in pack.prompts
                 ],

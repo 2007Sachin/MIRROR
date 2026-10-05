@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx
@@ -105,6 +106,43 @@ def test_questions_are_unique_per_session_set_and_owner_scoped() -> None:
     assert len(run(repo.questions_for_set(later, USER_A))) == 1
     with pytest.raises(LookupError):
         run(repo.record_questions(USER_B, [question(target.id, uuid4(), text="Another prompt that is long enough.")]))
+
+
+def test_memory_questions_for_target_excludes_orphans_and_filters_repeat_window() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    linked_set, orphan_set = uuid4(), uuid4()
+    run(repo.record_questions(USER_A, [question(target.id, linked_set)]))
+    run(repo.record_questions(USER_A, [question(target.id, orphan_set, text="A different unlinked question text.")]))
+    run(repo.create_link(USER_A, TargetSessionLinkCreate(session_id=uuid4(), candidate_target_id=target.id, prompt_set_id=linked_set)))
+    recent = datetime.now(UTC)
+    repo.questions[0] = repo.questions[0].model_copy(update={"created_at": recent})
+    repo.questions[1] = repo.questions[1].model_copy(update={"created_at": recent})
+    rows = run(repo.questions_for_target(target.id, USER_A, since=recent - timedelta(days=30)))
+    assert [q.prompt_set_id for q in rows] == [linked_set]
+    assert run(repo.questions_for_target(target.id, USER_B, since=recent - timedelta(days=30))) == []
+
+
+def test_supabase_questions_for_target_requests_linked_sets_and_since_filter() -> None:
+    target_id, set_id = uuid4(), uuid4()
+    cutoff = datetime(2026, 9, 5, tzinfo=UTC)
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.path.rsplit("/", 1)[-1], dict(request.url.params)))
+        if request.url.path.endswith("target_session_links"):
+            return httpx.Response(200, json=[{"prompt_set_id": str(set_id)}])
+        return httpx.Response(200, json=[])
+
+    run(supabase(handler).questions_for_target(target_id, USER_A, since=cutoff))
+    assert seen[0][0] == "target_session_links"
+    table, params = seen[1]
+    assert table == "generated_questions"
+    assert params["prompt_set_id"] == f"in.({set_id})"
+    assert params["created_at"] == f"gte.{cutoff.isoformat()}"
+    assert params["order"] == "created_at.desc"
+    assert "limit" not in params
+    assert all(p["user_id"] == f"eq.{USER_A}" for _, p in seen)
 
 
 def test_session_links_are_write_once() -> None:

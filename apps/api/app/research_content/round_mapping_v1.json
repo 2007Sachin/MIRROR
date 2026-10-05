@@ -1,0 +1,36 @@
+{
+  "schema": "mirror.research_round_mapping/1",
+  "catalog_version": 1,
+  "rounds": {
+    "coding_reasoning": [
+      "amazon.sde.sde_ii.coding_expectations",
+      "amazon.sde.sde_iii.coding_expectations",
+      "amazon.sde.sde_ii.oa_components"
+    ],
+    "system_design": [
+      "amazon.sde.all.interview_topics",
+      "amazon.sde.sde_ii.oa_components",
+      "amazon.sde.sde_ii.oa_section_timing.interview_prep_page",
+      "amazon.sde.sde_ii.oa_section_timing.oa_prep_page"
+    ],
+    "behavioural": [
+      "amazon.sde.sde_ii.loop_behavioural_questions",
+      "amazon.sde.sde_iii.loop_behavioural_questions"
+    ]
+  },
+  "overview_only_claim_ids": [
+    "amazon.all.process_differs_by_role",
+    "amazon.sde.sde_ii.process_sequence",
+    "amazon.sde.sde_ii.oa_required",
+    "amazon.sde.sde_iii.process_sequence",
+    "amazon.sde.university.online_assessment",
+    "amazon.all.interview_loop_format"
+  ],
+  "round_specific_claims": [
+    {
+      "claim_id": "amazon.sde.sde_ii.process_sequence",
+      "round_key": "system_design",
+      "copy_key": "amazon.sde.sde_ii.system_design_expectation"
+    }
+  ]
+}

@@ -94,6 +94,11 @@ class SpyRepository(MemoryTargetRepository):
     def __init__(self):
         super().__init__()
         self.writes: list[str] = []
+        self.question_history_cutoffs = []
+
+    async def questions_for_target(self, *args, **kwargs):
+        self.question_history_cutoffs.append(kwargs.get("since"))
+        return await super().questions_for_target(*args, **kwargs)
 
     async def create_target(self, *args, **kwargs):
         self.writes.append("create_target")
@@ -116,16 +121,12 @@ class SpyRepository(MemoryTargetRepository):
         return await super().create_link(*args, **kwargs)
 
 
-def india_catalog(version: int = 2) -> RepoResearchCatalog:
-    """Synthetic catalog where some SDE II claims are scoped to India (tests only)."""
-    raw = json.loads((load_catalog().document.model_dump_json(by_alias=True)))
-    raw["version"], raw["supersedes_version"] = version, version - 1
-    for claim in raw["claims"]:
-        if claim["scope"]["level"] == "sde_ii" or claim["id"] == "amazon.sde.all.interview_topics":
-            claim["scope"]["geography"] = "in"
-    for unknown in raw["unknowns"]:
-        if unknown["key"] == "amazon.sde.sde_ii.oa_section_timing":
-            unknown["scope"]["geography"] = "in"
+def revised_global_catalog(version: int = 2) -> RepoResearchCatalog:
+    """A catalog-content revision for pin tests; all official claims remain global."""
+    raw = json.loads(load_catalog().document.model_dump_json(by_alias=True))
+    raw["version"] = version
+    raw["supersedes_version"] = version - 1 if version > 1 else None
+    raw["claims"][0]["statement"] += " (catalog revision used only by tests)."
     document = CatalogDocument.model_validate(raw)
     return RepoResearchCatalog(document, content_sha256(json.dumps(raw, sort_keys=True).encode()))
 
@@ -297,28 +298,17 @@ def test_target_without_location_is_not_researched(world) -> None:
 # ------------------------------------------------------------------ researched path (synthetic India catalog)
 
 
-def test_india_scoped_claims_render_with_labels_and_conflicts_side_by_side(world) -> None:
-    world.catalogs = StaticCatalogProvider({2: india_catalog(2)})
+def test_global_amazon_guidance_is_not_rendered_for_an_india_target(world) -> None:
     c = client(world)
     target = create(c, level="sde_ii").json()["target"]
     blueprint = c.get(f"/api/v1/targets/{target['id']}/blueprint", headers=A).json()
-    assert blueprint["match_state"] == "RESEARCHED"
-    assert blueprint["claims"], blueprint
-    for claim in blueprint["claims"]:
-        assert claim["scope"]["geography"] == "in"
-        assert claim["class_label_key"] == "class.fact"
-        assert claim["scope_label_key"] in ("scope.this_level_here", "scope.all_levels_here")
-        assert claim["sources"] and claim["conflict_set"] is None
-    [conflict] = blueprint["conflicts"]
-    assert len(conflict["claims"]) == 2
-    assert {c_["key"] for c_ in conflict["claims"]} == {
-        "amazon.sde.sde_ii.oa_section_timing.interview_prep_page", "amazon.sde.sde_ii.oa_section_timing.oa_prep_page",
-    }
-    assert "merged" not in json.dumps(conflict) and "value" not in conflict
-    assert any(r["basis"] == "PUBLISHED_GUIDANCE" for r in blueprint["rounds"])
+    assert blueprint["match_state"] == "NOT_RESEARCHED"
+    assert blueprint["claims"] == [] and blueprint["conflicts"] == []
+    assert {unknown["key"] for unknown in blueprint["unknowns"]} == {"amazon.sde.india_specific_process"}
+    assert all(round_["basis"] == "MIRROR_SUGGESTED" for round_ in blueprint["rounds"])
     detail = c.get(f"/api/v1/targets/{target['id']}/rounds/coding_reasoning", headers=A).json()
-    assert detail["claims"] and len(detail["priorities"]) <= 3
-    assert detail["conflicts"] and len(detail["conflicts"][0]["claims"]) == 2
+    assert detail["claims"] == [] and detail["conflicts"] == []
+    assert detail["round"]["basis"] == "MIRROR_SUGGESTED"
 
 
 def test_round_detail_has_explicit_unknowns_priorities_and_a_full_pack(world) -> None:
@@ -334,7 +324,9 @@ def test_round_detail_has_explicit_unknowns_priorities_and_a_full_pack(world) ->
     assert len(body["pack"]["prompts"]) >= 4
     assert body["pack"]["label_key"] == "prompts.written_by_mirror"
     assert all(p["provenance_class"] == "MIRROR_GENERATED" for p in body["pack"]["prompts"])
-    assert any("Moving billing to a new queue" in p["text"] for p in body["pack"]["prompts"])
+    assert all("text" not in p for p in body["pack"]["prompts"])
+    assert all(p["competency_key"] for p in body["pack"]["prompts"])
+    assert "Moving billing to a new queue" not in json.dumps(body)
 
 
 def test_unknown_round_is_404(world) -> None:
@@ -358,14 +350,14 @@ def test_refresh_appends_a_new_pin_and_old_content_is_still_served(world) -> Non
     same = c.post(f"/api/v1/targets/{target['id']}/blueprint/refresh", headers=A)
     assert same.status_code == 200 and same.json()["blueprint"]["version"] == 1
 
-    world.catalogs = StaticCatalogProvider({1: v1, 2: india_catalog(2)})
+    world.catalogs = StaticCatalogProvider({1: v1, 2: revised_global_catalog(2)})
     c = client(world)
     assert c.get(f"/api/v1/targets/{target['id']}/blueprint", headers=A).json()["blueprint"]["refresh_available"] is True
     refreshed = c.post(f"/api/v1/targets/{target['id']}/blueprint/refresh", headers=A)
     assert refreshed.status_code == 201
     assert refreshed.json()["blueprint"]["version"] == 2
     assert refreshed.json()["blueprint"]["catalog_version"] == 2
-    assert refreshed.json()["match_state"] == "RESEARCHED"
+    assert refreshed.json()["match_state"] == "NOT_RESEARCHED"
     old = c.get(f"/api/v1/targets/{target['id']}/blueprint?version=1", headers=A).json()
     assert old["blueprint"]["catalog_version"] == 1 and old["match_state"] == "NOT_RESEARCHED"
     assert old["content_state"] == "SERVED"
@@ -376,7 +368,7 @@ def test_refresh_appends_a_new_pin_and_old_content_is_still_served(world) -> Non
 def test_pin_hash_mismatch_serves_nothing(world) -> None:
     c = client(world)
     target = create(c, level="sde_ii").json()["target"]
-    world.catalogs = StaticCatalogProvider({1: india_catalog(1)})  # same version, different content
+    world.catalogs = StaticCatalogProvider({1: revised_global_catalog(1)})  # same version, different global content
     body = client(world).get(f"/api/v1/targets/{target['id']}/blueprint", headers=A).json()
     assert body["content_state"] == "PIN_MISMATCH"
     assert body["claims"] == [] and body["conflicts"] == [] and body["unknowns"] == []
@@ -431,6 +423,29 @@ def test_quick_drill_uses_three_prompts(world) -> None:
     assert len(start(c, target["id"], mode="QUICK_DRILL").json()["prompts"]) == 3
 
 
+def test_prompt_insert_conflict_re_reads_winner_set_and_links_once(world) -> None:
+    from app.target_repository import TargetConflict
+
+    c = client(world)
+    target = create(c).json()["target"]
+    original = world.repo.record_questions
+    raised = False
+
+    async def conflict_after_commit(user_id, rows):
+        nonlocal raised
+        stored = await original(user_id, rows)
+        if not raised:
+            raised = True
+            raise TargetConflict()
+        return stored
+
+    world.repo.record_questions = conflict_after_commit
+    response = start(c, target["id"], round_key="system_design")
+    assert response.status_code == 201, response.text
+    assert len(world.repo.links) == 1
+    assert len(world.repo.questions) == 4
+
+
 def test_replay_with_same_key_returns_same_session_and_single_link(world) -> None:
     c = client(world)
     target = create(c).json()["target"]
@@ -478,17 +493,58 @@ def test_archiving_after_practice_never_changes_the_link(world) -> None:
     assert link["candidate_target_id"] == target["id"] and link["round_key"] == "behavioural"
 
 
+@pytest.mark.parametrize("round_key", ["coding_reasoning", "system_design", "behavioural"])
+def test_three_consecutive_focused_starts_remain_available(world, round_key) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    responses = [start(c, target["id"], round_key=round_key) for _ in range(3)]
+    assert [r.status_code for r in responses] == [201, 201, 201]
+
+
+def test_repeat_history_query_is_cut_to_the_guard_window(world) -> None:
+    from datetime import timedelta
+
+    c = client(world)
+    target = create(c).json()["target"]
+    response = c.get(f"/api/v1/targets/{target['id']}/rounds/system_design", headers=A)
+    assert response.status_code == 200
+    assert world.repo.question_history_cutoffs
+    cutoff = world.repo.question_history_cutoffs[-1]
+    assert cutoff is not None
+    assert cutoff.tzinfo is not None
+    age = datetime.now(UTC) - cutoff
+    assert timedelta(days=29) <= age <= timedelta(days=31)
+
+
+def test_orphan_prompt_set_does_not_consume_repeat_window(world) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    first = start(c, target["id"], round_key="system_design")
+    assert first.status_code == 201
+    linked = {link.prompt_set_id for link in world.repo.links.values()}
+    source = list(world.repo.questions)
+    orphan = [q.model_copy(update={"prompt_set_id": uuid4(), "novelty_sha256": "0" * 64}) for q in source]
+    assert not ({q.prompt_set_id for q in orphan} & linked)
+    world.repo.questions.extend(orphan)
+    second = start(c, target["id"], round_key="system_design")
+    assert second.status_code == 201, second.text
+    assert len(world.repo.links) == 2
+
+
 def test_short_pack_refuses_before_any_session(world) -> None:
     c = client(world)
     target = create(c).json()["target"]
     assert start(c, target["id"], round_key="system_design").status_code == 201
-    response = start(c, target["id"], round_key="system_design")  # remaining templates < 4
+    assert start(c, target["id"], round_key="system_design").status_code == 201
+    assert start(c, target["id"], round_key="system_design").status_code == 201
+    before = len(world.sessions.sessions)
+    response = start(c, target["id"], round_key="system_design")
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "SHORT_PACK"
-    assert len(world.sessions.sessions) == 1
+    assert len(world.sessions.sessions) == before
     detail = c.get(f"/api/v1/targets/{target['id']}/rounds/system_design", headers=A).json()
     assert detail["pack"]["state"] == "SHORT_PACK"
-    assert detail["practice"]["count"] == 1
+    assert detail["practice"]["count"] == 3
 
 
 def test_prompts_return_once_they_are_outside_the_repeat_window(world) -> None:
