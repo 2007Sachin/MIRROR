@@ -467,7 +467,7 @@ def test_same_key_for_another_round_cannot_rewrite_the_link(world) -> None:
     assert world.repo.links[UUID(first["session"]["id"])].round_key == "behavioural"
 
 
-def test_reused_key_for_mismatched_existing_session_returns_409(world) -> None:
+def test_reused_key_for_mismatched_existing_session_returns_409_without_prompts(world) -> None:
     import asyncio
     from app.schemas import SessionCreate
 
@@ -481,6 +481,7 @@ def test_reused_key_for_mismatched_existing_session_returns_409(world) -> None:
     response = start(c, target["id"], key=key)
     assert response.status_code == 409
     assert existing.id not in world.repo.links
+    assert world.repo.questions == []
 
 
 def test_archiving_after_practice_never_changes_the_link(world) -> None:

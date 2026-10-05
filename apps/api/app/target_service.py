@@ -753,21 +753,6 @@ class TargetService:
             pack = await self._pack(user_id, target, round_, match, catalog)
             if pack.state != "FULL" or len(pack.prompts) < max(needed, PACK_MIN):
                 raise ShortPack(len(pack.prompts))
-            try:
-                stored = await self._repo.record_questions(user_id, [
-                    QuestionCreate(
-                        candidate_target_id=target.id, blueprint_id=pin.id, prompt_set_id=set_id, position=index,
-                        round_key=round_.key, competency_key=p.competency_key, family_key=p.family_key,
-                        template_id=p.template_id, generator_version=ROUND_PACK_VERSION,
-                        originality_rules_version=ORIGINALITY_RULES_VERSION, question_text=p.text,
-                        rationale_code=p.rationale_code, derived_from=p.derived_from, novelty_sha256=p.novelty_sha256,
-                    )
-                    for index, p in enumerate(pack.prompts[:needed], start=1)
-                ])
-            except TargetConflict:
-                stored = await self._repo.questions_for_set(set_id, user_id)
-                if not stored:
-                    raise
         session = await self._engine.create_session_state(user_id, SessionCreate(
             target_role=role.target_role,
             role_profile_id=target.role_profile_id,
@@ -785,6 +770,22 @@ class TargetService:
             or (existing_link is not None and existing_link.prompt_set_id != set_id)
         ):
             raise LinkConflict
+        if not stored:
+            try:
+                stored = await self._repo.record_questions(user_id, [
+                    QuestionCreate(
+                        candidate_target_id=target.id, blueprint_id=pin.id, prompt_set_id=set_id, position=index,
+                        round_key=round_.key, competency_key=p.competency_key, family_key=p.family_key,
+                        template_id=p.template_id, generator_version=ROUND_PACK_VERSION,
+                        originality_rules_version=ORIGINALITY_RULES_VERSION, question_text=p.text,
+                        rationale_code=p.rationale_code, derived_from=p.derived_from, novelty_sha256=p.novelty_sha256,
+                    )
+                    for index, p in enumerate(pack.prompts[:needed], start=1)
+                ])
+            except TargetConflict:
+                stored = await self._repo.questions_for_set(set_id, user_id)
+                if not stored:
+                    raise
         wanted = TargetSessionLinkCreate(
             session_id=session.id, candidate_target_id=target.id, blueprint_id=pin.id,
             round_key=round_.key, competency_key=None, prompt_set_id=set_id,
