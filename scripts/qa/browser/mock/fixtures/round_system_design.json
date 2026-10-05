@@ -64,49 +64,84 @@
     "prompts": [
       {
         "position": 1,
-        "text": "Design a service that lets shop owners schedule price changes for a future time. What are the main parts, and what happens if the scheduler falls behind?",
         "competency_key": "system_design",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 2,
-        "text": "Sketch a system that sends order updates to millions of phones. Where would messages wait, and how would you stop the same update arriving twice?",
         "competency_key": "system_design",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 3,
-        "text": "In “QA story about a reporting tool (synthetic)”, what would break first if usage grew ten times, and what would you change?",
         "competency_key": "system_design",
         "rationale_code": "YOUR_STORY",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 4,
-        "text": "Design a booking system for a small chain of clinics. How would you stop two people booking the same slot?",
         "competency_key": "system_design",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 5,
-        "text": "Design a service that shows which delivery vans are near each depot right now. How often would you update positions, and why?",
         "competency_key": "system_design",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 6,
-        "text": "How would you design a list of recent activity for each user, and what would you prepare ahead of time versus build when asked?",
         "competency_key": "system_design",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 7,
-        "text": "Pick one design choice you would make for a busy online shop and explain it to someone who has never built a large system.",
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 8,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 9,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 10,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 11,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 12,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 13,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 14,
         "competency_key": "technical_communication",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"

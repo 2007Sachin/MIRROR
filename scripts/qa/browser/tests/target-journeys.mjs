@@ -179,7 +179,9 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await heading("Coding conversation", 1).waitFor();
     await page.waitForFunction(() => document.activeElement?.tagName === "H1");
     await heading("What Mirror can and can't do here", 2).waitFor();
-    await page.getByText("Written by Mirror for practice. These aren't questions any company has used.").waitFor();
+    await page.getByRole("heading", { name: "Practice themes" }).waitFor();
+    await page.getByText("Exact wording appears only during that practice.").waitFor();
+    assert.equal(await page.getByText(/Status updates for parcels can arrive late/).count(), 0, "exact prompt text is withheld from the plan");
     assert.ok((await page.locator("[aria-labelledby='round-priorities'] li").count()) <= 3);
     if (viewport.name === "desktop") {
       await page.locator(".ws-nav-item[aria-current='page']", { hasText: "My plan" }).waitFor();

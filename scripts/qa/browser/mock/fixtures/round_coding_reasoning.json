@@ -74,57 +74,73 @@
     "prompts": [
       {
         "position": 1,
-        "text": "Status updates for parcels can arrive late or twice. Talk me through how you would keep only the newest status for each parcel.",
         "competency_key": "algorithmic_problem_solving",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 2,
-        "text": "You have a very long list of log lines and little memory. How would you find which messages repeat most often, and what would you trade off?",
         "competency_key": "algorithmic_problem_solving",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 3,
-        "text": "Walk me through how you would merge several already ordered streams of events into one ordered stream, and how the cost grows as streams are added.",
         "competency_key": "algorithmic_problem_solving",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 4,
-        "text": "Explain how you would spot that two entries in a large contact list are the same person when their names are spelled differently.",
         "competency_key": "algorithmic_problem_solving",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 5,
-        "text": "In “QA story about a reporting tool (synthetic)”, pick one piece of logic with a tricky edge case. Explain the case and how you made sure your code handled it.",
         "competency_key": "coding_quality",
         "rationale_code": "YOUR_STORY",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 6,
-        "text": "Talk me through how you would choose a data structure for a lookup that also needs every key between two values.",
         "competency_key": "technical_communication",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 7,
-        "text": "How would you order a set of jobs that depend on each other, and what would you do if the dependencies formed a loop?",
         "competency_key": "algorithmic_problem_solving",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 8,
-        "text": "You have just written a small function. Which inputs would you try first before handing it over, and why those?",
         "competency_key": "coding_quality",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 9,
+        "competency_key": "algorithmic_problem_solving",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 10,
+        "competency_key": "algorithmic_problem_solving",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 11,
+        "competency_key": "coding_quality",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 12,
+        "competency_key": "technical_communication",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       }

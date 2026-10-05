@@ -18,7 +18,7 @@
     "key": "coding_reasoning",
     "ordinal": 1,
     "label_key": "round.coding_reasoning",
-    "basis": "PUBLISHED_GUIDANCE",
+    "basis": "MIRROR_SUGGESTED",
     "competency_keys": [
       "algorithmic_problem_solving",
       "coding_quality",
@@ -28,238 +28,20 @@
   "match_state": "RESEARCHED",
   "research_label_key": "research.researched",
   "content_state": "SERVED",
-  "claims": [
-    {
-      "key": "qa.synthetic.claim_7e0bad646a35",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-      "provenance_class": "FACT",
-      "class_label_key": "class.fact",
-      "scope": {
-        "company": "qa_company",
-        "role_family": "software_development_engineering",
-        "level": "sde_ii",
-        "geography": "qa_land"
-      },
-      "scope_label_key": "scope.this_level_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
-      "retrieved_at": "2026-10-04",
-      "published_at": null,
-      "limits": [
-        "QA fixture limit (synthetic)."
-      ],
-      "sources": [
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-1",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        }
-      ],
-      "conflict_set": null
-    },
-    {
-      "key": "qa.synthetic.claim_3c7994946e0a",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-      "provenance_class": "FACT",
-      "class_label_key": "class.fact",
-      "scope": {
-        "company": "qa_company",
-        "role_family": "software_development_engineering",
-        "level": "all",
-        "geography": "qa_land"
-      },
-      "scope_label_key": "scope.all_levels_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
-      "retrieved_at": "2026-10-04",
-      "published_at": null,
-      "limits": [
-        "QA fixture limit (synthetic)."
-      ],
-      "sources": [
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-1",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        }
-      ],
-      "conflict_set": null
-    },
-    {
-      "key": "qa.synthetic.claim_0bfcc985f223",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-      "provenance_class": "FACT",
-      "class_label_key": "class.fact",
-      "scope": {
-        "company": "qa_company",
-        "role_family": "software_development_engineering",
-        "level": "sde_ii",
-        "geography": "qa_land"
-      },
-      "scope_label_key": "scope.this_level_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
-      "retrieved_at": "2026-10-04",
-      "published_at": null,
-      "limits": [
-        "QA fixture limit (synthetic)."
-      ],
-      "sources": [
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-1",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-3",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        }
-      ],
-      "conflict_set": null
-    },
-    {
-      "key": "qa.synthetic.claim_a278ca80141c",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-      "provenance_class": "FACT",
-      "class_label_key": "class.fact",
-      "scope": {
-        "company": "qa_company",
-        "role_family": "software_development_engineering",
-        "level": "sde_ii",
-        "geography": "qa_land"
-      },
-      "scope_label_key": "scope.this_level_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
-      "retrieved_at": "2026-10-04",
-      "published_at": null,
-      "limits": [
-        "QA fixture limit (synthetic)."
-      ],
-      "sources": [
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-1",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        }
-      ],
-      "conflict_set": null
-    }
-  ],
-  "conflicts": [
-    {
-      "key": "qa.synthetic.claim_b04a66adb097",
-      "note": "QA fixture note (synthetic).",
-      "claims": [
-        {
-          "key": "qa.synthetic.claim_7218f9ba5ebf",
-          "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-          "provenance_class": "FACT",
-          "class_label_key": "class.fact",
-          "scope": {
-            "company": "qa_company",
-            "role_family": "software_development_engineering",
-            "level": "sde_ii",
-            "geography": "qa_land"
-          },
-          "scope_label_key": "scope.this_level_here",
-          "confidence_band": "MEDIUM",
-          "dating": "RETRIEVED_ONLY",
-          "retrieved_at": "2026-10-04",
-          "published_at": null,
-          "limits": [
-            "QA fixture limit (synthetic)."
-          ],
-          "sources": [
-            {
-              "publisher": "QA fixture publisher",
-              "url": "https://qa-fixture.invalid/source-1",
-              "retrieved_at": "2026-10-04",
-              "published_at": null
-            }
-          ],
-          "conflict_set": "qa.synthetic.claim_b04a66adb097"
-        },
-        {
-          "key": "qa.synthetic.claim_f0f9264ef977",
-          "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-          "provenance_class": "FACT",
-          "class_label_key": "class.fact",
-          "scope": {
-            "company": "qa_company",
-            "role_family": "software_development_engineering",
-            "level": "sde_ii",
-            "geography": "qa_land"
-          },
-          "scope_label_key": "scope.this_level_here",
-          "confidence_band": "MEDIUM",
-          "dating": "RETRIEVED_ONLY",
-          "retrieved_at": "2026-10-04",
-          "published_at": null,
-          "limits": [
-            "QA fixture limit (synthetic)."
-          ],
-          "sources": [
-            {
-              "publisher": "QA fixture publisher",
-              "url": "https://qa-fixture.invalid/source-1",
-              "retrieved_at": "2026-10-04",
-              "published_at": null
-            }
-          ],
-          "conflict_set": "qa.synthetic.claim_b04a66adb097"
-        }
-      ]
-    }
-  ],
+  "claims": [],
+  "conflicts": [],
   "unknowns": [
     {
-      "key": "qa.synthetic.claim_2794c18cdf35",
+      "key": "qa_unknown_one",
       "reason": "NOT_PUBLISHED",
-      "note": "QA fixture note (synthetic)."
-    },
-    {
-      "key": "qa.synthetic.claim_b04a66adb097",
-      "reason": "CONFLICT",
       "note": "QA fixture note (synthetic)."
     }
   ],
   "priorities": [
     {
       "rank": 1,
-      "competency_key": "technical_communication",
+      "competency_key": "algorithmic_problem_solving",
       "reason_codes": [
-        "IN_MANY_ROUNDS",
         "NOT_LINKED_TO_YOUR_PLAN",
         "NOT_PRACTISED_YET"
       ],
@@ -267,9 +49,8 @@
     },
     {
       "rank": 2,
-      "competency_key": "algorithmic_problem_solving",
+      "competency_key": "coding_quality",
       "reason_codes": [
-        "IN_ONE_ROUND",
         "NOT_LINKED_TO_YOUR_PLAN",
         "NOT_PRACTISED_YET"
       ],
@@ -277,9 +58,8 @@
     },
     {
       "rank": 3,
-      "competency_key": "coding_quality",
+      "competency_key": "technical_communication",
       "reason_codes": [
-        "IN_ONE_ROUND",
         "NOT_LINKED_TO_YOUR_PLAN",
         "NOT_PRACTISED_YET"
       ],
@@ -294,58 +74,74 @@
     "prompts": [
       {
         "position": 1,
-        "text": "Status updates for parcels can arrive late or twice. Talk me through how you would keep only the newest status for each parcel.",
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 2,
-        "text": "You have a very long list of log lines and little memory. How would you find which messages repeat most often, and what would you trade off?",
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 3,
-        "text": "Walk me through how you would merge several already ordered streams of events into one ordered stream, and how the cost grows as streams are added.",
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 4,
-        "text": "Explain how you would spot that two entries in a large contact list are the same person when their names are spelled differently.",
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 5,
-        "text": "In “QA story about a reporting tool (synthetic)”, pick one piece of logic with a tricky edge case. Explain the case and how you made sure your code handled it.",
         "competency_key": "coding_quality",
         "rationale_code": "YOUR_STORY",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 6,
-        "text": "Talk me through how you would choose a data structure for a lookup that also needs every key between two values.",
         "competency_key": "technical_communication",
-        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 7,
-        "text": "How would you order a set of jobs that depend on each other, and what would you do if the dependencies formed a loop?",
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 8,
-        "text": "You have just written a small function. Which inputs would you try first before handing it over, and why those?",
         "competency_key": "coding_quality",
-        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 9,
+        "competency_key": "algorithmic_problem_solving",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 10,
+        "competency_key": "algorithmic_problem_solving",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 11,
+        "competency_key": "coding_quality",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 12,
+        "competency_key": "technical_communication",
+        "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       }
     ]

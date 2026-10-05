@@ -29,8 +29,9 @@
   "research_label_key": "research.researched",
   "claims": [
     {
-      "key": "qa.synthetic.claim_e4e1c8c505f9",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
+      "key": "qa.synthetic.claim_one",
+      "version": 2,
+      "statement": "A fictional company uses a fictional coding interview process.",
       "provenance_class": "FACT",
       "class_label_key": "class.fact",
       "scope": {
@@ -40,10 +41,10 @@
         "geography": "qa_land"
       },
       "scope_label_key": "scope.this_level_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
+      "confidence_band": "HIGH",
+      "dating": "PUBLISHED_DATE",
       "retrieved_at": "2026-10-04",
-      "published_at": null,
+      "published_at": "2026-10-04",
       "limits": [
         "QA fixture limit (synthetic)."
       ],
@@ -52,194 +53,7 @@
           "publisher": "QA fixture publisher",
           "url": "https://qa-fixture.invalid/source-1",
           "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        }
-      ],
-      "conflict_set": null
-    },
-    {
-      "key": "qa.synthetic.claim_7e0bad646a35",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-      "provenance_class": "FACT",
-      "class_label_key": "class.fact",
-      "scope": {
-        "company": "qa_company",
-        "role_family": "software_development_engineering",
-        "level": "sde_ii",
-        "geography": "qa_land"
-      },
-      "scope_label_key": "scope.this_level_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
-      "retrieved_at": "2026-10-04",
-      "published_at": null,
-      "limits": [
-        "QA fixture limit (synthetic)."
-      ],
-      "sources": [
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-1",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        }
-      ],
-      "conflict_set": null
-    },
-    {
-      "key": "qa.synthetic.claim_3c7994946e0a",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-      "provenance_class": "FACT",
-      "class_label_key": "class.fact",
-      "scope": {
-        "company": "qa_company",
-        "role_family": "software_development_engineering",
-        "level": "all",
-        "geography": "qa_land"
-      },
-      "scope_label_key": "scope.all_levels_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
-      "retrieved_at": "2026-10-04",
-      "published_at": null,
-      "limits": [
-        "QA fixture limit (synthetic)."
-      ],
-      "sources": [
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-1",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        }
-      ],
-      "conflict_set": null
-    },
-    {
-      "key": "qa.synthetic.claim_0bfcc985f223",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-      "provenance_class": "FACT",
-      "class_label_key": "class.fact",
-      "scope": {
-        "company": "qa_company",
-        "role_family": "software_development_engineering",
-        "level": "sde_ii",
-        "geography": "qa_land"
-      },
-      "scope_label_key": "scope.this_level_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
-      "retrieved_at": "2026-10-04",
-      "published_at": null,
-      "limits": [
-        "QA fixture limit (synthetic)."
-      ],
-      "sources": [
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-1",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-3",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        }
-      ],
-      "conflict_set": null
-    },
-    {
-      "key": "qa.synthetic.claim_1cc7eeab6880",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-      "provenance_class": "FACT",
-      "class_label_key": "class.fact",
-      "scope": {
-        "company": "qa_company",
-        "role_family": "software_development_engineering",
-        "level": "sde_ii",
-        "geography": "qa_land"
-      },
-      "scope_label_key": "scope.this_level_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
-      "retrieved_at": "2026-10-04",
-      "published_at": null,
-      "limits": [
-        "QA fixture limit (synthetic)."
-      ],
-      "sources": [
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-1",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        }
-      ],
-      "conflict_set": null
-    },
-    {
-      "key": "qa.synthetic.claim_a278ca80141c",
-      "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
-      "provenance_class": "FACT",
-      "class_label_key": "class.fact",
-      "scope": {
-        "company": "qa_company",
-        "role_family": "software_development_engineering",
-        "level": "sde_ii",
-        "geography": "qa_land"
-      },
-      "scope_label_key": "scope.this_level_here",
-      "confidence_band": "MEDIUM",
-      "dating": "RETRIEVED_ONLY",
-      "retrieved_at": "2026-10-04",
-      "published_at": null,
-      "limits": [
-        "QA fixture limit (synthetic)."
-      ],
-      "sources": [
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-1",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
-        },
-        {
-          "publisher": "QA fixture publisher",
-          "url": "https://qa-fixture.invalid/source-2",
-          "retrieved_at": "2026-10-04",
-          "published_at": null
+          "published_at": "2026-10-04"
         }
       ],
       "conflict_set": null
@@ -247,12 +61,13 @@
   ],
   "conflicts": [
     {
-      "key": "qa.synthetic.claim_b04a66adb097",
+      "key": "qa_conflict_one",
       "note": "QA fixture note (synthetic).",
       "claims": [
         {
-          "key": "qa.synthetic.claim_7218f9ba5ebf",
-          "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
+          "key": "qa.synthetic.claim_conflict_a",
+          "version": 2,
+          "statement": "A fictional round may include a puzzle discussion.",
           "provenance_class": "FACT",
           "class_label_key": "class.fact",
           "scope": {
@@ -262,10 +77,10 @@
             "geography": "qa_land"
           },
           "scope_label_key": "scope.this_level_here",
-          "confidence_band": "MEDIUM",
-          "dating": "RETRIEVED_ONLY",
+          "confidence_band": "HIGH",
+          "dating": "PUBLISHED_DATE",
           "retrieved_at": "2026-10-04",
-          "published_at": null,
+          "published_at": "2026-10-04",
           "limits": [
             "QA fixture limit (synthetic)."
           ],
@@ -274,14 +89,15 @@
               "publisher": "QA fixture publisher",
               "url": "https://qa-fixture.invalid/source-1",
               "retrieved_at": "2026-10-04",
-              "published_at": null
+              "published_at": "2026-10-04"
             }
           ],
-          "conflict_set": "qa.synthetic.claim_b04a66adb097"
+          "conflict_set": "qa_conflict_one"
         },
         {
-          "key": "qa.synthetic.claim_f0f9264ef977",
-          "statement": "QA fixture statement (synthetic; the web shows reviewed copy for this key instead).",
+          "key": "qa.synthetic.claim_conflict_b",
+          "version": 2,
+          "statement": "A fictional round may include a design discussion.",
           "provenance_class": "FACT",
           "class_label_key": "class.fact",
           "scope": {
@@ -291,10 +107,10 @@
             "geography": "qa_land"
           },
           "scope_label_key": "scope.this_level_here",
-          "confidence_band": "MEDIUM",
-          "dating": "RETRIEVED_ONLY",
+          "confidence_band": "HIGH",
+          "dating": "PUBLISHED_DATE",
           "retrieved_at": "2026-10-04",
-          "published_at": null,
+          "published_at": "2026-10-04",
           "limits": [
             "QA fixture limit (synthetic)."
           ],
@@ -303,23 +119,18 @@
               "publisher": "QA fixture publisher",
               "url": "https://qa-fixture.invalid/source-1",
               "retrieved_at": "2026-10-04",
-              "published_at": null
+              "published_at": "2026-10-04"
             }
           ],
-          "conflict_set": "qa.synthetic.claim_b04a66adb097"
+          "conflict_set": "qa_conflict_one"
         }
       ]
     }
   ],
   "unknowns": [
     {
-      "key": "qa.synthetic.claim_2794c18cdf35",
+      "key": "qa_unknown_one",
       "reason": "NOT_PUBLISHED",
-      "note": "QA fixture note (synthetic)."
-    },
-    {
-      "key": "qa.synthetic.claim_b04a66adb097",
-      "reason": "CONFLICT",
       "note": "QA fixture note (synthetic)."
     }
   ],
@@ -328,7 +139,7 @@
       "key": "coding_reasoning",
       "ordinal": 1,
       "label_key": "round.coding_reasoning",
-      "basis": "PUBLISHED_GUIDANCE",
+      "basis": "MIRROR_SUGGESTED",
       "competency_keys": [
         "algorithmic_problem_solving",
         "coding_quality",
@@ -339,7 +150,7 @@
       "key": "system_design",
       "ordinal": 2,
       "label_key": "round.system_design",
-      "basis": "PUBLISHED_GUIDANCE",
+      "basis": "MIRROR_SUGGESTED",
       "competency_keys": [
         "system_design",
         "technical_communication"
@@ -349,7 +160,7 @@
       "key": "behavioural",
       "ordinal": 3,
       "label_key": "round.behavioural",
-      "basis": "PUBLISHED_GUIDANCE",
+      "basis": "MIRROR_SUGGESTED",
       "competency_keys": [
         "behavioural_examples"
       ]

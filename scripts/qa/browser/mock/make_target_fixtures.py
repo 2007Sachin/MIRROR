@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT / "apps" / "api"))
 from fastapi.testclient import TestClient  # noqa: E402
 
 import tests.test_target_routes as tr  # noqa: E402
-from app.research_catalog import load_catalog  # noqa: E402
+from app.research_catalog import CatalogDocument, RepoResearchCatalog, Scope, content_sha256  # noqa: E402
 from app.target_service import StaticCatalogProvider  # noqa: E402
 
 OUT = ROOT / "scripts" / "qa" / "browser" / "mock" / "fixtures"
@@ -31,11 +31,16 @@ QA_SESSION = "00000000-0000-4000-8000-000000000101"
 STORY = "QA story about a reporting tool (synthetic)"
 
 
-def world(catalogs):
+def world(catalogs, company_keys=None):
     from types import SimpleNamespace
 
     from app.interview_engine import InterviewStateMachine
     from app.repository import MemorySessionRepository
+    from app import target_service
+
+    original_company_keys = target_service.COMPANY_KEYS
+    if company_keys is not None:
+        target_service.COMPANY_KEYS = {**original_company_keys, **company_keys}
 
     repo = tr.SpyRepository()
     sessions = MemorySessionRepository()
@@ -43,6 +48,7 @@ def world(catalogs):
     return SimpleNamespace(
         repo=repo, sessions=sessions, engine=engine, capability=tr.FixedCapability(),
         catalogs=StaticCatalogProvider(catalogs), stories=tr.FakeStories((STORY,)), progress=tr.FakeProgress(),
+        restore_company_keys=lambda: setattr(target_service, "COMPANY_KEYS", original_company_keys),
     )
 
 
@@ -69,7 +75,7 @@ def scrub(value, ids, synthetic_scope=False):
             elif synthetic_scope and key == "geography" and item == "in":
                 out[key] = "qa_land"
             elif key in ("statement",):
-                out[key] = "QA fixture statement (synthetic; the web shows reviewed copy for this key instead)."
+                out[key] = item
             elif key == "note":
                 out[key] = "QA fixture note (synthetic)."
             elif key == "limits":
@@ -94,21 +100,24 @@ def scrub(value, ids, synthetic_scope=False):
 
 
 def build(catalogs, level, label, synthetic_scope=False):
-    w = world(catalogs)
+    w = world(catalogs, {"qa fictional company": "qa_company"} if synthetic_scope else None)
     c = tr.client(w)
-    created = tr.create(c, level=level).json()
-    target = created["target"]
-    ids = {target["id"]: QA_TARGET, str(tr.ROLE_A): QA_ROLE, str(tr.USER_A): QA_USER}
-    blueprint = c.get(f"/api/v1/targets/{target['id']}/blueprint", headers=tr.A).json()
-    rounds = {key: c.get(f"/api/v1/targets/{target['id']}/rounds/{key}", headers=tr.A).json()
-              for key in ("coding_reasoning", "system_design", "behavioural")}
-    started = tr.start(c, target["id"], round_key="coding_reasoning").json()
-    ids[started["session"]["id"]] = QA_SESSION
-    ids[started["link"]["prompt_set_id"]] = "00000000-0000-4000-8000-000000000401"
-    if started["link"].get("blueprint_id"):
-        ids[started["link"]["blueprint_id"]] = "00000000-0000-4000-8000-000000000501"
-    return (scrub(target, ids, synthetic_scope), scrub(blueprint, ids, synthetic_scope),
-            {k: scrub(v, ids, synthetic_scope) for k, v in rounds.items()}, scrub(started["link"], ids, synthetic_scope))
+    try:
+        created = tr.create(c, level=level, company="QA Fictional Company" if synthetic_scope else "Amazon", geography="qa_land" if synthetic_scope else "in", geography_label="QA Fictional Country" if synthetic_scope else "India").json()
+        target = created["target"]
+        ids = {target["id"]: QA_TARGET, str(tr.ROLE_A): QA_ROLE, str(tr.USER_A): QA_USER}
+        blueprint = c.get(f"/api/v1/targets/{target['id']}/blueprint", headers=tr.A).json()
+        rounds = {key: c.get(f"/api/v1/targets/{target['id']}/rounds/{key}", headers=tr.A).json()
+                  for key in ("coding_reasoning", "system_design", "behavioural")}
+        started = tr.start(c, target["id"], round_key="coding_reasoning").json()
+        ids[started["session"]["id"]] = QA_SESSION
+        ids[started["link"]["prompt_set_id"]] = "00000000-0000-4000-8000-000000000401"
+        if started["link"].get("blueprint_id"):
+            ids[started["link"]["blueprint_id"]] = "00000000-0000-4000-8000-000000000501"
+        return (scrub(target, ids, synthetic_scope), scrub(blueprint, ids, synthetic_scope),
+                {k: scrub(v, ids, synthetic_scope) for k, v in rounds.items()}, scrub(started["link"], ids, synthetic_scope))
+    finally:
+        w.restore_company_keys()
 
 
 def write(name, payload):
@@ -116,8 +125,61 @@ def write(name, payload):
     print("wrote", name)
 
 
+def synthetic_catalogs():
+    """Build a test-only catalog; no production catalog rows enter researched fixtures."""
+    from datetime import date
+
+    today = date(2026, 10, 4)
+    scope = Scope(company="qa_company", role_family="software_development_engineering", level="sde_ii", geography="qa_land")
+    source = {
+        "id": "qa_source_one", "url": "https://qa-fixture.invalid/source-one", "publisher": "QA Fixture Press",
+        "tier": "T1_OFFICIAL", "official": True, "published_at": today.isoformat(),
+        "retrieved_at": today.isoformat(), "text_sha256_prefix": "0123456789abcdef",
+        "independence_group": "qa_group_one", "access_note": "Synthetic source for browser QA only.",
+    }
+    def claim(identifier, statement, value, conflict_set=None):
+        return {
+            "id": identifier, "version": 1, "verifier_ref": "qa-fixture", "status": "PUBLISHED",
+            "provenance_class": "FACT", "dating": "PUBLISHED_DATE", "freshness": "CURRENT",
+            "published_at": today.isoformat(), "retrieved_at": today.isoformat(), "confidence_band": "HIGH",
+            "confidence_features": {}, "scope": scope.model_dump(), "subject": "qa_process",
+            "predicate": "qa_description", "value": value, "statement": statement,
+            "limits": ["Synthetic test fixture; not real-world guidance."], "process_content": True,
+            "candidate_visible": True, "conflict_set": conflict_set, "staleness_flags": [],
+            "supersedes": None, "basis_claim_ids": [],
+            "evidence": [{"source_id": "qa_source_one", "stance": "SUPPORTS", "excerpt": "Synthetic test-only evidence."}],
+        }
+    first = claim("qa.synthetic.claim_one", "A fictional company uses a fictional coding interview process.", {"stage": "fictional coding review"})
+    alternative_a = claim("qa.synthetic.claim_conflict_a", "A fictional round may include a puzzle discussion.", {"format": "puzzle discussion"}, "qa_conflict_one")
+    alternative_b = claim("qa.synthetic.claim_conflict_b", "A fictional round may include a design discussion.", {"format": "design discussion"}, "qa_conflict_one")
+    doc = CatalogDocument.model_validate({
+        "schema": "mirror.research_catalog/1", "version": 2, "status": "PUBLISHED", "supersedes_version": 1,
+        "verifier_receipt": {"ref": "qa-only", "verdict": "PASS"}, "sources": [source],
+        "claims": [first, alternative_a, alternative_b],
+        "conflict_sets": [{"key": "qa_conflict_one", "claim_ids": ["qa.claim.conflict_a", "qa.claim.conflict_b"], "resolution": "UNRESOLVED", "note": "Synthetic alternatives for mock QA."}],
+        "unknowns": [{"key": "qa_unknown_one", "scope": scope.model_dump(), "reason": "NOT_PUBLISHED", "note": "Synthetic unknown for mock QA.", "related_claim_ids": []}],
+    })
+    digest = content_sha256(json.dumps(doc.model_dump(mode="json", by_alias=True), sort_keys=True).encode())
+    return {2: RepoResearchCatalog(doc, digest)}
+
+
+def india_unknown_catalogs():
+    """Synthetic, claim-free catalog for the real India not-researched browser state."""
+    raw = synthetic_catalogs()[2].document.model_dump(mode="json", by_alias=True)
+    raw["version"], raw["supersedes_version"] = 1, None
+    raw["claims"], raw["conflict_sets"] = [], []
+    raw["unknowns"] = [{
+        "key": "amazon.sde.india_specific_process",
+        "scope": {"company": "amazon", "role_family": "software_development_engineering", "level": "all", "geography": "in"},
+        "reason": "NOT_PUBLISHED", "note": "Synthetic QA unknown; no process claim is present.", "related_claim_ids": [],
+    }]
+    document = CatalogDocument.model_validate(raw)
+    digest = content_sha256(json.dumps(document.model_dump(mode="json", by_alias=True), sort_keys=True).encode())
+    return {1: RepoResearchCatalog(document, digest)}
+
+
 def main():
-    target, not_researched, rounds_nr, link = build({1: load_catalog()}, "not_sure", "india-not-researched")
+    target, not_researched, rounds_nr, link = build(india_unknown_catalogs(), "not_sure", "india-not-researched")
     assert not_researched["match_state"] == "NOT_RESEARCHED" and not not_researched["claims"]
     write("target.json", target)
     write("blueprint_not_researched.json", not_researched)
@@ -125,7 +187,7 @@ def main():
         write(f"round_{key}.json", detail)
     write("round_practice_link.json", link)
 
-    _, researched, rounds_r, _ = build({1: load_catalog(), 2: tr.india_catalog(2)}, "sde_ii", "synthetic-researched", synthetic_scope=True)
+    _, researched, rounds_r, _ = build(synthetic_catalogs(), "sde_ii", "synthetic-researched", synthetic_scope=True)
     assert researched["match_state"] == "RESEARCHED" and researched["claims"] and researched["conflicts"]
     write("blueprint_researched.json", researched)
     write("round_coding_reasoning_researched.json", rounds_r["coding_reasoning"])
