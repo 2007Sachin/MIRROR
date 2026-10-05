@@ -29,6 +29,32 @@ test("an India target is 'not yet researched'; an unknown company is 'no notes y
   assert.equal(m.researchState({ availability: "UNAVAILABLE" }), "UNAVAILABLE");
 });
 
+test("other and missing geographies use where you're applying", () => {
+  assert.equal(m.countryLabel(target({ geography_key: "other", geography_label: "Other" })), null);
+  assert.equal(m.countryLabel(target({ geography_key: null, geography_label: null })), null);
+  assert.match(m.targetCopy.section.notYetResearched("Amazon", null), /where you're applying/);
+});
+
+test("headings and priority reasons identify Mirror's practice scope", () => {
+  assert.equal(m.targetCopy.section.title, "Your interview target");
+  assert.match(m.targetCopy.section.loading, /interview target/i);
+  assert.match(m.targetCopy.section.unavailable, /interview target/i);
+  assert.match(m.targetCopy.round.coversTitle, /Mirror practice/i);
+  assert.match(m.targetCopy.round.publishedGuidanceTitle, /published guidance/i);
+  assert.match(m.reasonLabel("IN_MANY_ROUNDS"), /practice round in Mirror/i);
+  assert.match(m.reasonLabel("IN_ONE_ROUND"), /practice round in Mirror/i);
+});
+
+test("practice round overview shows themes without exposing prompt wording", () => {
+  assert.equal(m.targetCopy.round.themesTitle, "Practice themes");
+  assert.match(m.targetCopy.round.themesLabel, /Exact wording appears only during that practice/);
+  assert.equal("questionsTitle" in m.targetCopy.round, false);
+});
+
+test("practice focus explicitly labels the Mirror round", () => {
+  assert.equal(m.targetCopy.practice.roundFocus("Coding conversation", "Amazon · India · SDE II"), "Mirror practice round: Coding conversation — for Amazon · India · SDE II");
+});
+
 test("404, 501 and 503 are treated as unavailable, anything else is an error", () => {
   for (const status of [404, 501, 503]) assert.equal(m.failureKind(status), "UNAVAILABLE");
   for (const status of [0, 500, 400]) assert.equal(m.failureKind(status), "ERROR");
@@ -56,10 +82,40 @@ test("claims are renderable only when every published scope dimension matches th
 });
 
  test("catalog claims render only through mapped copy, never raw catalog text", () => {
-  assert.equal(m.claimCopy("amazon.sde.not_a_real_claim"), null);
-  const oa = m.claimCopy("amazon.sde.sde_ii.oa_components");
-  assert.match(oa, /online coding round \(Amazon calls it the OA\)/);
+  assert.equal(m.claimCopy("amazon.sde.not_a_real_claim", 1), null);
+  const oa = m.claimCopy("amazon.sde.sde_ii.oa_components", 1);
+  assert.match(oa, /online coding round/);
   assert.doesNotMatch(oa, /assessment/i);
+});
+
+test("OA requirement quotes the supported eligibility wording and separates the window", () => {
+  const copy = m.claimCopy("amazon.sde.sde_ii.oa_required", 1);
+  assert.match(copy, /“everyone who wants to work as an SDE II at Amazon must complete an OA”/);
+  assert.match(copy, /seven days/);
+  assert.doesNotMatch(copy, /assessment|test/i);
+});
+
+test("coding guidance keeps the source meaning in banned-word-safe wording", () => {
+  assert.match(m.claimCopy("amazon.sde.sde_ii.coding_expectations", 1), /carefully checked/);
+  assert.doesNotMatch(m.claimCopy("amazon.sde.sde_ii.coding_expectations", 1), /well-tested/i);
+});
+
+test("current online coding round reports are explicitly unverified", () => {
+  assert.match(m.unknownCopy("amazon.sde.sde_ii.current_oa_format"), /unverified/i);
+});
+
+test("claim copy binds both identifier and version", () => {
+  assert.match(m.claimCopy("amazon.sde.sde_ii.oa_components", 1), /90-minute/);
+  assert.equal(m.claimCopy("amazon.sde.sde_ii.oa_components", 2), null);
+  assert.equal(m.claimCopy("amazon.sde.sde_ii.oa_components", 0), null);
+});
+
+test("C2 sequence has distinct overview and system-design copy contexts", () => {
+  const id = "amazon.sde.sde_ii.process_sequence";
+  assert.match(m.claimCopy(id, 1), /loop of four interviews/);
+  assert.match(m.claimCopy(id, 1, "system_design"), /at least one software systems design question/);
+  assert.doesNotMatch(m.claimCopy(id, 1, "system_design"), /loop of four interviews|outcome/);
+  assert.equal(m.claimCopy(id, 2, "system_design"), null);
 });
 
 test("a source label is text: who published it, for where, for which level, and how it is dated", () => {

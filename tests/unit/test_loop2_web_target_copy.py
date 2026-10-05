@@ -68,6 +68,18 @@ def test_target_section_never_breaks_the_plan() -> None:
     assert "statement" not in overview  # raw catalog text is never rendered
 
 
+def test_target_sections_are_keyed_and_ignore_stale_role_responses() -> None:
+    web = ROOT / "apps/web/src"
+    plan = (web / "components/plan/plan-page.tsx").read_text(encoding="utf-8")
+    assert '<TargetOverview key={plan.role.role_profile_id}' in plan
+    overview = (web / "components/plan/target-overview.tsx").read_text(encoding="utf-8")
+    assert "let active = true" in overview and "if (!isCurrent()) return" in overview
+    round_route = (web / "app/plan/rounds/[round_key]/page.tsx").read_text(encoding="utf-8")
+    assert "key={role}" in round_route
+    round_page = (web / "components/plan/round-page.tsx").read_text(encoding="utf-8")
+    assert "let active = true" in round_page and "if (!isCurrent()) return" in round_page
+
+
 def test_target_copy_strings_pass_the_banned_word_list() -> None:
     strings = re.findall(r'"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`', COPY)
     texts = [a or b for a, b in strings if (a or b) and " " in (a or b)]

@@ -21,5 +21,5 @@ export default async function PlanRound({
   const [{ round_key }, { role }] = await Promise.all([params, searchParams]);
   // Without a role there is no target to read; My plan resolves the current role and pins it.
   if (typeof role !== "string" || !role) redirect("/plan");
-  return <RoundPage roleProfileId={role} roundKey={round_key} />;
+  return <RoundPage key={role} roleProfileId={role} roundKey={round_key} />;
 }

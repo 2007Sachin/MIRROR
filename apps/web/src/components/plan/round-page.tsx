@@ -60,13 +60,17 @@ export function RoundPage({ roleProfileId, roundKey }: { roleProfileId: string; 
   const [state, setState] = useState<RoundState>({ kind: "loading" });
   const heading = useRef<HTMLHeadingElement>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isCurrent: () => boolean = () => true) => {
     setState({ kind: "loading" });
-    setState(await loadRound(roleProfileId, roundKey));
+    const loaded = await loadRound(roleProfileId, roundKey);
+    if (!isCurrent()) return;
+    setState(loaded);
   }, [roleProfileId, roundKey]);
 
   useEffect(() => {
-    void load();
+    let active = true;
+    void load(() => active);
+    return () => { active = false; };
   }, [load]);
 
   // Focus lands on the round's name once it is there, so keyboard and screen readers start at the top.
@@ -108,11 +112,14 @@ export function RoundPage({ roleProfileId, roundKey }: { roleProfileId: string; 
 
 function RoundBody({ target, detail, roleProfileId }: { target: TargetView; detail: RoundDetail; roleProfileId: string }) {
   const round = detail.round!;
-  const claims = detail.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key));
-  const conflicts = detail.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key)));
+  const claims = detail.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version, round.key));
+  const conflicts = detail.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version, round.key)));
   const unknowns = detail.unknowns.filter((unknown) => unknownCopy(unknown.key));
   const researched = detail.match_state === "RESEARCHED" || detail.match_state === "GENERAL_ONLY";
   const pack = detail.pack;
+  const practiceThemes = pack
+    ? [...new Set(pack.prompts.map((prompt) => competencyLabel(prompt.competency_key) ?? prompt.competency_key.replace(/_/g, " ")))]
+    : [];
   const canPractise = pack?.state === "FULL" && pack.prompts.length > 0;
   const history = detail.practice ?? { count: 0, sessions: [] };
   const amazon = target.company_key === "amazon";
@@ -122,11 +129,12 @@ function RoundBody({ target, detail, roleProfileId }: { target: TargetView; deta
       <section aria-labelledby="round-covers">
         <h2 id="round-covers" className="pl-run-title">{t.coversTitle}</h2>
         <p>{roundCovers(round.label_key)}</p>
+        {researched && claims.length ? <h3 className="pl-run-sub">{t.publishedGuidanceTitle}</h3> : null}
         {researched && claims.length ? (
           <ul className="pl-stages">
             {claims.map((claim) => (
               <li key={claim.key}>
-                <p>{claimCopy(claim.key)}</p>
+                <p>{claimCopy(claim.key, claim.version, round.key)}</p>
                 <p className="pl-source">{sourceLabel(claim, target.company_label)}</p>
               </li>
             ))}
@@ -153,9 +161,9 @@ function RoundBody({ target, detail, roleProfileId }: { target: TargetView; deta
                 <p className="pl-state-title">{targetCopy.section.conflictTitle}</p>
                 <p>{conflictCopy(conflict.key)}</p>
                 <ul className="pl-conflict-sides">
-                  {conflict.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key)).map((claim) => (
+                  {conflict.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version, round.key)).map((claim) => (
                     <li key={claim.key}>
-                      <p>{claimCopy(claim.key)}</p>
+                      <p>{claimCopy(claim.key, claim.version, round.key)}</p>
                       <p className="pl-source">{sourceLabel(claim, target.company_label)}</p>
                     </li>
                   ))}
@@ -207,18 +215,13 @@ function RoundBody({ target, detail, roleProfileId }: { target: TargetView; deta
         )}
       </section>
 
-      {pack && pack.prompts.length ? (
-        <section aria-labelledby="round-questions">
-          <h2 id="round-questions" className="pl-run-title">{t.questionsTitle}</h2>
-          <p className="pl-source">{t.questionsLabel}</p>
-          <ol className="pl-plain">
-            {pack.prompts.map((prompt) => (
-              <li key={prompt.position}>
-                {prompt.text}
-                <span className="pl-source"> · {targetCopy.rationale[prompt.rationale_code] ?? targetCopy.rationale.MIRROR_SUGGESTED}</span>
-              </li>
-            ))}
-          </ol>
+      {pack && practiceThemes.length ? (
+        <section aria-labelledby="round-themes">
+          <h2 id="round-themes" className="pl-run-title">{t.themesTitle}</h2>
+          <p className="pl-source">{t.themesLabel}</p>
+          <ul className="pl-plain">
+            {practiceThemes.map((theme) => <li key={theme}>{theme}</li>)}
+          </ul>
         </section>
       ) : null}
 

@@ -52,27 +52,33 @@ export function TargetOverview({
 }) {
   const [state, setState] = useState<Overview>({ kind: "loading-list" });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isCurrent: () => boolean = () => true) => {
     let target: TargetView;
     try {
       const found = await targetForRole(roleProfileId);
+      if (!isCurrent()) return;
       if (found.kind !== "TARGET") return setState({ kind: "hidden" });
       target = found.target;
     } catch {
+      if (!isCurrent()) return;
       return setState({ kind: "hidden" }); // the plan works without this section
     }
     setState({ kind: "loading", target });
     try {
       const view = await getBlueprint(target.id);
+      if (!isCurrent()) return;
       setState(researchState(view) === "UNAVAILABLE" ? { kind: "unavailable", target } : { kind: "ready", target, view });
     } catch (reason) {
+      if (!isCurrent()) return;
       const quiet = reason instanceof ApiError && failureKind(reason.status) === "UNAVAILABLE";
       setState({ kind: quiet ? "unavailable" : "error", target });
     }
   }, [roleProfileId]);
 
   useEffect(() => {
-    void load();
+    let active = true;
+    void load(() => active);
+    return () => { active = false; };
   }, [load]);
 
   const primary = state.kind === "ready" && state.view.rounds.length > 0;
@@ -107,8 +113,8 @@ export function TargetOverview({
 
 function Ready({ target, view, roleProfileId, roleName }: { target: TargetView; view: BlueprintView; roleProfileId: string; roleName: string }) {
   const research = researchState(view);
-  const claims = view.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key));
-  const conflicts = view.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key)));
+  const claims = view.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version));
+  const conflicts = view.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version)));
   const unknowns = view.unknowns.filter((unknown) => unknownCopy(unknown.key));
   const researched = research === "RESEARCHED" || research === "GENERAL_ONLY";
   const rounds = [...view.rounds].sort((a, b) => a.ordinal - b.ordinal).filter((round) => roundLabel(round.label_key));
@@ -129,15 +135,15 @@ function Ready({ target, view, roleProfileId, roleName }: { target: TargetView; 
 
       {researched && claims.length ? (
         <>
-          <h3 className="pl-run-sub">{t.stagesTitle}</h3>
-          <ol className="pl-stages">
+          <h3 className="pl-run-sub">{t.publishedGuidanceTitle}</h3>
+          <ul className="pl-stages">
             {claims.map((claim) => (
               <li key={claim.key}>
-                <p>{claimCopy(claim.key)}</p>
+                <p>{claimCopy(claim.key, claim.version)}</p>
                 <p className="pl-source">{sourceLabel(claim, target.company_label)}</p>
               </li>
             ))}
-          </ol>
+          </ul>
         </>
       ) : null}
       {researched && !claims.length && !conflicts.length ? <p className="pl-quiet">{t.nothingYet}</p> : null}
@@ -148,9 +154,9 @@ function Ready({ target, view, roleProfileId, roleName }: { target: TargetView; 
               <h3 id={`conflict-${conflict.key}`} className="pl-run-sub">{t.conflictTitle}</h3>
               <p>{conflictCopy(conflict.key)}</p>
               <ul className="pl-conflict-sides">
-                {conflict.claims.filter((claim) => claimCopy(claim.key)).map((claim) => (
+                {conflict.claims.filter((claim) => claimCopy(claim.key, claim.version)).map((claim) => (
                   <li key={claim.key}>
-                    <p>{claimCopy(claim.key)}</p>
+                    <p>{claimCopy(claim.key, claim.version)}</p>
                     <p className="pl-source">{sourceLabel(claim, target.company_label)}</p>
                   </li>
                 ))}
@@ -173,7 +179,7 @@ function Ready({ target, view, roleProfileId, roleName }: { target: TargetView; 
 
       {rounds.length ? (
         <>
-          <h3 className="pl-run-sub">{t.roundsTitle}</h3>
+          <h3 className="pl-run-sub">{t.mirrorCoverageTitle}</h3>
           <p className="pl-quiet">{anyLinked ? t.roundsIntroLinked : t.roundsIntroSuggested}</p>
           <ol className="pl-rounds">
             {rounds.map((round) => (

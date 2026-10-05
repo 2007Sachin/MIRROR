@@ -29,6 +29,7 @@ export type SourceRef = { publisher: string; url: string; retrieved_at: string; 
 
 export type ClaimView = {
   key: string;
+  version: number;
   statement: string;
   provenance_class: string;
   class_label_key: string;

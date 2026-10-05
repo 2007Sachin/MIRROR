@@ -117,7 +117,7 @@ function PlanBody({
   }
   return (
     <>
-      <TargetOverview roleProfileId={plan.role.role_profile_id} roleName={plan.role.target_role} onPrimary={setTargetPrimary} />
+      <TargetOverview key={plan.role.role_profile_id} roleProfileId={plan.role.role_profile_id} roleName={plan.role.target_role} onPrimary={setTargetPrimary} />
       <section className="pl-areas-section" aria-labelledby="pl-areas-title">
         <h2 id="pl-areas-title" className="pl-run-title">{t.areasTitle}</h2>
         <div className="pl-areas">
