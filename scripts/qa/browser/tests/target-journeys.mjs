@@ -92,11 +92,11 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
 
   // T3 India target: not yet researched, Mirror's suggested rounds, no global guidance, one primary.
   await step("t03-plan-india-not-yet-researched", async () => {
-    await heading("How interviews for this role tend to run", 2).waitFor();
+    await heading("Your interview target", 2).waitFor();
     await page.getByText("Amazon · India · SDE II").waitFor();
     await page.getByText("Not yet researched", { exact: true }).waitFor();
     const order = await page.locator("h2").allInnerTexts();
-    assert.ok(order.indexOf("How interviews for this role tend to run") < order.indexOf("What this role looks for"), "section A above the plan");
+    assert.ok(order.indexOf("Your interview target") < order.indexOf("What this role looks for"), "section A above the plan");
     assert.equal(await page.locator(".pl-rounds > li").count(), 3);
     assert.equal(await page.locator(".pl-rounds .pl-source", { hasText: "Mirror's suggestion" }).count(), 3);
     assert.equal(await page.locator(".pl-stages").count(), 0, "no published-guidance list for India");
