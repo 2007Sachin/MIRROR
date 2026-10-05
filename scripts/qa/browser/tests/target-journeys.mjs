@@ -138,7 +138,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
   await step("t06-plan-section-unavailable", async () => {
     await scenario({ blueprint: "unavailable503" });
     await page.goto(planUrl(IDS.role));
-    await page.getByText("How these interviews run isn't available right now. Your plan below still works.").waitFor();
+    await page.getByText("Your interview target isn't available right now. Your plan below still works.").waitFor();
     await page.locator(".pl-run").getByRole("button", { name: "Try again" }).waitFor();
     await page.locator(".pl-areas .pl-card").first().waitFor();
     assert.equal(await page.locator(".dh").getByRole("alert").count(), 0, "no alert in the page content");
