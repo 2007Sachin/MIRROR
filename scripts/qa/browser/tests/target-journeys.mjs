@@ -213,7 +213,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     const before = (await getState()).createBodies.length;
     await page.getByRole("link", { name: "Practise this round" }).click();
     await page.waitForURL((url) => url.pathname === "/practice/start" && url.searchParams.get("round") === "coding_reasoning");
-    await page.locator(".pr-check").getByText("Coding conversation (Amazon · India · Level not set yet)").waitFor();
+    await page.locator(".pr-check").getByText("Mirror practice round: Coding conversation — for Amazon · India · Level not set yet").waitFor();
     await overflow("round-practice-check");
     await page.getByRole("button", { name: "Start practice" }).click();
     await page.waitForURL(/\/sessions\/[^/]+\/brief$/);
