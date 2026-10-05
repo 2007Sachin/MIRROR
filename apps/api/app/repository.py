@@ -220,8 +220,26 @@ class SupabaseSessionRepository:
                 params={"select": SESSION_READ_COLUMNS},
                 json=body,
             )
-            response.raise_for_status()
-            session = SessionRead.model_validate(response.json()[0])
+            if response.status_code in (409, 412) and payload.idempotency_key:
+                conflict = response
+            else:
+                response.raise_for_status()
+                session = SessionRead.model_validate(response.json()[0])
+        if payload.idempotency_key and response.status_code in (409, 412):
+            async with pooled(10) as client:
+                response = await client.get(
+                    f"{self.url}/rest/v1/sessions",
+                    headers=self.headers,
+                    params={
+                        "user_id": f"eq.{user_id}",
+                        "idempotency_key": f"eq.{payload.idempotency_key}",
+                        "select": SESSION_READ_COLUMNS,
+                    },
+                )
+                response.raise_for_status()
+                if rows := response.json():
+                    return SessionRead.model_validate(rows[0])
+            conflict.raise_for_status()
         await self.record_event(session.id, user_id, "SESSION_CREATED", {})
         return session
 
