@@ -188,7 +188,9 @@ create trigger generated_questions_guard_link before insert or delete on public.
   for each row execute function public.generated_questions_guard_link();
 revoke all on function public.generated_questions_guard_link() from public, anon, authenticated;
 
--- Prompt/story content is backend-private; clients receive only link metadata.
+-- Practice question bodies stay server-only; candidates receive prompts through the guarded API flow.
+revoke select on public.generated_questions from authenticated;
+-- The manifest is also private; clients receive only target-session link metadata.
 revoke select on public.target_session_links from authenticated;
 grant select (session_id, user_id, candidate_target_id, blueprint_id, round_key, competency_key, prompt_set_id, created_at)
   on public.target_session_links to authenticated;

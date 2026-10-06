@@ -76,6 +76,7 @@ alter table public.target_session_links
 
 revoke select (session_id, user_id, candidate_target_id, blueprint_id, round_key, competency_key, prompt_set_id, created_at)
   on public.target_session_links from authenticated;
+grant select on public.generated_questions to authenticated;
 grant select on public.target_session_links to authenticated;
 
 revoke all on function public.target_session_links_verify() from public, anon, authenticated;

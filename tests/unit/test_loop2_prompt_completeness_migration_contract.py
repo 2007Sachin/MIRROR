@@ -104,3 +104,10 @@ def test_rollback_removes_manifest_and_restores_table_select():
     assert "drop column prompt_manifest" in sql
     assert "revoke select (session_id" in sql
     assert "grant select on public.target_session_links to authenticated" in sql
+
+
+def test_generated_questions_remain_backend_private_until_practice_start():
+    migration = UP.read_text(encoding="utf-8").lower()
+    rollback = DOWN.read_text(encoding="utf-8").lower()
+    assert "revoke select on public.generated_questions from authenticated" in migration
+    assert "grant select on public.generated_questions to authenticated" in rollback
