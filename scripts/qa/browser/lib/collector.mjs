@@ -32,6 +32,16 @@ export const ALLOW = [
     steps: ["t06-plan-section-unavailable", "t07-plan-section-error-and-retry", "t11-round-unknown-key"],
     reason: "Chrome logs the deliberate answers above as console errors",
   },
+  {
+    kind: "response", url: /\/api\/v1\/targets$/, status: 503,
+    steps: ["t16-onboarding-continues-with-general-plan-without-target"],
+    reason: "target creation is deliberately unavailable in T16; the candidate continues with the general plan",
+  },
+  {
+    kind: "console", text: /^Failed to load resource: the server responded with a status of 503 \(Service Unavailable\)$/,
+    steps: ["t16-onboarding-continues-with-general-plan-without-target"],
+    reason: "Chrome logs the intentional T16 target-create 503 as a console error",
+  },
 ];
 
 export function createCollector() {
