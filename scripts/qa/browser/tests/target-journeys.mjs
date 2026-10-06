@@ -265,8 +265,11 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     const answersAfterStart = completed.answers.slice(answersBefore);
     assert.equal(completed.ended, true, `completion state: ${JSON.stringify({
       sessionStatus: completed.sessionStatus,
+      genericStartsBefore,
+      genericStartsAtEnd: completed.createBodies.length,
       answersAfterStart,
       endRequests: completed.requests.filter((request) => /\/sessions\/[^ ]+\/end /.test(request)),
+      roundSessionIds: completed.targets.roundPracticeResponses.map((response) => response.session_id),
       targetStarts: completed.targets.roundPractice,
     })}`);
     assert.deepEqual(answersAfterStart, QA_RESEARCHED_CODING_PROMPTS.map((prompt) => prompt.answer));
