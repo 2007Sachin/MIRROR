@@ -283,7 +283,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
   });
 
   // 6. Loop 2: interview target, plan, research-scoped round practice and no-target recovery (T1–T16, including T3b/T9b).
-  await runTargetJourneys({ page, step, baseUrl, mock, viewport, overflow, getState });
+  await runTargetJourneys({ page, step, baseUrl, mock, viewport, overflow, getState, poll });
 
   // 7. Sign out; the session is really gone.
   await step("sign-out", async () => {

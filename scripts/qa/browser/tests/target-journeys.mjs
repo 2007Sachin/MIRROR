@@ -14,7 +14,7 @@ const BANNED = /\b(evidence|diagnostics?|assessments?|assessor|skeptic|scor(e|ed
 // marker: the Loop 1 fixture role "QA Analyst (test role)" is user data shown in the role switcher.
 const FIXTURE_TEXT = [/QA Analyst \(test role\)/g, /\(test role\)/g, /\(test only\)/g, /QA fixture[^.]*\./g];
 
-export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, overflow, getState }) {
+export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, overflow, getState, poll }) {
   const control = { "x-qa-control-token": mock.controlToken, "content-type": "application/json" };
   const scenario = async (body) => {
     const response = await fetch(`${mock.apiUrl}/__qa/scenario`, { method: "POST", headers: control, body: JSON.stringify(body), redirect: "error" });
@@ -261,6 +261,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
       }
     }
     await heading("Interview complete", 1).waitFor();
+    await poll(async () => (await getState()).ended, { message: "the researched practice to end" });
     const completed = await getState();
     const answersAfterStart = completed.answers.slice(answersBefore);
     assert.equal(completed.ended, true, `completion state: ${JSON.stringify({
