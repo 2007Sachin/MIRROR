@@ -117,11 +117,32 @@ class TargetSessionLinkCreate(_Model):
     round_key: str | None = None
     competency_key: str | None = None
     prompt_set_id: UUID | None = None
+    prompt_set_state: Literal["NOT_APPLICABLE", "PENDING", "COMPLETE"] = "NOT_APPLICABLE"
+    expected_prompt_count: int | None = None
+    # UUIDv5 prompt_set_id binds owner/target/round/idempotency. This private first-writer snapshot freezes
+    # blueprint/research, generation versions, exact text, and used candidate context; retries never regenerate it.
+    prompt_manifest: tuple[QuestionCreate, ...] | None = None
 
 
 class TargetSessionLink(TargetSessionLinkCreate):
     user_id: UUID
     created_at: datetime
+
+
+def _validate_link_prompt_state(link: TargetSessionLinkCreate) -> None:
+    manifest = link.prompt_manifest
+    if link.prompt_set_id is None:
+        if link.prompt_set_state != "NOT_APPLICABLE" or link.expected_prompt_count is not None or manifest is not None:
+            raise TargetConflict()
+        return
+    if (link.prompt_set_state != "PENDING" or link.expected_prompt_count not in (3, 4)
+        or manifest is None or len(manifest) != link.expected_prompt_count):
+        raise TargetConflict()
+    for position, row in enumerate(manifest, start=1):
+        if (row.position != position or row.prompt_set_id != link.prompt_set_id
+            or row.candidate_target_id != link.candidate_target_id
+            or row.blueprint_id != link.blueprint_id or row.round_key != link.round_key):
+            raise TargetConflict()
 
 
 class TargetRepository(Protocol):
@@ -136,6 +157,7 @@ class TargetRepository(Protocol):
     async def questions_for_set(self, prompt_set_id: UUID, user_id: UUID) -> list[GeneratedQuestion]: ...
     async def questions_for_target(self, target_id: UUID, user_id: UUID, since: datetime | None = None) -> list[GeneratedQuestion]: ...
     async def create_link(self, user_id: UUID, link: TargetSessionLinkCreate) -> TargetSessionLink: ...
+    async def complete_prompt_link(self, session_id: UUID, user_id: UUID) -> TargetSessionLink: ...
     async def link_for_session(self, session_id: UUID, user_id: UUID) -> TargetSessionLink | None: ...
     async def links_for_target(self, target_id: UUID, user_id: UUID) -> list[TargetSessionLink]: ...
 
@@ -216,6 +238,14 @@ class MemoryTargetRepository:
     async def record_questions(self, user_id: UUID, rows: Sequence[QuestionCreate]) -> list[GeneratedQuestion]:
         for row in rows:
             await self._owned_target(row.candidate_target_id, user_id)
+            link = next((item for item in self.links.values() if item.prompt_set_id == row.prompt_set_id), None)
+            if link is None or link.user_id != user_id or link.candidate_target_id != row.candidate_target_id:
+                raise LookupError("prompt set does not have a matching target-session link")
+            if (link.prompt_set_state != "PENDING" or link.expected_prompt_count is None
+                or row.position > link.expected_prompt_count or link.prompt_manifest is None):
+                raise TargetConflict()
+            if row.model_dump() != link.prompt_manifest[row.position - 1].model_dump():
+                raise TargetConflict()
             if row.blueprint_id is not None and not any(
                 b.id == row.blueprint_id and b.user_id == user_id and b.candidate_target_id == row.candidate_target_id
                 for b in self.blueprint_rows
@@ -240,10 +270,15 @@ class MemoryTargetRepository:
         return sorted(rows, key=lambda row: row.position)
 
     async def questions_for_target(self, target_id: UUID, user_id: UUID, since: datetime | None = None) -> list[GeneratedQuestion]:
-        linked_sets = {
-            row.prompt_set_id for row in self.links.values()
-            if row.candidate_target_id == target_id and row.user_id == user_id and row.prompt_set_id is not None
-        }
+        linked_sets = set()
+        for link in self.links.values():
+            if link.candidate_target_id != target_id or link.user_id != user_id or link.prompt_set_id is None:
+                continue
+            rows = await self.questions_for_set(link.prompt_set_id, user_id)
+            if (link.prompt_set_state == "COMPLETE" and link.expected_prompt_count is not None
+                and all(q.candidate_target_id == link.candidate_target_id for q in rows)
+                and [q.position for q in rows] == list(range(1, link.expected_prompt_count + 1))):
+                linked_sets.add(link.prompt_set_id)
         return [
             q for q in self.questions
             if q.candidate_target_id == target_id and q.user_id == user_id
@@ -256,9 +291,32 @@ class MemoryTargetRepository:
             existing = self.links[link.session_id]
             raise LinkAlreadyExists(existing if existing.user_id == user_id else None)
         await self._owned_target(link.candidate_target_id, user_id)
-        row = TargetSessionLink(**link.model_dump(), user_id=user_id, created_at=datetime.now(UTC))
-        self.links[link.session_id] = row
-        return row
+        _validate_link_prompt_state(link)
+        if link.prompt_set_id is not None and any(existing.prompt_set_id == link.prompt_set_id for existing in self.links.values()):
+            raise TargetConflict()
+        link = TargetSessionLink(**link.model_dump(), user_id=user_id, created_at=datetime.now(UTC))
+        self.links[link.session_id] = link
+        return link
+
+    async def complete_prompt_link(self, session_id: UUID, user_id: UUID) -> TargetSessionLink:
+        link = self.links.get(session_id)
+        if link is None or link.user_id != user_id or link.prompt_set_id is None:
+            raise TargetConflict()
+        rows = await self.questions_for_set(link.prompt_set_id, user_id)
+        expected = link.expected_prompt_count
+        if (expected is None or link.prompt_manifest is None
+            or any(q.candidate_target_id != link.candidate_target_id for q in rows)
+            or [q.position for q in rows] != list(range(1, expected + 1))
+            or any(q.model_dump(exclude={"id", "user_id", "created_at", "provenance_class"})
+                   != link.prompt_manifest[q.position - 1].model_dump() for q in rows)):
+            raise TargetConflict()
+        if link.prompt_set_state == "COMPLETE":
+            return link
+        if link.prompt_set_state != "PENDING":
+            raise TargetConflict()
+        completed = link.model_copy(update={"prompt_set_state": "COMPLETE"})
+        self.links[session_id] = completed
+        return completed
 
     async def link_for_session(self, session_id: UUID, user_id: UUID) -> TargetSessionLink | None:
         row = self.links.get(session_id)
@@ -395,7 +453,7 @@ class SupabaseTargetRepository:
     async def questions_for_target(self, target_id: UUID, user_id: UUID, since: datetime | None = None) -> list[GeneratedQuestion]:
         links = await self._rows(
             "GET", "target_session_links",
-            {"candidate_target_id": f"eq.{target_id}", "user_id": f"eq.{user_id}", "select": "prompt_set_id"},
+            {"candidate_target_id": f"eq.{target_id}", "user_id": f"eq.{user_id}", "prompt_set_state": "eq.COMPLETE", "select": "prompt_set_id,expected_prompt_count"},
         )
         set_ids = sorted({str(row["prompt_set_id"]) for row in links if row.get("prompt_set_id")})
         if not set_ids:
@@ -407,9 +465,15 @@ class SupabaseTargetRepository:
         if since is not None:
             params["created_at"] = f"gte.{since.isoformat()}"
         rows = await self._rows("GET", "generated_questions", params)
-        return [GeneratedQuestion.model_validate(row) for row in rows]
+        expected = {str(row["prompt_set_id"]): row.get("expected_prompt_count") for row in links if row.get("prompt_set_id")}
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            grouped.setdefault(str(row["prompt_set_id"]), []).append(row)
+        valid = {key for key, group in grouped.items() if expected.get(key) is not None and sorted(int(r["position"]) for r in group) == list(range(1, int(expected[key]) + 1))}
+        return [GeneratedQuestion.model_validate(row) for row in rows if str(row["prompt_set_id"]) in valid]
 
     async def create_link(self, user_id: UUID, link: TargetSessionLinkCreate) -> TargetSessionLink:
+        _validate_link_prompt_state(link)
         try:
             rows = await self._rows(
                 "POST", "target_session_links", {"select": "*"},
@@ -418,6 +482,27 @@ class SupabaseTargetRepository:
         except TargetConflict:
             raise LinkAlreadyExists(await self.link_for_session(link.session_id, user_id)) from None
         return TargetSessionLink.model_validate(rows[0])
+
+    async def complete_prompt_link(self, session_id: UUID, user_id: UUID) -> TargetSessionLink:
+        current = await self.link_for_session(session_id, user_id)
+        if current is None or current.prompt_set_id is None or current.expected_prompt_count is None:
+            raise TargetConflict()
+        questions = await self.questions_for_set(current.prompt_set_id, user_id)
+        expected = current.expected_prompt_count
+        if (any(q.candidate_target_id != current.candidate_target_id for q in questions)
+            or [q.position for q in questions] != list(range(1, expected + 1))):
+            raise TargetConflict()
+        if current.prompt_set_state == "COMPLETE":
+            return current
+        if current.prompt_set_state != "PENDING":
+            raise TargetConflict()
+        rows = await self._rows("PATCH", "target_session_links", {"session_id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "prompt_set_state": "eq.PENDING", "select": "*"}, json={"prompt_set_state": "COMPLETE"}, prefer="return=representation")
+        if rows:
+            return TargetSessionLink.model_validate(rows[0])
+        winner = await self.link_for_session(session_id, user_id)
+        if winner and winner.prompt_set_state == "COMPLETE" and winner.expected_prompt_count == expected:
+            return winner
+        raise TargetConflict()
 
     async def link_for_session(self, session_id: UUID, user_id: UUID) -> TargetSessionLink | None:
         rows = await self._rows("GET", "target_session_links", {"session_id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": "*"})

@@ -1,13 +1,12 @@
-// Loop 2 browser journeys (T1–T15 of scratch/loop2_ux_proposal.md §10, adapted to what was built).
+// Loop 2 browser journeys (T1–T16, with synthetic researched cases T3b and T9b, adapted to what was built).
 // Runs inside critical-path.mjs's runViewport, after the Loop 1 path and before sign-out, against the
 // fake Auth/API (mock/targets.mjs scenarios). Every step also checks: no banned word on screen, one
-// <h1>, at most the expected number of filled primary actions, named controls, and (mobile) no
-// horizontal scroll. Not built, so not tested here: T5 level edit form, T14 "make this my current
-// role" note, T16 switcher labels (they need backend contracts C2/C3 that do not exist yet).
+// <h1>, at most the expected number of filled primary actions, named controls, and (mobile) no horizontal scroll.
+// Not built, so not tested here: the T5 level edit form, T14's "make this my current role" note, and the proposal's switcher-label scenario (there is no backend contract for it).
 import assert from "node:assert/strict";
 
 import { IDS } from "../mock/server.mjs";
-import { TARGET_IDS } from "../mock/targets.mjs";
+import { QA_RESEARCHED_CODING_PROMPTS, TARGET_IDS } from "../mock/targets.mjs";
 
 // Same list as docs/copy-guide.md (whole word, case-insensitive, inflections).
 const BANNED = /\b(evidence|diagnostics?|assessments?|assessor|skeptic|scor(e|ed|es|ing)|weakness(es)?|gaps?|deficienc(y|ies)|fail(s|ed|ure|ing)?|incorrect|wrong|red flag|critical|candidates?|verdicts?|evaluat\w*|analys\w*|audit\w*|test(s|ed|ing)?|verif\w*|proof|performance|scrutiny|substantiat\w*|flag(s|ged)?)\b/i;
@@ -27,6 +26,12 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     assert.equal(response.status, 200);
   };
   const heading = (name, level) => page.getByRole("heading", { name, ...(level ? { level } : {}) });
+  const joinWithTyping = async () => {
+    await page.getByRole("button", { name: "Check microphone" }).click();
+    await page.getByText("Microphone blocked").waitFor();
+    await page.getByRole("button", { name: "Continue with typing" }).click();
+    await page.locator("#typed-answer").waitFor();
+  };
   const planUrl = (role) => `${baseUrl}/plan?role=${role}`;
 
   /** Shared checks for every Loop 2 screen. */
@@ -189,6 +194,86 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await screen("round-detail", { primaries: 1 });
   });
 
+  // T9b The fictional researched round reaches practice metadata and the existing interview/review flow.
+  await step("t09b-researched-round-to-review", async () => {
+    await scenario({ blueprint: "researched", targets: "available", pack: "full" });
+    const stateBefore = await getState();
+    const answersBefore = stateBefore.answers.length;
+    const genericStartsBefore = stateBefore.createBodies.length;
+
+    await page.goto(`${baseUrl}/plan/rounds/coding_reasoning?role=${IDS.role}`);
+    await heading("Coding conversation", 1).waitFor();
+    await page.getByText("QA Fictional Company · QA Fictional Country · SDE II").waitFor();
+    await page.getByText("Published guidance is linked to this practice round, but Mirror has no reviewed summary to show here. Mirror's practice questions are original.").waitFor();
+    await page.locator("[aria-labelledby='round-priorities'] li")
+      .filter({ hasText: "Part of one practice round in Mirror" }).waitFor();
+    await page.getByText("Mirror chooses original prompts when you start. Exact wording appears only during that practice.").waitFor();
+    assert.equal(await page.getByText(/Amazon|India/).count(), 0, "fictional research does not borrow a real-company or India claim");
+    for (const prompt of QA_RESEARCHED_CODING_PROMPTS) {
+      assert.equal(await page.getByText(prompt.text, { exact: true }).count(), 0, "question wording stays hidden on the round page");
+    }
+    await screen("fictional-researched-round-detail", { primaries: 1 });
+
+    await page.getByRole("link", { name: "Practise this round" }).click();
+    await page.waitForURL((url) => url.pathname === "/practice/start" && url.searchParams.get("round") === "coding_reasoning");
+    await page.locator(".pr-check").getByText("Mirror practice round: Coding conversation — for QA Fictional Company · QA Fictional Country · SDE II").waitFor();
+    for (const prompt of QA_RESEARCHED_CODING_PROMPTS) {
+      assert.equal(await page.getByText(prompt.text, { exact: true }).count(), 0, "question wording stays hidden before the session begins");
+    }
+    await screen("fictional-researched-practice-check", { primaries: 1 });
+    await page.getByRole("button", { name: "Start practice" }).click();
+    await page.waitForURL(/\/sessions\/[^/]+\/brief$/);
+    await heading("Before we begin", 1).waitFor();
+
+    const started = await getState();
+    assert.equal(started.createBodies.length, genericStartsBefore, "round practice uses the target-linked session path");
+    assert.equal(started.targets.roundPractice.length, 1);
+    assert.equal(started.targets.roundPractice[0].target_id, TARGET_IDS.target);
+    assert.equal(started.targets.roundPractice[0].round_key, "coding_reasoning");
+    assert.equal(started.targets.roundPractice[0].mode, "FOCUSED_PRACTICE");
+    assert.equal(started.targets.roundPracticeResponses.length, 1);
+    const promptRefs = started.targets.roundPracticeResponses[0].prompts;
+    assert.ok(promptRefs.some((prompt) => prompt.rationale_code === "PUBLISHED_GUIDANCE_AREA"));
+    assert.ok(promptRefs.every((prompt) => !("text" in prompt)), "the start response exposes metadata, not wording");
+
+    await page.getByRole("link", { name: /Begin the conversation/ }).click();
+    await page.waitForURL(/\/app\/interview\/[^/]+$/);
+    await heading("Ready when you are.", 1).waitFor();
+    await joinWithTyping();
+    await heading(QA_RESEARCHED_CODING_PROMPTS[0].text, 1).waitFor();
+    await overflow("fictional-researched-first-question");
+
+    for (let index = 0; index < QA_RESEARCHED_CODING_PROMPTS.length; index += 1) {
+      const current = QA_RESEARCHED_CODING_PROMPTS[index];
+      await page.locator("#typed-answer").fill(current.answer);
+      await page.getByRole("button", { name: "Send answer" }).click();
+      if (index < QA_RESEARCHED_CODING_PROMPTS.length - 1) {
+        const next = QA_RESEARCHED_CODING_PROMPTS[index + 1];
+        await heading(next.text, 1).waitFor();
+        const composerBack = await page.locator("#typed-answer").waitFor({ timeout: 2_500 }).then(() => true, () => false);
+        if (!composerBack) {
+          // Existing typing-only-room recovery; the same issue is recorded in the main critical path.
+          await page.reload();
+          await heading("Ready when you are.", 1).waitFor();
+          await joinWithTyping();
+          await heading(next.text, 1).waitFor();
+        }
+      }
+    }
+    await heading("Interview complete", 1).waitFor();
+    const completed = await getState();
+    assert.equal(completed.ended, true);
+    assert.deepEqual(completed.answers.slice(answersBefore), QA_RESEARCHED_CODING_PROMPTS.map((prompt) => prompt.answer));
+    await page.getByRole("button", { name: "View review" }).click();
+    await page.waitForURL(/\/app\/report\/[^/]+$/);
+    await heading("QA Analyst (test role)", 1).waitFor();
+    await heading("What landed well").waitFor();
+    await heading("One thing to strengthen").waitFor();
+    for (const prompt of QA_RESEARCHED_CODING_PROMPTS) await page.getByText(prompt.answer, { exact: true }).waitFor();
+    await overflow("fictional-researched-round-review");
+    await scenario({ blueprint: "not_researched" });
+  });
+
   // T10 (adapted) Short pack: no practise action, an honest note instead.
   await step("t10-round-short-pack", async () => {
     await scenario({ pack: "short" });
@@ -209,6 +294,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
 
   // T12 Practise this round through the existing practice start: one session, role/round pinned.
   await step("t12-round-practice-start", async () => {
+    await reset();
     await page.goto(`${baseUrl}/plan/rounds/coding_reasoning?role=${IDS.role}`);
     const before = (await getState()).createBodies.length;
     await page.getByRole("link", { name: "Practise this round" }).click();
@@ -253,5 +339,35 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await page.locator(".pl-areas .pl-card").first().waitFor();
     assert.equal(await page.getByText(/Interview map/i).count(), 0, "plan");
     await reset();
+  });
+
+  // T16 A failed optional target setup can be skipped without repeating role analysis or showing a scope claim.
+  await step("t16-onboarding-continues-with-general-plan-without-target", async () => {
+    await reset();
+    await page.goto(`${baseUrl}/roles/new`);
+    await heading("What role are you preparing for?", 1).waitFor();
+    await page.getByLabel("Role", { exact: true }).fill("Software Development Engineer (test role)");
+    await page.locator("details.ob-target").waitFor();
+    await page.waitForFunction(() => document.querySelector("details.ob-target")?.open === true);
+    await page.getByLabel("Company").fill("Amazon");
+    await page.getByRole("button", { name: "Skip for now" }).click();
+    // The UI already learned targets are available; make the subsequent write/list fail deliberately.
+    await scenario({ targets: "disabled" });
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    const alert = page.getByRole("alert");
+    await alert.getByText(/Your role details are saved, but company setup didn't finish/).waitFor();
+    await screen("target-setup-failed", { primaries: 0 });
+    await alert.getByRole("button", { name: "Continue with general role plan" }).click();
+    await page.getByRole("button", { name: "See your plan" }).waitFor();
+    const state = await getState();
+    assert.equal(state.targets.analyze.length, 1, "the saved role analysis is not repeated");
+    assert.equal(state.targets.creates.length, 0, "failed target storage leaves no target");
+    assert.deepEqual(state.targets.activeRolePuts, [TARGET_IDS.newRole]);
+    await page.getByRole("button", { name: "See your plan" }).click();
+    await page.waitForURL((url) => url.pathname === "/plan" && url.searchParams.get("role") === TARGET_IDS.newRole);
+    await page.locator(".pl-areas .pl-card").first().waitFor();
+    assert.equal(await page.locator(".pl-run").count(), 0, "no company target is shown");
+    assert.equal(await page.getByText(/Amazon|India/).count(), 0, "no unsupported company or geography claim");
+    await screen("general-plan-without-target", { primaries: 1 });
   });
 }

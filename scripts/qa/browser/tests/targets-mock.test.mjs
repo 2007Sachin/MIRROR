@@ -71,6 +71,28 @@ test("researched scenario carries a conflict side by side and a synthetic text o
   }
 });
 
+test("synthetic research reaches its mapped round priority and prompt metadata without revealing text", () => {
+  const { mock, get } = setup();
+  mock.setScenario({ blueprint: "researched" });
+  const blueprint = get(`/api/v1/targets/${TARGET_IDS.target}/blueprint`).body;
+  assert.equal(blueprint.rounds[0].basis, "PUBLISHED_GUIDANCE");
+
+  const path = `/api/v1/targets/${TARGET_IDS.target}/rounds/coding_reasoning`;
+  const detail = get(path).body;
+  assert.equal(detail.round.basis, "PUBLISHED_GUIDANCE");
+  assert.ok(detail.priorities.some((priority) => priority.reason_codes.includes("IN_ONE_ROUND")));
+  assert.ok(detail.pack.prompts.some((prompt) => prompt.rationale_code === "PUBLISHED_GUIDANCE_AREA"));
+  assert.ok(detail.pack.prompts.every((prompt) => prompt.provenance_class === "MIRROR_GENERATED"));
+  assert.ok(detail.pack.prompts.every((prompt) => !("text" in prompt)));
+
+  const started = mock.handle("POST", `${path}/practice`, {
+    body: { mode: "FOCUSED_PRACTICE", idempotency_key: "qa-researched-round" },
+  });
+  assert.equal(started.status, 201);
+  assert.ok(started.body.prompts.some((prompt) => prompt.rationale_code === "PUBLISHED_GUIDANCE_AREA"));
+  assert.ok(started.body.prompts.every((prompt) => !("text" in prompt)));
+});
+
 test("creating a target records the body and a second target for the same role is a 409", () => {
   const { mock, get } = setup();
   const body = { role_profile_id: TARGET_IDS.newRole, company: "Amazon", level: "sde_ii", geography: "in", geography_label: "India" };
@@ -129,7 +151,9 @@ test("the critical path runs the Loop 2 journeys before sign-out, and every allo
   assert.ok(path.indexOf("runTargetJourneys({") > 0 && path.indexOf("runTargetJourneys({") < path.indexOf('step("sign-out"'));
   const journeys = fs.readFileSync(new URL("./target-journeys.mjs", import.meta.url), "utf8");
   const steps = [...journeys.matchAll(/step\("([a-z0-9-]+)"/g)].map((m) => m[1]);
-  assert.ok(steps.length >= 15, `journey steps: ${steps.length}`);
+  assert.ok(steps.length >= 18, `journey steps: ${steps.length}`);
+  assert.ok(steps.includes("t16-onboarding-continues-with-general-plan-without-target"));
+  assert.ok(steps.includes("t09b-researched-round-to-review"));
   assert.equal(new Set(steps).size, steps.length, "step names are unique");
   const { ALLOW } = await import("../lib/collector.mjs");
   for (const rule of ALLOW.filter((r) => r.steps?.some((s) => s.startsWith("t")))) {

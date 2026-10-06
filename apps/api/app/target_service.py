@@ -20,13 +20,13 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .practice_modes import MODE_SHAPE, PracticeFocus, PracticeMode
-from .prompt_originality import ORIGINALITY_RULES_VERSION, REPEAT_WINDOW_DAYS, GuardContext, RecentPrompt, excerpts_from_catalog
+from .prompt_originality import ORIGINALITY_RULES_VERSION, REPEAT_WINDOW_DAYS, GuardContext, RecentPrompt
 from .research_catalog import (
     KEY_PATTERN,
     Claim,
@@ -473,8 +473,20 @@ def round_summaries(match: ScopeMatch) -> list[RoundSummary]:
 _BAND_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 
 
-def competencies_in_process(match: ScopeMatch) -> list[CompetencyInProcess]:
-    """Research-derived coverage only when research matched; otherwise no round counts or bands."""
+def competencies_in_process(match: ScopeMatch, *, round_key: str | None = None) -> list[CompetencyInProcess]:
+    """Research-derived coverage; optionally scope every row to one round for its priorities."""
+    if round_key is not None:
+        round_ = get_round(round_key)
+        claims = _round_claims(match, round_)
+        band = cast(Literal["LOW", "MEDIUM", "HIGH"] | None,
+                    max((claim.confidence_band for claim in claims), key=_BAND_ORDER.__getitem__) if claims else None)
+        return [
+            CompetencyInProcess(
+                key=key, round_count=1 if claims else 0,
+                first_round_ordinal=round_.ordinal, band=band,
+            )
+            for key in round_.competency_keys
+        ]
     out: dict[str, dict[str, Any]] = {}
     for round_ in ROUNDS:
         claims = _round_claims(match, round_)
@@ -509,7 +521,7 @@ def practice_facts(links: Sequence[TargetSessionLink]) -> dict[str, PracticeFact
 
 
 def prompt_set_id_for(user_id: UUID, target_id: UUID, round_key: str, idempotency_key: UUID) -> UUID:
-    """Deterministic, so a replayed start reuses the prompts it stored the first time."""
+    """UUIDv5 attempt identity for owner, target, round and idempotency key; manifest freezes the first pack."""
     return uuid5(NAMESPACE_URL, f"mirror:target-prompts:{user_id}:{target_id}:{round_key}:{idempotency_key}")
 
 
@@ -665,13 +677,16 @@ class TargetService:
     ) -> RoundPack:
         cutoff = datetime.combine(self._today() - timedelta(days=REPEAT_WINDOW_DAYS), datetime.min.time(), tzinfo=UTC)
         stored = await self._repo.questions_for_target(target.id, user_id, since=cutoff)
+        research_claims = _round_claims(match, round_) if match is not None else []
         context = GuardContext(
-            source_excerpts=excerpts_from_catalog(catalog),
+            source_excerpts=tuple(dict.fromkeys(evidence.excerpt for claim in research_claims for evidence in claim.evidence)),
             company_names=tuple(name for name in {target.company_label, target.company_key or ""} if name),
             recent_prompts=tuple(RecentPrompt(text=q.question_text, served_on=q.created_at.date()) for q in stored),
             today=self._today(),
         )
-        researched = match is not None and bool(_round_claims(match, round_))
+        # Only exact-scope claims mapped to this round can affect its originality context.
+        # Out-of-scope/global excerpts must not silently suppress a held-geography prompt pack.
+        researched = bool(research_claims)
         # Earlier prompts are excluded only while inside the guard's 30-day repeat window
         # (``recent_prompts``); older ones may be served again, so packs do not run out.
         return build_round_pack(round_, await self._material(user_id, target), context, researched=researched)
@@ -687,6 +702,17 @@ class TargetService:
             raise BlueprintNotFound
         state, match, catalog = self._pinned_match(target, rows[-1])
         links = await self._repo.links_for_target(target.id, user_id)
+        usable_links = []
+        for link in links:
+            if link.prompt_set_id is None:
+                usable_links.append(link)
+                continue
+            questions = await self._repo.questions_for_set(link.prompt_set_id, user_id)
+            if (link.prompt_set_state == "COMPLETE" and link.expected_prompt_count is not None
+                and all(q.candidate_target_id == link.candidate_target_id for q in questions)
+                and [q.position for q in sorted(questions, key=lambda q: q.position)] == list(range(1, link.expected_prompt_count + 1))):
+                usable_links.append(link)
+        links = usable_links
         summary = next(r for r in round_summaries(match) if r.key == round_.key) if match else RoundSummary(
             key=round_.key, ordinal=round_.ordinal, label_key=round_.label_key,
             competency_keys=list(round_.competency_keys), basis="MIRROR_SUGGESTED",
@@ -702,7 +728,7 @@ class TargetService:
         # Plan coverage is not mapped to target competencies in v1, so every item is "not linked
         # to your plan"; research-derived round counts and bands only exist when research matched.
         ranked = prioritise(
-            competencies_in_process(match or _empty_match()), {}, practice_facts(links), self._today(), target.interview_date,
+            competencies_in_process(match or _empty_match(), round_key=round_.key), {}, practice_facts(links), self._today(), target.interview_date,
         )
         in_round = [item for item in ranked if item.competency_key in round_.competency_keys][:MAX_PRIORITIES]
         priorities = [
@@ -740,19 +766,66 @@ class TargetService:
         if target.status != "ACTIVE":
             raise TargetArchived
         role = await self._roles.get(target.role_profile_id, user_id)
-        rows = await self._blueprints(user_id, target)
-        pin = rows[-1]
+        pins = await self._blueprints(user_id, target)
+        pin = pins[-1]
         mode = PracticeMode(payload.mode)
         needed = MODE_SHAPE[mode].questions
         set_id = prompt_set_id_for(user_id, target.id, round_.key, payload.idempotency_key)
+        links = await self._repo.links_for_target(target.id, user_id)
+        existing_set_link = next((item for item in links if item.prompt_set_id == set_id), None)
         stored = await self._repo.questions_for_set(set_id, user_id)
-        if not stored:
+
+        async def build_rows(blueprint_id: UUID) -> list[QuestionCreate]:
             state, match, catalog = self._pinned_match(target, pin)
             if catalog is None:
                 raise CatalogUnavailable
             pack = await self._pack(user_id, target, round_, match, catalog)
             if pack.state != "FULL" or len(pack.prompts) < max(needed, PACK_MIN):
                 raise ShortPack(len(pack.prompts))
+            return [
+                QuestionCreate(
+                    candidate_target_id=target.id, blueprint_id=blueprint_id, prompt_set_id=set_id, position=index,
+                    round_key=round_.key, competency_key=p.competency_key, family_key=p.family_key,
+                    template_id=p.template_id, generator_version=ROUND_PACK_VERSION,
+                    originality_rules_version=ORIGINALITY_RULES_VERSION, question_text=p.text,
+                    rationale_code=p.rationale_code, derived_from=p.derived_from, novelty_sha256=p.novelty_sha256,
+                )
+                for index, p in enumerate(pack.prompts[:needed], start=1)
+            ]
+
+        def assert_existing_rows_match(generated_rows: list[QuestionCreate], stored_rows: list[GeneratedQuestion]) -> None:
+            by_position = {row.position: row for row in generated_rows}
+            if any(
+                q.position not in by_position or q.model_dump(exclude={"id", "user_id", "created_at", "provenance_class"})
+                != by_position[q.position].model_dump()
+                for q in stored_rows
+            ):
+                raise TargetConflict()
+
+        def rows_from_link(link: TargetSessionLink) -> list[QuestionCreate]:
+            if (link.candidate_target_id != target.id or link.round_key != round_.key
+                or link.prompt_set_id != set_id or link.expected_prompt_count != needed
+                or link.prompt_manifest is None or len(link.prompt_manifest) != needed):
+                raise LinkConflict
+            manifest = list(link.prompt_manifest)
+            if any(
+                row.position != position or row.candidate_target_id != target.id
+                or row.blueprint_id != link.blueprint_id or row.prompt_set_id != set_id
+                or row.round_key != round_.key
+                for position, row in enumerate(manifest, start=1)
+            ):
+                raise LinkConflict
+            return manifest
+
+        if existing_set_link is not None:
+            generated_rows = rows_from_link(existing_set_link)
+            blueprint_id = existing_set_link.blueprint_id
+        else:
+            blueprint_id = pin.id
+            generated_rows = await build_rows(blueprint_id)
+            if stored:
+                raise TargetConflict()
+        assert_existing_rows_match(generated_rows, stored)
         session = await self._engine.create_session_state(user_id, SessionCreate(
             target_role=role.target_role,
             role_profile_id=target.role_profile_id,
@@ -767,43 +840,53 @@ class TargetService:
             or session.practice_focus != PracticeFocus.ROLE.value
             or session.practice_theme != round_.theme
             or session.practice_mode != mode.value
-            or (existing_link is not None and existing_link.prompt_set_id != set_id)
         ):
             raise LinkConflict
-        wanted = TargetSessionLinkCreate(
-            session_id=session.id, candidate_target_id=target.id, blueprint_id=pin.id,
-            round_key=round_.key, competency_key=None, prompt_set_id=set_id,
-        )
-        try:
-            link = await self._repo.create_link(user_id, wanted)
-        except LinkAlreadyExists as exc:
-            existing = exc.link
-            same = existing is not None and (existing.candidate_target_id, existing.round_key, existing.prompt_set_id) == (
-                wanted.candidate_target_id, wanted.round_key, wanted.prompt_set_id,
+        if existing_set_link is not None and existing_set_link.session_id != session.id:
+            raise LinkConflict
+        if existing_link is not None:
+            link = existing_link
+        else:
+            wanted = TargetSessionLinkCreate(
+                session_id=session.id, candidate_target_id=target.id, blueprint_id=blueprint_id,
+                round_key=round_.key, competency_key=None, prompt_set_id=set_id,
+                prompt_set_state="PENDING", expected_prompt_count=needed,
+                prompt_manifest=tuple(generated_rows),
             )
-            if not same:
-                raise LinkConflict from exc
-            link = existing
-        assert link is not None
-        if not stored:
             try:
-                stored = await self._repo.record_questions(user_id, [
-                    QuestionCreate(
-                        candidate_target_id=target.id, blueprint_id=pin.id, prompt_set_id=set_id, position=index,
-                        round_key=round_.key, competency_key=p.competency_key, family_key=p.family_key,
-                        template_id=p.template_id, generator_version=ROUND_PACK_VERSION,
-                        originality_rules_version=ORIGINALITY_RULES_VERSION, question_text=p.text,
-                        rationale_code=p.rationale_code, derived_from=p.derived_from, novelty_sha256=p.novelty_sha256,
-                    )
-                    for index, p in enumerate(pack.prompts[:needed], start=1)
-                ])
+                link = await self._repo.create_link(user_id, wanted)
+            except LinkAlreadyExists as exc:
+                if exc.link is None:
+                    raise LinkConflict from exc
+                link = exc.link
+        if link.session_id != session.id:
+            raise LinkConflict
+        generated_rows = rows_from_link(link)
+        stored = await self._repo.questions_for_set(set_id, user_id)
+        assert_existing_rows_match(generated_rows, stored)
+        complete = link.prompt_set_state == "COMPLETE"
+        if link.prompt_set_state not in ("PENDING", "COMPLETE"):
+            raise TargetConflict()
+        if complete and (len(stored) != needed or {q.position for q in stored} != set(range(1, needed + 1))):
+            raise TargetConflict()
+        if not complete:
+            existing_positions = {q.position for q in stored}
+            rows_to_write = [row for row in generated_rows if row.position not in existing_positions]
+            try:
+                await self._repo.record_questions(user_id, rows_to_write)
             except TargetConflict:
-                stored = await self._repo.questions_for_set(set_id, user_id)
-                if not stored:
-                    raise
+                # Another retry may have inserted identical rows from this immutable manifest.
+                pass
+            stored = await self._repo.questions_for_set(set_id, user_id)
+            assert_existing_rows_match(generated_rows, stored)
+            if len(stored) != needed or {q.position for q in stored} != set(range(1, needed + 1)):
+                raise TargetConflict()
+        if any(q.candidate_target_id != target.id for q in stored):
+            raise TargetConflict()
+        link = await self._repo.complete_prompt_link(session.id, user_id)
         return PracticeStarted(
             session=session,
-            link=LinkView(**link.model_dump(exclude={"user_id"})),
+            link=LinkView(**link.model_dump(exclude={"user_id", "prompt_set_state", "expected_prompt_count", "prompt_manifest"})),
             prompts=[PracticePromptRef(position=q.position, rationale_code=q.rationale_code) for q in sorted(stored, key=lambda q: q.position)],
         )
 
@@ -811,12 +894,28 @@ class TargetService:
 
     async def session_link(self, session_id: UUID, user_id: UUID) -> LinkView | None:
         link = await self._repo.link_for_session(session_id, user_id)
-        return LinkView(**link.model_dump(exclude={"user_id"})) if link else None
+        if link is not None and link.prompt_set_id is not None:
+            questions = await self._repo.questions_for_set(link.prompt_set_id, user_id)
+            if (link.prompt_set_state != "COMPLETE" or link.expected_prompt_count is None
+                or any(q.candidate_target_id != link.candidate_target_id for q in questions)
+                or [q.position for q in sorted(questions, key=lambda q: q.position)] != list(range(1, link.expected_prompt_count + 1))):
+                return None
+        return LinkView(**link.model_dump(exclude={"user_id", "prompt_set_state", "expected_prompt_count", "prompt_manifest"})) if link else None
 
     async def linked_session_ids(self, target_id: UUID, user_id: UUID) -> tuple[CandidateTarget, frozenset[UUID]]:
         target = await self.get(target_id, user_id)
         links = await self._repo.links_for_target(target.id, user_id)
-        return target, frozenset(link.session_id for link in links)
+        usable = []
+        for link in links:
+            if link.prompt_set_id is None:
+                usable.append(link)
+                continue
+            questions = await self._repo.questions_for_set(link.prompt_set_id, user_id)
+            if (link.prompt_set_state == "COMPLETE" and link.expected_prompt_count is not None
+                and all(q.candidate_target_id == link.candidate_target_id for q in questions)
+                and [q.position for q in sorted(questions, key=lambda q: q.position)] == list(range(1, link.expected_prompt_count + 1))):
+                usable.append(link)
+        return target, frozenset(link.session_id for link in usable)
 
 
 def _empty_match() -> ScopeMatch:
@@ -836,6 +935,10 @@ async def linked_prompt_texts(
         if link is None or link.prompt_set_id is None:
             return []
         questions: list[GeneratedQuestion] = await repo.questions_for_set(link.prompt_set_id, user_id)
+        if (link.prompt_set_state != "COMPLETE" or link.expected_prompt_count is None
+            or any(q.candidate_target_id != link.candidate_target_id for q in questions)
+            or [q.position for q in sorted(questions, key=lambda q: q.position)] != list(range(1, link.expected_prompt_count + 1))):
+            raise InterviewPlanningUnavailable
         return [q.question_text for q in sorted(questions, key=lambda q: q.position)]
     except Exception as exc:  # noqa: BLE001
         logger.warning("target prompts unavailable for planning", extra={"session_id": str(session_id)}, exc_info=True)

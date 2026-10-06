@@ -409,6 +409,7 @@ def test_round_practice_creates_a_role_session_stored_prompts_and_a_link(world) 
     assert (session.practice_mode, session.practice_focus) == ("FOCUSED_PRACTICE", "role")
     assert body["link"]["candidate_target_id"] == target["id"]
     assert body["link"]["round_key"] == "behavioural"
+    assert "prompt_manifest" not in body["link"]
     assert len(body["prompts"]) == 4
     assert all(set(p) == {"position", "rationale_code"} for p in body["prompts"])  # no text before the interview
     stored = world.repo.questions
@@ -446,6 +447,263 @@ def test_prompt_insert_conflict_re_reads_winner_set_and_links_once(world) -> Non
     assert len(world.repo.questions) == 4
 
 
+def test_retry_after_failure_before_first_prompt_completes_set(world) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    key = uuid4()
+    original = world.repo.record_questions
+    failed = True
+
+    async def fail_before_write(user_id, rows):
+        nonlocal failed
+        if failed:
+            failed = False
+            raise RuntimeError("simulated failure before first prompt")
+        return await original(user_id, rows)
+
+    world.repo.record_questions = fail_before_write
+    with pytest.raises(RuntimeError, match="before first prompt"):
+        start(c, target["id"], key=key)
+    assert len(world.repo.questions) == 0
+    assert len(world.repo.links) == 1
+    pending = next(iter(world.repo.links.values()))
+    assert (pending.prompt_set_state, pending.expected_prompt_count) == ("PENDING", 4)
+    world.repo.record_questions = original
+    response = start(c, target["id"], key=key)
+    assert response.status_code == 201
+    assert len(world.repo.questions) == 4
+    assert next(iter(world.repo.links.values())).prompt_set_state == "COMPLETE"
+    assert [p["position"] for p in response.json()["prompts"]] == [1, 2, 3, 4]
+
+
+def test_retry_repairs_partial_prompt_set_before_returning_complete(world) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    key = uuid4()
+    original = world.repo.record_questions
+    interrupted = True
+    expected_rows = None
+
+    async def partial_then_fail(user_id, rows):
+        nonlocal interrupted, expected_rows
+        if interrupted:
+            interrupted = False
+            expected_rows = [row.model_dump() for row in rows]
+            await original(user_id, rows[:2])
+            raise RuntimeError("simulated interrupted persistence")
+        return await original(user_id, rows)
+
+    world.repo.record_questions = partial_then_fail
+    with pytest.raises(RuntimeError, match="simulated interrupted persistence"):
+        start(c, target["id"], key=key)
+    partial_set = list(world.repo.questions)
+    assert len(partial_set) == 2
+    world.repo.record_questions = original
+    retry = start(c, target["id"], key=key)
+    assert retry.status_code == 201, retry.text
+    actual_rows = [
+        row.model_dump(exclude={"id", "user_id", "created_at", "provenance_class"})
+        for row in sorted(world.repo.questions, key=lambda row: row.position)
+    ]
+    assert actual_rows == expected_rows
+    assert [p["position"] for p in retry.json()["prompts"]] == [1, 2, 3, 4]
+    assert len(world.repo.questions) == 4
+
+
+def test_partial_retry_reuses_original_candidate_generation_snapshot(world) -> None:
+    world.stories = FakeStories(("Original story title",))
+    c = client(world)
+    target = create(c).json()["target"]
+    key = uuid4()
+    original = world.repo.record_questions
+    expected_rows: list[dict] = []
+
+    async def partial_then_fail(user_id, rows):
+        nonlocal expected_rows
+        expected_rows = [row.model_dump() for row in rows]
+        await original(user_id, rows[:2])
+        raise RuntimeError("simulated interrupted persistence")
+
+    world.repo.record_questions = partial_then_fail
+    with pytest.raises(RuntimeError, match="simulated interrupted persistence"):
+        start(c, target["id"], key=key)
+    assert len(world.repo.questions) == 2
+
+    world.repo.record_questions = original
+    world.stories = FakeStories(("Changed story title",))
+    retry = start(c, target["id"], key=key)
+
+    assert retry.status_code == 201, retry.text
+    actual_rows = [
+        row.model_dump(exclude={"id", "user_id", "created_at", "provenance_class"})
+        for row in sorted(world.repo.questions, key=lambda row: row.position)
+    ]
+    expected_rows = [
+        {key: value for key, value in row.items() if key not in {"id", "user_id", "created_at", "provenance_class"}}
+        for row in expected_rows
+    ]
+    assert actual_rows == expected_rows
+    stored_titles = {title for row in world.repo.questions for title in row.derived_from.get("story_titles", [])}
+    assert stored_titles == {"Original story title"}
+    assert all("Changed story title" not in str(row.derived_from) for row in world.repo.questions)
+    link = next(iter(world.repo.links.values()))
+    assert link.prompt_manifest is not None
+    assert [row.model_dump() for row in link.prompt_manifest] == expected_rows
+    assert len(world.repo.questions) == 4
+    assert [row.position for row in sorted(world.repo.questions, key=lambda row: row.position)] == [1, 2, 3, 4]
+
+
+def test_retry_after_blueprint_refresh_uses_original_candidate_and_research_snapshot(world) -> None:
+    world.catalogs = StaticCatalogProvider({1: load_catalog()})
+    world.stories = FakeStories(("Original story title",))
+    c = client(world)
+    target = create(c).json()["target"]
+    original_blueprint_id = world.repo.blueprint_rows[-1].id
+    key = uuid4()
+    original_record = world.repo.record_questions
+    expected_rows: list[dict] = []
+
+    async def partial_then_fail(user_id, rows):
+        expected_rows[:] = [row.model_dump() for row in rows]
+        await original_record(user_id, rows[:2])
+        raise RuntimeError("simulated interruption before research refresh")
+
+    world.repo.record_questions = partial_then_fail
+    with pytest.raises(RuntimeError, match="research refresh"):
+        start(c, target["id"], key=key)
+    first_link = next(iter(world.repo.links.values()))
+    original_manifest = first_link.prompt_manifest
+    assert original_manifest is not None
+    assert all(row.blueprint_id == original_blueprint_id for row in original_manifest)
+
+    world.repo.record_questions = original_record
+    world.stories = FakeStories(("Changed story title",))
+    world.catalogs = StaticCatalogProvider({1: load_catalog(), 2: revised_global_catalog(2)})
+    refreshed = client(world).post(f"/api/v1/targets/{target['id']}/blueprint/refresh", headers=A)
+    assert refreshed.status_code == 201, refreshed.text
+    current_blueprint_id = world.repo.blueprint_rows[-1].id
+    assert current_blueprint_id != original_blueprint_id
+
+    retry = start(client(world), target["id"], key=key)
+    assert retry.status_code == 201, retry.text
+    stored = sorted(world.repo.questions, key=lambda row: row.position)
+    actual_rows = [
+        row.model_dump(exclude={"id", "user_id", "created_at", "provenance_class"})
+        for row in stored
+    ]
+    assert actual_rows == expected_rows
+    link = next(iter(world.repo.links.values()))
+    assert link.prompt_manifest == original_manifest
+    assert link.blueprint_id == original_blueprint_id
+    assert all(row.blueprint_id == original_blueprint_id for row in stored)
+    assert {title for row in stored for title in row.derived_from.get("story_titles", [])} == {"Original story title"}
+
+
+def test_retry_rejects_manifest_with_mismatched_link_blueprint(world) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    key = uuid4()
+    original = world.repo.record_questions
+
+    async def fail_before_write(user_id, rows):
+        raise RuntimeError("simulated failure before prompt persistence")
+
+    world.repo.record_questions = fail_before_write
+    with pytest.raises(RuntimeError, match="before prompt persistence"):
+        start(c, target["id"], key=key)
+    world.repo.record_questions = original
+
+    link = next(iter(world.repo.links.values()))
+    world.repo.links[link.session_id] = link.model_copy(update={"blueprint_id": uuid4()})
+    retry = start(c, target["id"], key=key)
+    assert retry.status_code == 409
+    assert world.repo.questions == []
+
+
+def test_concurrent_same_key_uses_one_candidate_generation_snapshot(world) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    class AlternatingStories:
+        def __init__(self):
+            self.calls = 0
+            self.lock = threading.Lock()
+            self.rendezvous = threading.Barrier(2)
+
+        async def list_for_user(self, user_id, *, archived=False):
+            with self.lock:
+                call = self.calls
+                self.calls += 1
+            titles = ("Concurrent snapshot A",) if call == 0 else ("Concurrent snapshot B",)
+            self.rendezvous.wait(timeout=10)
+            return await FakeStories(titles).list_for_user(user_id, archived=archived)
+
+    world.stories = AlternatingStories()
+    c = client(world)
+    target = create(c).json()["target"]
+    key = uuid4()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(start, c, target["id"], key=key) for _ in range(2)]
+        responses = [future.result(timeout=30) for future in futures]
+
+    assert [response.status_code for response in responses] == [201, 201]
+    bodies = [response.json() for response in responses]
+    assert len({body["session"]["id"] for body in bodies}) == 1
+    assert len({tuple((p["position"], p["rationale_code"]) for p in body["prompts"]) for body in bodies}) == 1
+    assert len(world.repo.links) == 1
+    assert len(world.repo.questions) == 4
+    stored = sorted(world.repo.questions, key=lambda row: row.position)
+    assert [row.position for row in stored] == [1, 2, 3, 4]
+    link = next(iter(world.repo.links.values()))
+    assert link.prompt_manifest is not None
+    assert [
+        row.model_dump(exclude={"id", "user_id", "created_at", "provenance_class"}) for row in stored
+    ] == [row.model_dump() for row in link.prompt_manifest]
+    story_snapshots = {
+        tuple(row.derived_from.get("story_titles", []))
+        for row in stored if row.derived_from.get("story_titles")
+    }
+    assert len(story_snapshots) == 1
+    winning_snapshot = next(iter(story_snapshots))
+    assert winning_snapshot in {("Concurrent snapshot A",), ("Concurrent snapshot B",)}
+    story_rows = [row for row in stored if row.derived_from.get("story_titles")]
+    assert all(winning_snapshot[0] in row.question_text for row in story_rows)
+
+
+def test_incomplete_linked_prompt_set_is_excluded_from_history_and_planner(world) -> None:
+    import asyncio
+
+    from app.planner_repository import InterviewPlanningUnavailable
+    from app.target_service import linked_prompt_texts
+
+    c = client(world)
+    target = create(c).json()["target"]
+    original = world.repo.record_questions
+
+    async def partial_then_fail(user_id, rows):
+        await original(user_id, rows[:2])
+        raise RuntimeError("simulated interrupted persistence")
+
+    world.repo.record_questions = partial_then_fail
+    with pytest.raises(RuntimeError, match="simulated interrupted persistence"):
+        start(c, target["id"], key=uuid4())
+    world.repo.record_questions = original
+    session_id = next(iter(world.repo.links))
+    assert len(world.repo.questions) == 2
+    pending = next(iter(world.repo.links.values()))
+    assert pending.prompt_set_state == "PENDING"
+    with pytest.raises(InterviewPlanningUnavailable):
+        asyncio.run(linked_prompt_texts(world.repo, world.capability, session_id, USER_A))
+    assert asyncio.run(world.repo.questions_for_target(UUID(target["id"]), USER_A)) == []
+    from app.target_service import TargetService
+
+    service = TargetService(world.repo, world.catalogs, FakeRoles(), world.stories, world.engine)
+    target_id = UUID(target["id"])
+    assert asyncio.run(service.linked_session_ids(target_id, USER_A))[1] == frozenset()
+    assert asyncio.run(service.session_link(session_id, USER_A)) is None
+
+
 def test_replay_with_same_key_returns_same_session_and_single_link(world) -> None:
     c = client(world)
     target = create(c).json()["target"]
@@ -455,6 +713,36 @@ def test_replay_with_same_key_returns_same_session_and_single_link(world) -> Non
     assert second.status_code == 201
     assert second.json()["session"]["id"] == first["session"]["id"]
     assert len(world.repo.links) == 1 and len(world.repo.questions) == 4
+    third = start(c, target["id"], key=key)
+    assert third.status_code == 201
+    assert third.json()["session"]["id"] == first["session"]["id"]
+    assert len(world.repo.links) == 1 and len(world.repo.questions) == 4
+
+
+def test_concurrent_same_target_same_key_converges_on_one_complete_set(world) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    c = client(world)
+    target = create(c).json()["target"]
+    key = uuid4()
+    original = world.repo.link_for_session
+    rendezvous = threading.Barrier(2)
+
+    async def synchronized_read(session_id, user_id):
+        result = await original(session_id, user_id)
+        rendezvous.wait(timeout=10)
+        return result
+
+    world.repo.link_for_session = synchronized_read
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(lambda _: start(c, target["id"], key=key), range(2)))
+
+    assert [response.status_code for response in responses] == [201, 201]
+    assert len({response.json()["session"]["id"] for response in responses}) == 1
+    assert len(world.repo.links) == 1
+    assert len(world.repo.questions) == 4
+    assert [q.position for q in sorted(world.repo.questions, key=lambda q: q.position)] == [1, 2, 3, 4]
 
 
 def test_concurrent_same_key_different_targets_does_not_leave_loser_prompts(world) -> None:

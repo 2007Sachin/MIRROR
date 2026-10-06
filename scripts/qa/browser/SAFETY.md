@@ -11,7 +11,7 @@ hosted service. This is NOT an OS-level egress firewall; Chrome additionally run
 The journey drives a fake Supabase Auth and a fake Mirror API (fixtures), so it verifies the web application end to end, not the
 Python assessment pipeline (that is covered by the pytest/AI-evaluation gates).
 
-Update (Loop 2, local commits only): the CI journey also runs the interview-target steps T1-T15 (`tests/target-journeys.mjs`)
+Update (Loop 2, local commits only): the CI journey also runs interview-target steps T1-T16, including synthetic researched cases T3b/T9b (`tests/target-journeys.mjs`)
 before sign-out. Their fake endpoints live in `mock/targets.mjs` (pure; unit-tested without sockets by
 `tests/targets-mock.test.mjs`). Error and unavailable states are deliberate mocked answers selected with the token-guarded
 `POST /__qa/scenario` (`/__qa/targets/reset` resets only that state), never unmocked 404s; each deliberate 4xx/5xx is

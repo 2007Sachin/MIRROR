@@ -11,6 +11,10 @@ export const onboardingCopy = {
   role: {
     title: "What role are you preparing for?",
     intro: "Tell us the role. If you have the job description, add it so your plan fits this opportunity.",
+    targetSetupError: "Your role details are saved, but company setup didn't finish. Retry company setup, or continue with your general role plan. Without a target, your plan won't include company-specific interview rounds.",
+    retryTarget: "Retry company setup",
+    continueWithoutTarget: "Continue with general role plan",
+    targetReady: "Company interview target is ready.",
     roleLabel: "Role",
     rolePlaceholder: "Product Manager",
     orgLabel: "Organisation",

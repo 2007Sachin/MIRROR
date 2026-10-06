@@ -45,6 +45,23 @@ test("headings and priority reasons identify Mirror's practice scope", () => {
   assert.match(m.reasonLabel("IN_ONE_ROUND"), /practice round in Mirror/i);
 });
 
+test("researched round with no mapped display copy states its basis without claiming it is unresearched", () => {
+  const fictional = target({
+    company_label: "QA Fictional Company", company_key: "qa_company",
+    geography_key: "qa_land", geography_label: "QA Fictional Country", level_key: "sde_ii",
+  });
+  assert.equal(typeof m.roundCoverageMessage, "function");
+  assert.equal(
+    m.roundCoverageMessage("RESEARCHED", "PUBLISHED_GUIDANCE", fictional),
+    "Published guidance is linked to this practice round, but Mirror has no reviewed summary to show here. Mirror's practice questions are original.",
+  );
+  assert.equal(
+    m.roundCoverageMessage("RESEARCHED", "MIRROR_SUGGESTED", fictional),
+    "Mirror has not linked published guidance to this practice round. Mirror suggests these themes from the role.",
+  );
+  assert.match(m.roundCoverageMessage("NOT_RESEARCHED", "MIRROR_SUGGESTED", fictional), /hasn't researched.*QA Fictional Country/);
+});
+
 test("practice round overview shows themes without exposing prompt wording", () => {
   assert.equal(m.targetCopy.round.themesTitle, "Practice themes");
   assert.match(m.targetCopy.round.themesLabel, /Exact wording appears only during that practice/);

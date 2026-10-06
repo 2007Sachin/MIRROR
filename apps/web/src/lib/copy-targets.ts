@@ -154,6 +154,8 @@ export const targetCopy = {
     prioritiesEmpty: "Nothing from your plan maps to this round yet.",
     themesTitle: "Practice themes",
     themesLabel: "Mirror chooses original prompts when you start. Exact wording appears only during that practice.",
+    linkedGuidanceNoSummary: "Published guidance is linked to this practice round, but Mirror has no reviewed summary to show here. Mirror's practice questions are original.",
+    noMappedGuidance: "Mirror has not linked published guidance to this practice round. Mirror suggests these themes from the role.",
     shortPack: "You've seen every practice question Mirror has for this round in the last 30 days. New ones open up after that, or try another round.",
     packUnavailable: "Practice for this round isn't available right now. Your plan still works.",
     historyTitle: "Your practice for this round",
@@ -227,6 +229,24 @@ export function targetLine(target: TargetView) {
 
 const roundKeyOf = (key: string) => key.replace(/^round\./, "");
 
+export function roundCoverageMessage(
+  matchState: string | null | undefined,
+  basis: "PUBLISHED_GUIDANCE" | "MIRROR_SUGGESTED",
+  target: TargetView,
+): string {
+  if (matchState === "NOT_RESEARCHED" && target.company_key) {
+    return targetCopy.section.notYetResearched(target.company_label, countryLabel(target));
+  }
+  if (matchState === "GENERAL_ONLY") return targetCopy.section.generalOnly;
+  if (matchState === "RESEARCHED") {
+    return basis === "PUBLISHED_GUIDANCE"
+      ? targetCopy.round.linkedGuidanceNoSummary
+      : targetCopy.round.noMappedGuidance;
+  }
+  return targetCopy.round.coversSuggested;
+}
+
+/** A round's source state must not turn into a geography or level guess. */
 export function roundLabel(labelOrKey: string): string | null {
   return targetCopy.rounds[roundKeyOf(labelOrKey)]?.title ?? null;
 }

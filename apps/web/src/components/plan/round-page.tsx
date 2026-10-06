@@ -15,10 +15,10 @@ import {
   claimMatchesTargetScope,
   competencyLabel,
   conflictCopy,
-  countryLabel,
   failureKind,
   planHref,
   reasonLabel,
+  roundCoverageMessage,
   roundCovers,
   roundLabel,
   roundPracticeHref,
@@ -141,11 +141,7 @@ function RoundBody({ target, detail, roleProfileId }: { target: TargetView; deta
           </ul>
         ) : (
           <>
-            <p className="pl-quiet">
-              {detail.match_state === "NOT_RESEARCHED" && target.company_key
-                ? targetCopy.section.notYetResearched(target.company_label, countryLabel(target))
-                : t.coversSuggested}
-            </p>
+            <p className="pl-quiet">{roundCoverageMessage(detail.match_state, round.basis, target)}</p>
             <ul className="pl-plain">
               {round.competency_keys.map((key) => competencyLabel(key)).filter(Boolean).map((label) => (
                 <li key={label}>

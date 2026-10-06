@@ -139,7 +139,7 @@
       "key": "coding_reasoning",
       "ordinal": 1,
       "label_key": "round.coding_reasoning",
-      "basis": "MIRROR_SUGGESTED",
+      "basis": "PUBLISHED_GUIDANCE",
       "competency_keys": [
         "algorithmic_problem_solving",
         "coding_quality",

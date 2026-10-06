@@ -18,7 +18,7 @@
     "key": "coding_reasoning",
     "ordinal": 1,
     "label_key": "round.coding_reasoning",
-    "basis": "MIRROR_SUGGESTED",
+    "basis": "PUBLISHED_GUIDANCE",
     "competency_keys": [
       "algorithmic_problem_solving",
       "coding_quality",
@@ -42,7 +42,7 @@
       "rank": 1,
       "competency_key": "algorithmic_problem_solving",
       "reason_codes": [
-        "NOT_LINKED_TO_YOUR_PLAN",
+        "IN_ONE_ROUND",
         "NOT_PRACTISED_YET"
       ],
       "suggested_mode": "FOCUSED_PRACTICE"
@@ -75,7 +75,7 @@
       {
         "position": 1,
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {

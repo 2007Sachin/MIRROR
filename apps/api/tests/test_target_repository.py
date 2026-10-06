@@ -12,6 +12,7 @@ from app.config import Settings
 from app.target_capability import TargetAvailability, TargetCapability
 from app.target_repository import (
     BlueprintPin,
+    GeneratedQuestion,
     LinkAlreadyExists,
     MemoryTargetRepository,
     QuestionCreate,
@@ -50,6 +51,38 @@ def question(target_id, set_id, position=1, text="Tell me about a time you made 
         originality_rules_version="originality-1", question_text=text, rationale_code="MIRROR_SUGGESTED",
         derived_from={"round_key": "behavioural", "story_titles": []}, novelty_sha256=novelty_sha256(text),
     )
+
+
+def prompt_link(target_id, set_id, *, session_id=None):
+    rows = (
+        question(target_id, set_id, 1),
+        question(target_id, set_id, 2, "Describe a difficult engineering tradeoff you made."),
+        question(target_id, set_id, 3, "How did you improve reliability after an incident?"),
+    )
+    return TargetSessionLinkCreate(
+        session_id=session_id or uuid4(), candidate_target_id=target_id, prompt_set_id=set_id,
+        round_key="behavioural", prompt_set_state="PENDING", expected_prompt_count=len(rows), prompt_manifest=rows,
+    )
+
+
+def test_prompt_manifest_binds_partial_rows_to_the_first_attempt_snapshot() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    set_id, session_id = uuid4(), uuid4()
+    manifest = prompt_link(target.id, set_id, session_id=session_id)
+    link = run(repo.create_link(USER_A, manifest))
+    assert link.prompt_manifest == manifest.prompt_manifest
+
+    changed_first_row = question(target.id, set_id, 1, "Tell me about a different engineering tradeoff you made.")
+    with pytest.raises(TargetConflict):
+        run(repo.record_questions(USER_A, [changed_first_row]))
+    assert run(repo.questions_for_set(set_id, USER_A)) == []
+
+    run(repo.record_questions(USER_A, [manifest.prompt_manifest[0]]))
+    run(repo.record_questions(USER_A, list(manifest.prompt_manifest[1:])))
+    completed = run(repo.complete_prompt_link(session_id, USER_A))
+    assert completed.prompt_set_state == "COMPLETE"
+    assert completed.prompt_manifest == manifest.prompt_manifest
 
 
 # ------------------------------------------------------------------ memory repository
@@ -94,6 +127,7 @@ def test_questions_are_unique_per_session_set_and_owner_scoped() -> None:
     repo = MemoryTargetRepository()
     target = run(repo.create_target(USER_A, values()))
     set_id = uuid4()
+    run(repo.create_link(USER_A, prompt_link(target.id, set_id)))
     run(repo.record_questions(USER_A, [question(target.id, set_id)]))
     assert len(run(repo.questions_for_set(set_id, USER_A))) == 1
     assert run(repo.questions_for_set(set_id, USER_B)) == []
@@ -102,6 +136,7 @@ def test_questions_are_unique_per_session_set_and_owner_scoped() -> None:
         run(repo.record_questions(USER_A, [question(target.id, set_id, position=2)]))
     # ... but a later practice may reuse it; the 30-day repeat window lives in the originality guard.
     later = uuid4()
+    run(repo.create_link(USER_A, prompt_link(target.id, later)))
     run(repo.record_questions(USER_A, [question(target.id, later)]))
     assert len(run(repo.questions_for_set(later, USER_A))) == 1
     with pytest.raises(LookupError):
@@ -112,14 +147,14 @@ def test_memory_questions_for_target_excludes_orphans_and_filters_repeat_window(
     repo = MemoryTargetRepository()
     target = run(repo.create_target(USER_A, values()))
     linked_set, orphan_set = uuid4(), uuid4()
+    run(repo.create_link(USER_A, prompt_link(target.id, linked_set)))
     run(repo.record_questions(USER_A, [question(target.id, linked_set)]))
-    run(repo.record_questions(USER_A, [question(target.id, orphan_set, text="A different unlinked question text.")]))
-    run(repo.create_link(USER_A, TargetSessionLinkCreate(session_id=uuid4(), candidate_target_id=target.id, prompt_set_id=linked_set)))
+    repo.questions.append(GeneratedQuestion(**question(target.id, orphan_set, text="A different unlinked question text.").model_dump(), id=uuid4(), user_id=USER_A, created_at=datetime.now(UTC)))
     recent = datetime.now(UTC)
     repo.questions[0] = repo.questions[0].model_copy(update={"created_at": recent})
     repo.questions[1] = repo.questions[1].model_copy(update={"created_at": recent})
     rows = run(repo.questions_for_target(target.id, USER_A, since=recent - timedelta(days=30)))
-    assert [q.prompt_set_id for q in rows] == [linked_set]
+    assert rows == []  # pending prompt-backed links are not usable history
     assert run(repo.questions_for_target(target.id, USER_B, since=recent - timedelta(days=30))) == []
 
 
@@ -157,6 +192,83 @@ def test_session_links_are_write_once() -> None:
     assert run(repo.link_for_session(session_id, USER_A)).candidate_target_id == target.id
     assert run(repo.link_for_session(session_id, USER_B)) is None
     assert not hasattr(repo, "update_link")
+
+
+def test_prompt_backed_link_requires_pending_state_and_expected_count() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    with pytest.raises(TargetConflict):
+        run(repo.create_link(USER_A, TargetSessionLinkCreate(session_id=uuid4(), candidate_target_id=target.id, prompt_set_id=uuid4())))
+
+
+def test_generic_link_allows_null_manifest_and_rejects_non_null_manifest() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    generic = run(repo.create_link(USER_A, TargetSessionLinkCreate(
+        session_id=uuid4(), candidate_target_id=target.id,
+    )))
+    assert generic.prompt_set_id is None and generic.prompt_manifest is None
+
+    set_id = uuid4()
+    manifest = prompt_link(target.id, set_id).prompt_manifest
+    with pytest.raises(TargetConflict):
+        run(repo.create_link(USER_A, TargetSessionLinkCreate(
+            session_id=uuid4(), candidate_target_id=target.id, prompt_manifest=manifest,
+        )))
+
+
+def test_context_bound_link_rejects_incomplete_manifest() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    link = prompt_link(target.id, uuid4())
+    manifest_rows = link.prompt_manifest
+    assert manifest_rows is not None
+    incomplete = link.model_copy(update={"prompt_manifest": manifest_rows[:-1]})
+    with pytest.raises(TargetConflict):
+        run(repo.create_link(USER_A, incomplete))
+
+
+def test_pending_link_completes_only_with_exact_owned_positions() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    set_id, session_id = uuid4(), uuid4()
+    run(repo.create_link(USER_A, prompt_link(target.id, set_id, session_id=session_id)))
+    run(repo.record_questions(USER_A, [question(target.id, set_id, 1), question(target.id, set_id, 2, "Describe a difficult engineering tradeoff you made.")]))
+    with pytest.raises(TargetConflict):
+        run(repo.complete_prompt_link(session_id, USER_A))
+    run(repo.record_questions(USER_A, [question(target.id, set_id, 3, "How did you improve reliability after an incident?")]))
+    completed = run(repo.complete_prompt_link(session_id, USER_A))
+    assert completed.prompt_set_state == "COMPLETE"
+    assert run(repo.complete_prompt_link(session_id, USER_A)).prompt_set_state == "COMPLETE"
+
+
+def test_completed_prompt_set_rejects_later_question_insert() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    set_id, session_id = uuid4(), uuid4()
+    run(repo.create_link(USER_A, prompt_link(target.id, set_id, session_id=session_id)))
+    run(repo.record_questions(USER_A, [question(target.id, set_id, 1), question(target.id, set_id, 2, "Describe a difficult engineering tradeoff you made."), question(target.id, set_id, 3, "How did you improve reliability after an incident?")]))
+    run(repo.complete_prompt_link(session_id, USER_A))
+    with pytest.raises(TargetConflict):
+        run(repo.record_questions(USER_A, [question(target.id, set_id, 4, "What did you learn from a production outage?")]))
+
+
+def test_pending_prompt_insert_cannot_exceed_declared_expected_count() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    set_id = uuid4()
+    run(repo.create_link(USER_A, prompt_link(target.id, set_id)))
+    with pytest.raises(TargetConflict):
+        run(repo.record_questions(USER_A, [question(target.id, set_id, 4, "What did you learn from a production outage?")]))
+
+
+def test_prompt_set_cannot_be_linked_twice() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    set_id = uuid4()
+    run(repo.create_link(USER_A, prompt_link(target.id, set_id)))
+    with pytest.raises(TargetConflict):
+        run(repo.create_link(USER_A, prompt_link(target.id, set_id)))
 
 
 def test_link_to_someone_elses_target_is_rejected() -> None:
@@ -238,6 +350,41 @@ def test_supabase_link_insert_is_plain_insert_and_conflict_is_write_once() -> No
         run(supabase(handler).create_link(USER_A, TargetSessionLinkCreate(session_id=session_id, candidate_target_id=target_id)))
     assert methods[0][0] == "POST" and "merge-duplicates" not in (methods[0][1] or "")
     assert all(method != "PATCH" for method, _ in methods)
+
+
+def test_supabase_prompt_link_round_trips_private_manifest_as_ordered_json() -> None:
+    target_id, set_id, session_id = uuid4(), uuid4(), uuid4()
+    link = prompt_link(target_id, set_id, session_id=session_id)
+    requests = []
+
+    def handler(request):
+        payload = json.loads(request.content)
+        requests.append((request.method, payload))
+        return httpx.Response(201, json=[{
+            **payload, "user_id": str(USER_A), "created_at": "2026-10-06T00:00:00Z",
+        }])
+
+    stored = run(supabase(handler).create_link(USER_A, link))
+    assert len(requests) == 1 and requests[0][0] == "POST"
+    payload = requests[0][1]
+    assert [row["position"] for row in payload["prompt_manifest"]] == [1, 2, 3]
+    assert payload["prompt_set_id"] == str(set_id)
+    assert stored.prompt_manifest == link.prompt_manifest
+
+
+def test_supabase_repository_rejects_invalid_prompt_state_before_network_write() -> None:
+    calls = []
+
+    def handler(request):
+        calls.append(request.method)
+        return httpx.Response(201, json=[])
+
+    repo = supabase(handler)
+    with pytest.raises(TargetConflict):
+        run(repo.create_link(USER_A, TargetSessionLinkCreate(
+            session_id=uuid4(), candidate_target_id=uuid4(), prompt_set_id=uuid4(),
+        )))
+    assert calls == []
 
 
 # ------------------------------------------------------------------ capability

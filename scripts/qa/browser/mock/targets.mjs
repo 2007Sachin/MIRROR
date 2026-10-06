@@ -16,6 +16,24 @@ export const TARGET_IDS = {
   newRole: "00000000-0000-4000-8000-000000000004",
 };
 
+export const QA_RESEARCHED_CODING_PROMPTS = [
+  {
+    text: "A status update is delayed in a fictional service. How would you trace it?",
+    type: "PLANNED",
+    answer: "QA-SYNTHETIC-ROUND-ANSWER-ONE: I would trace the update across each fictional service boundary.",
+  },
+  {
+    text: "Which signals would help you narrow down where time is spent?",
+    type: "DEPTH_PROBE",
+    answer: "QA-SYNTHETIC-ROUND-ANSWER-TWO: I would compare timestamps and payload sizes at each step.",
+  },
+  {
+    text: "What would you tell a teammate while the cause is still unclear?",
+    type: "PLANNED",
+    answer: "QA-SYNTHETIC-ROUND-ANSWER-THREE: I would share the current explanation and the next check, noting what remains unknown.",
+  },
+];
+
 export const SCENARIO_VALUES = {
   blueprint: ["not_researched", "researched", "no_notes", "unavailable503", "error500", "slow"],
   targets: ["available", "disabled", "none"],
@@ -38,6 +56,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     targets: new Map(),
     targetCreates: [],
     roundPracticeBodies: [],
+    roundPracticeResponses: [],
     analyzeBodies: [],
     activeRolePuts: [],
     links: [],
@@ -47,7 +66,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
   function reset() {
     state.scenario = defaults();
     state.targets = new Map([[TARGET_IDS.target, seed()]]);
-    for (const key of ["targetCreates", "roundPracticeBodies", "analyzeBodies", "activeRolePuts", "links"]) state[key] = [];
+    for (const key of ["targetCreates", "roundPracticeBodies", "roundPracticeResponses", "analyzeBodies", "activeRolePuts", "links"]) state[key] = [];
     state.practiceKeys.clear();
   }
   reset();
@@ -136,14 +155,19 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     return { count: mine.length, sessions: mine.map((link) => ({ session_id: link.session_id, created_at: link.created_at })) };
   }
 
+  function roundFixtureName(key) {
+    return state.scenario.blueprint === "researched" && key === "coding_reasoning"
+      ? "round_coding_reasoning_researched.json"
+      : `round_${key}.json`;
+  }
+
   function round({ match }) {
     if (disabled()) return { body: { availability: "DISABLED" } };
     const target = owned(match[1]);
     if (!target) return err(404, "We couldn't find that target.");
     const key = match[2];
     if (!ROUND_THEMES[key]) return err(404, "We couldn't find that round.");
-    const name = state.scenario.blueprint === "researched" && key === "coding_reasoning" ? "round_coding_reasoning_researched.json" : `round_${key}.json`;
-    const detail = { ...fixture(name), target, practice: history(target.id, key) };
+    const detail = { ...fixture(roundFixtureName(key)), target, practice: history(target.id, key) };
     if (state.scenario.pack === "short" && detail.pack) detail.pack = { ...detail.pack, state: "SHORT_PACK", prompts: detail.pack.prompts.slice(0, 3) };
     return { body: detail };
   }
@@ -164,6 +188,9 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       return { status: 201, body: replay.response };
     }
     if (state.scenario.pack === "short") return err(422, { code: "SHORT_PACK", available: 3 });
+    const qaPromptSet = state.scenario.blueprint === "researched" && key === "coding_reasoning"
+      ? "qa_researched_coding"
+      : null;
     const session = createSession({
       target_role: nameFor(target.role_profile_id),
       role_profile_id: target.role_profile_id,
@@ -171,11 +198,18 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       practice_focus: "role",
       practice_theme: ROUND_THEMES[key],
       idempotency_key: body.idempotency_key,
+      ...(qaPromptSet ? { qa_prompt_set: qaPromptSet } : {}),
     });
     const link = { ...fixture("round_practice_link.json"), session_id: session.id, candidate_target_id: target.id, round_key: key, created_at: clock() };
     state.links.push(link);
     const count = body.mode === "QUICK_DRILL" ? 3 : 4;
-    const response = { session, link, prompts: Array.from({ length: count }, (_, i) => ({ position: i + 1, rationale_code: "MIRROR_SUGGESTED" })) };
+    const packPrompts = fixture(roundFixtureName(key)).pack?.prompts ?? [];
+    const prompts = Array.from({ length: count }, (_, i) => ({
+      position: i + 1,
+      rationale_code: packPrompts[i]?.rationale_code ?? "MIRROR_SUGGESTED",
+    }));
+    const response = { session, link, prompts };
+    state.roundPracticeResponses.push({ target_id: target.id, round_key: key, session_id: session.id, prompts });
     state.practiceKeys.set(body.idempotency_key, { round_key: key, response });
     return { status: 201, body: response };
   }

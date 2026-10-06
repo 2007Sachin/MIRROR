@@ -282,7 +282,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await overflow("home-after-practice");
   });
 
-  // 6. Loop 2: interview target, My plan section, round pages and round practice (T1–T15).
+  // 6. Loop 2: interview target, plan, research-scoped round practice and no-target recovery (T1–T16, including T3b/T9b).
   await runTargetJourneys({ page, step, baseUrl, mock, viewport, overflow, getState });
 
   // 7. Sign out; the session is really gone.

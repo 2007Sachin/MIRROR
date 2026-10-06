@@ -15,7 +15,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createTargetsMock } from "./targets.mjs";
+import { createTargetsMock, QA_RESEARCHED_CODING_PROMPTS } from "./targets.mjs";
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
@@ -260,21 +260,22 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     { text: "What was your own part in it?", type: "DEPTH_PROBE" },
     { text: "What changed because of that work?", type: "PLANNED" },
   ];
+  let activeQuestions = QUESTIONS;
   const CLOSING = "Thank you. That is the end of this short practice.";
   const questionsAsked = () => state.turns.filter((turn) => turn.speaker === "INTERVIEWER" && turn.turn_type !== "CLOSING").length;
   const remaining = () => Math.max(0, 300 - (state.session?.elapsed_seconds ?? 0));
 
   function addInterviewerTurn() {
     const asked = questionsAsked();
-    const closing = asked >= QUESTIONS.length;
+    const closing = asked >= activeQuestions.length;
     const turn = {
       ...fixture("turn.json"),
       id: turnId(state.turns.length + 1),
       session_id: state.session.id,
       turn_index: state.turns.length + 1,
       speaker: "INTERVIEWER",
-      text: closing ? CLOSING : QUESTIONS[asked].text,
-      turn_type: closing ? "CLOSING" : QUESTIONS[asked].type,
+      text: closing ? CLOSING : activeQuestions[asked].text,
+      turn_type: closing ? "CLOSING" : activeQuestions[asked].type,
       phase: closing ? "CLOSING" : "PROJECTS",
       created_at: clock(),
     };
@@ -318,7 +319,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     const value = fixture("home_active_practice.json");
     value.active.session_id = s.id;
     value.active.kind = s.status === "ACTIVE" ? "ACTIVE" : "READY";
-    value.active.question_number = Math.min(questionsAsked(), QUESTIONS.length);
+    value.active.question_number = Math.min(questionsAsked(), activeQuestions.length);
     value.active.last_active_at = s.updated_at;
     return value;
   };
@@ -367,6 +368,9 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   // One place that creates the (single) mock session, for POST /api/sessions and round practice.
   function createSession(body) {
     const created = clock();
+    activeQuestions = body.qa_prompt_set === "qa_researched_coding"
+      ? QA_RESEARCHED_CODING_PROMPTS.map(({ text, type }) => ({ text, type }))
+      : QUESTIONS;
     state.session = {
       ...fixture("session.json"),
       target_role: body.target_role,
@@ -402,7 +406,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   route("POST", "/api/(?:v1/)?sessions/([^/]+)/prepare", ({ match }) => {
     const missing = needSession(match[1]);
     if (missing) return missing;
-    Object.assign(state.session, { status: "READY", total_questions: QUESTIONS.length, updated_at: clock() });
+    Object.assign(state.session, { status: "READY", total_questions: activeQuestions.length, updated_at: clock() });
     return { body: { ...fixture("prepare.json"), session: state.session } };
   });
   route("GET", "/api/(?:v1/)?sessions/([^/]+)", ({ match }) => needSession(match[1]) ?? { body: state.session });
@@ -502,6 +506,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
         scenario: targets.state.scenario,
         creates: targets.state.targetCreates,
         roundPractice: targets.state.roundPracticeBodies,
+        roundPracticeResponses: targets.state.roundPracticeResponses,
         analyze: targets.state.analyzeBodies,
         activeRolePuts: targets.state.activeRolePuts,
         links: targets.state.links,
@@ -510,6 +515,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   }));
   route("POST", "/__qa/reset", () => {
     Object.assign(state, { session: null, turns: [], ended: false, createBodies: [], answers: [], heartbeats: 0, unmocked: [], requests: [] });
+    activeQuestions = QUESTIONS;
     state.idempotency.clear();
     state.clientTurns.clear();
     targets.reset();
