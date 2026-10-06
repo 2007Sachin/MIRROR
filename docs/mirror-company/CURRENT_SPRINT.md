@@ -1,4 +1,14 @@
-# Current sprint
+# Current MIRROR sprint
+
+## Current disposition — Loop 2 (2026-10-06)
+
+- **LR-0002 local slice: ACCEPTED** by the independent Release Gatekeeper. A — local architecture/product: PASS; B — Amazon SDE I/SDE II India: HELD; C — hosted release readiness: NOT VERIFIED.
+- Reviewed implementation HEAD: `635209c43fe884c92ed62b0c03b449247354afc3` on `loop2/amazon-swe-india-v1`; exact-SHA CI run `37509014604` passed all three required jobs.
+- **PROVEN locally:** scoped company/role/seniority/geography architecture; round-mapped research effects; truthful research-basis/question-origin separation; research-driven blueprint/priority/practice context; immutable prompt manifests and retry/concurrency recovery; candidate/global data separation; disposable local SQL invariants; isolated synthetic desktop/mobile browser journey. See `RECEIPTS/LR-0002-amazon-swe-india-local-slice.md`.
+- **NOT PROVEN:** Amazon India SDE I/SDE II evidence validity; hosted migration or PostgREST integration; production release readiness. No Loop 2 hosted migration was applied.
+- No Loop 3 has started. No production release or deployment is approved. Repository PR/merge is authorized only as source integration after fresh exact-HEAD CI; it is not deployment authority.
+
+## Historical Loop 1/bootstrap checkpoints (retained for audit; not current status)
 
 Loop: **LR-0000 (bootstrap) — closed 2026-10-04. Loop 1 trust baseline — IN PROGRESS, authorized by DR-0006.** The decisions table below is historical bootstrap context, not a claim that approvals are still absent. DR-0004 was approved directionally with prerequisites; DR-0005 with provenance constraints; read-only hosted inspection and safe local synthetic QA were authorized.
 

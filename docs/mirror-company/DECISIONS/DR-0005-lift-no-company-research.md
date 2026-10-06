@@ -15,3 +15,6 @@ Real interviews differ by company; a diagnostic that ignores it is capped in val
 Trust-sensitive: wrong company claims harm candidates. Needs Verifier gate, Journey Critic review of wording, and the legal/compliance stop condition for source use.
 ## Revisit when
 Evidence from usage shows company-specific plans do not improve preparation, or sources become unavailable.
+
+## Loop 2 scope note — 2026-10-06
+The bounded local architecture slice was accepted with synthetic fixtures; this does not change this decision's proposed status or authorize Amazon India research release, hosted integration, or production use. Amazon SDE I/SDE II India remain HELD.

@@ -26,6 +26,8 @@ Severity: **H** blocks safe change · **M** degrades confidence/quality · **L**
 | KI-020 | M | Browser journey (fake API) observed: after a typed answer with the microphone blocked, the room stays on "Mirror is considering your answer", the composer closes and Type is disabled; reloading and re-joining with typing continues the interview. Found in `voice-interview.tsx submitTextFallback()`; observed against the fake Mirror API, so real-backend behaviour is UNVERIFIED. Acknowledged (not hidden) in `run-ci.mjs`; strict result stays `ok=false`. | CI browser run 2026-10-04 (artifact `browser-critical-path`) | Frontend Eng / Journey Critic |
 | KI-021 | M | Original G2 blockers RESOLVED (scoped G2 PASS): authorized nutrition tables retired; hosted catalog/security and exact abandonment behavior independently verified. Residual: repository/hosted abandonment version mapping, four absent off-path future tables, unchanged lowercase enums and separately scoped privilege/compatibility debt; isolated real-RPC adapter integration executed with explicit transport/hosted/browser/readiness limits. No blanket fix or waiver. | scratch/g2_post_remediation_review.md; current G2 disposition below | Owner / Data Eng |
 | KI-022 | L | Browser journey uses fixtures (fake Supabase Auth + fake Mirror API); it does not exercise the Python assessment pipeline or the unavailable-diagnostic report state through the UI. | By design | QA |
+| KI-023 | L | Final mobile T16 artifact review reported the fixed bottom navigation visually overlaps the first plan card at one scroll position. Journey still completes and mobile overflow checks pass; visual/layout polish was out of Loop 2 scope. | STATIC-ONLY reviewer observation of CI artifact; not independently re-measured | Frontend Eng / UX Lead |
+| KI-024 | L | Fictional synthetic fixture labels are visible in some isolated browser screenshots. This is test-artifact presentation only, not real candidate/company content or a production-data leak. | STATIC-ONLY Journey Critic review; synthetic CI artifact | QA / UX Lead |
 
 ## Historical read-only SQL for KI-004 (original visibility block resolved)
 
@@ -36,7 +38,7 @@ select relname, n_live_tup from pg_stat_user_tables
 select tablename, count(*) from pg_policies where schemaname='public' group by 1 order by 1;
 ```
 
-## Hosted remediation and verification — 2026-10-04 (current)
+## Loop 1 hosted remediation and verification — 2026-10-04 (historical)
 
 **LOOP 1 ACCEPTED — independent final Release Gatekeeper decision, 2026-10-04.** G0/G1/G2/G3/G4/G5 PASS within the bounded trust-baseline and approved remediation scope. Reviewed HEAD `8257985ff1be7f52af34e49162b0d40b5bd6c69a`; independently read real Linux CI run `37202320540` (https://github.com/2007Sachin/MIRROR/actions/runs/37202320540), completed/success with all three jobs successful at that exact SHA: frontend typecheck/build; backend/copy/AI evaluation; isolated synthetic browser critical path. Decision evidence: ignored `scratch/final_gatekeeper_final.md`. This transcription creates a new commit: fresh exact-final-HEAD CI must pass before merge; the reviewed run cannot certify that new SHA. PR #1 is unmerged at transcription. Owner authorizes final documentation commit/push and safe merge-commit finalization only after CI and repository-policy checks. No production release, deployment, further hosted mutation, debt waiver or Loop 2 is authorized. Historical red commits remain red.
 

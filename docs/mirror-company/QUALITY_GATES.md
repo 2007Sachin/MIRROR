@@ -6,7 +6,20 @@
 - **STATIC-ONLY** — conclusion from reading code/docs. Never call this "verified".
 - **NOT DONE** — stated explicitly, with the reason.
 
-## Current Loop 1 status — LOOP 1 ACCEPTED; final transcription CI / merge pending (2026-10-04)
+## Current Loop 2 disposition — local slice accepted (2026-10-06)
+
+| Gate | Status | Evidence scope |
+|---|---|---|
+| G0 records/scope | **PASS** | Current sprint, research, product, roadmap, known-issues, release and receipt records reconcile the bounded local-only decision. |
+| G1 code/CI | **PASS at reviewed implementation HEAD** | GitHub run `37509014604` is exact SHA `635209c43fe884c92ed62b0c03b449247354afc3`, all 3 required jobs succeeded. This run does not certify later closure-document commits; every new HEAD requires its own CI before merge. |
+| G2 data/security | **PASS local-only** | Disposable PostgreSQL 16 forward/backfill/invariant/rollback run: 32/32. Hosted migration/PostgREST and current hosted applied-state are **NOT VERIFIED**. |
+| G3 candidate experience | **PASS isolated synthetic browser scope** | Real Chrome in isolated CI: 36 desktop + 36 mobile steps; T09b and T16 pass both viewports; no page/console errors, failed/bad/denied requests, unmocked API calls or mobile overflow. Runner acceptance uses `okWithAcknowledgedKnownIssues=true`; strict result is false only for KI-020, which remains debt. Fake Auth/API; no Python assessment UI or real backend. |
+| G4 research/AI behavior | **PASS deterministic synthetic scope** | Scope/provenance regressions and AI-eval tests pass with fictional fixtures/fake providers. No live model or Amazon India validation. |
+| G5 release decision | **PASS for local slice only** | Independent final reviewers PASS; Release Gatekeeper: A PASS, B HELD, C NOT VERIFIED. No production release approval. |
+
+**A — LOCAL ARCHITECTURE/PRODUCT: PASS. B — AMAZON INDIA RESEARCH: HELD. C — HOSTED RELEASE READINESS: NOT VERIFIED.** `LOOP 2 LOCAL SLICE ACCEPTED` authorizes only the scoped local result and repository integration under the owner's separate instruction. No hosted write, deployment, production release, or Loop 3.
+
+## Historical Loop 1 status — LOOP 1 ACCEPTED (2026-10-04)
 
 | Gate | Status | Evidence scope |
 |---|---|---|
@@ -17,7 +30,7 @@
 | G4 AI behaviour | **PASS (deterministic only)** | B5/B7/B12 accepted; no live-model evidence; residual debt retained |
 | G5 independent final decision | **PASS (Loop 1 closure only)** | Independent final affirmative decision in scratch/final_gatekeeper_final.md; no production-release authority |
 
-## Hosted remediation and verification — 2026-10-04 (current)
+## Hosted remediation and verification — 2026-10-04 (historical Loop 1)
 
 **LOOP 1 ACCEPTED — independent final Release Gatekeeper decision, 2026-10-04.** G0/G1/G2/G3/G4/G5 PASS within the bounded trust-baseline and approved remediation scope. Reviewed HEAD `8257985ff1be7f52af34e49162b0d40b5bd6c69a`; independently read real Linux CI run `37202320540` (https://github.com/2007Sachin/MIRROR/actions/runs/37202320540), completed/success with all three jobs successful at that exact SHA: frontend typecheck/build; backend/copy/AI evaluation; isolated synthetic browser critical path. Decision evidence: ignored `scratch/final_gatekeeper_final.md`. This transcription creates a new commit: fresh exact-final-HEAD CI must pass before merge; the reviewed run cannot certify that new SHA. PR #1 is unmerged at transcription. Owner authorizes final documentation commit/push and safe merge-commit finalization only after CI and repository-policy checks. No production release, deployment, further hosted mutation, debt waiver or Loop 2 is authorized. Historical red commits remain red.
 

@@ -1,10 +1,18 @@
-# CURRENT MIRROR (reconstructed from code, not assumed)
+# Current MIRROR product state
+
+## Loop 2 bounded status — 2026-10-06
+
+The local Loop 2 architecture/product slice is accepted at implementation HEAD `635209c43fe884c92ed62b0c03b449247354afc3`. **PROVEN locally:** optional company/role/seniority/geography target matching; scoped versioned research and round mapping; research-derived blueprint, round priority and practice basis; generated question origin remains separately `MIRROR_GENERATED`; immutable owner-scoped prompt manifest/recovery; isolated synthetic desktop/mobile journey.
+
+**NOT PROVEN:** Amazon India SDE I/SDE II research validity or release; hosted migration/PostgREST integration; production readiness. The browser uses fictional/synthetic fixtures and fake Auth/API; local SQL used disposable PostgreSQL. Gatekeeper disposition: A PASS, B HELD, C NOT VERIFIED. No Loop 3, hosted work, deployment or production release. See `RECEIPTS/LR-0002-amazon-swe-india-local-slice.md`.
+
+> The detailed journey/capability inventory below is the pre-Loop2 snapshot at `8e3193f`; its absence claims are historical, not current. `docs/architecture/IMPLEMENTATION_STATUS.md` is the current feature ledger.
 
 Method: routes, redirects, middleware, services, migrations, tests and existing docs read at head `8e3193f` (2026-10-04), then fact-checked by an independent Product Critic (Loop 1). Evidence label for everything below unless stated: **STATIC-ONLY**. The only executed evidence is the test baseline in `QUALITY_GATES.md`. No signed-in click-through or live voice check was possible; hosted-database structure was inspected read-only (`HOSTED_SUPABASE_DRIFT.md`).
 
 The feature-by-feature ledger already exists in `docs/architecture/IMPLEMENTATION_STATUS.md` and is **not repeated**. This file adds what that ledger doesn't: the real journey, classification, and what is disconnected.
 
-## Identity of the product today
+## Identity at the Loop 1 baseline (historical)
 
 An **evidence-backed readiness diagnostic for one candidate and one role**: claims from the resume are compared with what an interview actually evidences; the candidate then practises, improves stories, and retries answers (`AGENTS.md`, `READINESS_SYSTEM_PLAN.md`). It is role-aware and candidate-aware. It is **not** company-aware and **not** multi-round.
 
@@ -56,7 +64,7 @@ Interview runtime: deterministic state machine (`INTRO → BACKGROUND → PROJEC
 
 **Duplicate / legacy:** `users` was renamed to `profiles` by `202608310002` (one table, not two; initial-schema docs/types may still say `users`); `sessions.question_plan` (initial schema; still selected at `repository.py:25` and modelled at `schemas.py:405` but no writer found) vs `interview_plans` (the live planner store; several rows per session are possible, one `PROCESSING` at a time); specialist assessor "legacy V1 retained"; two STT providers (Deepgram, Sarvam) plus a streaming Sarvam variant; `docs/architecture.md` vs `docs/architecture/MIRROR_ARCHITECTURE.md`; per-route aliases (below). `IMPLEMENTATION_STATUS.md` cites `evidence-dashboard.tsx`, which is not in the tree (Home is `components/dashboard/home-page.tsx`).
 
-**Not present at all (the Product Critic tried and failed to disprove each):** company entity; geography; multi-round interview plan; interview intelligence of any kind; deliberate reassessment scheduling; question de-duplication across sessions. **Partly present:** a round vocabulary already exists for *recorded real interviews*: `RoundKind` (SCREENING, TECHNICAL, BEHAVIOURAL, HR, OTHER) in `interview_event_models.py:25-31`, driving only the Home banner and brief title. Interview Intelligence must reuse or map to it rather than create a second round vocabulary.
+**Not present at the Loop 1 baseline (historical; superseded in part by Loop 2):** company entity; geography; multi-round interview plan; interview intelligence of any kind; deliberate reassessment scheduling; question de-duplication across sessions. **Partly present:** a round vocabulary already exists for *recorded real interviews*: `RoundKind` (SCREENING, TECHNICAL, BEHAVIOURAL, HR, OTHER) in `interview_event_models.py:25-31`, driving only the Home banner and brief title. Interview Intelligence must reuse or map to it rather than create a second round vocabulary.
 
 ## Where "company" exists today (so nothing is overstated)
 

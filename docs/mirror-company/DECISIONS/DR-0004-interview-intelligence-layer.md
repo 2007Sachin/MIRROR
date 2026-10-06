@@ -15,3 +15,6 @@ Mirror has no company/round/process data. The target needs it, stored with prove
 Legacy tables remain until separately retired. A taxonomy (round types as rows, not enum) must exist first (M2).
 ## Revisit when
 The hosted DB inspection shows legacy tables hold meaningful data or are already shaped usefully.
+
+## Loop 2 scope note — 2026-10-06
+The local Loop 2 architecture/product slice was accepted with a disposable local database test; no Loop 2 migration was applied to hosted Supabase and hosted PostgREST integration remains NOT VERIFIED. This does not satisfy or waive the proposed hosted-DB reconciliation, human-approval, or G2-review preconditions above.

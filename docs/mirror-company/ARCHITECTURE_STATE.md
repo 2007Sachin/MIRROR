@@ -1,6 +1,16 @@
-# Architecture state (forensics findings)
+# Architecture state
 
-Canonical architecture lives in `docs/architecture/MIRROR_ARCHITECTURE.md` and the topic docs. This file records what the 2026-10-04 forensics found, with evidence, so decisions can cite it. Head `8e3193f`. Labels as in `QUALITY_GATES.md`. Fact-checked in Loop 1 by an independent Architecture Reviewer and Security/Data Reviewer; corrections are applied below.
+Canonical architecture lives in `docs/architecture/MIRROR_ARCHITECTURE.md` and the topic docs.
+
+## Loop 2 local architecture disposition — 2026-10-06
+
+At reviewed implementation HEAD `635209c43fe884c92ed62b0c03b449247354afc3`, the local slice adds an optional owner-scoped target, exact-scope versioned research matching, explicit claim-to-round mapping, multi-round blueprint/priority, guarded prompt-pack generation, immutable first-writer manifests and changed-context recovery. Research basis and question origin are separate; Mirror-generated prompt rows remain `MIRROR_GENERATED`. Architecture and Data/Supabase reviewers PASS; disposable PostgreSQL tests passed 32/32; exact GitHub CI run `37509014604` passed all required jobs.
+
+This proves local architecture/product behavior with synthetic QA and disposable SQL only. Hosted migration/PostgREST, Amazon India validity, and production readiness are NOT proven. No hosted mutation, deployment or Loop 3.
+
+## Pre-Loop2 forensic snapshot (historical)
+
+This snapshot records the 2026-10-04 baseline at head `8e3193f`; the absence claims below are superseded in part by Loop 2.
 
 ## Shape
 
