@@ -262,8 +262,14 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     }
     await heading("Interview complete", 1).waitFor();
     const completed = await getState();
-    assert.equal(completed.ended, true);
-    assert.deepEqual(completed.answers.slice(answersBefore), QA_RESEARCHED_CODING_PROMPTS.map((prompt) => prompt.answer));
+    const answersAfterStart = completed.answers.slice(answersBefore);
+    assert.equal(completed.ended, true, `completion state: ${JSON.stringify({
+      sessionStatus: completed.sessionStatus,
+      answersAfterStart,
+      endRequests: completed.requests.filter((request) => /\/sessions\/[^ ]+\/end /.test(request)),
+      targetStarts: completed.targets.roundPractice,
+    })}`);
+    assert.deepEqual(answersAfterStart, QA_RESEARCHED_CODING_PROMPTS.map((prompt) => prompt.answer));
     await page.getByRole("button", { name: "View review" }).click();
     await page.waitForURL(/\/app\/report\/[^/]+$/);
     await heading("QA Analyst (test role)", 1).waitFor();
