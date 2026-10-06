@@ -673,6 +673,25 @@ class RoleProgressService:
         )
         return build_progress(profile, practices, reports, questions=questions, role=role)
 
+    async def target_detail(self, role_profile_id: UUID, user_id: UUID, session_ids: frozenset[UUID]) -> RoleProgress:
+        """Progress over only the given sessions of this role (a target's linked practices).
+
+        Same rules as ``detail``: finished practices of the role family only, the same window and
+        the same build; ``detail`` itself is unchanged and still counts every practice of the role.
+        """
+        (profile, family), all_sessions = await gather_in_order(
+            self._family(role_profile_id, user_id), self._dashboard.sessions(user_id)
+        )
+        linked = [item for item in all_sessions if item.id in session_ids]
+        practices = await self._practices(family, user_id, linked)
+        window = practices[-WINDOW:]
+        reports, questions, role = await asyncio.gather(
+            self._reports_for(window, user_id),
+            self._questions_for(window, user_id),
+            self._roles.get(profile.id, user_id),
+        )
+        return build_progress(profile, practices, reports, questions=questions, role=role)
+
     async def answer(self, role_profile_id: UUID, session_id: UUID, answer_turn_id: UUID, user_id: UUID) -> AnswerDetail:
         profile, family, practices = await self._family_and_practices(role_profile_id, user_id)
         practice = next((item for item in practices if item.session_id == session_id), None)

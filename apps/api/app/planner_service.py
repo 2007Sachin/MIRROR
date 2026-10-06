@@ -46,6 +46,9 @@ logger = logging.getLogger("mirror.interview_planning")
 
 # (session_id, user_id) -> the story versions pinned for that session, in plan order.
 StoryVersionLoader = Callable[[UUID, UUID], Awaitable[list[StoryVersion]]]
+# (session_id, user_id) -> Mirror-written prompts stored for a target practice, in order.
+# Empty means the session is not target-scoped and the fixed role questions are used.
+TargetPromptLoader = Callable[[UUID, UUID], Awaitable[list[str]]]
 
 
 class PlanNotFound(Exception):
@@ -72,6 +75,7 @@ class InterviewPlanningService:
         transition_reserve_seconds: int,
         closing_reserve_seconds: int,
         story_versions: StoryVersionLoader | None = None,
+        target_prompts: TargetPromptLoader | None = None,
     ) -> None:
         if (
             min(
@@ -90,6 +94,7 @@ class InterviewPlanningService:
         self._transition_reserve = transition_reserve_seconds
         self._closing_reserve = closing_reserve_seconds
         self._story_versions = story_versions
+        self._target_prompts = target_prompts
 
     async def plan(self, session_id: UUID, user_id: UUID) -> InterviewPlanRecord:
         session = await self._sessions.get(session_id, user_id)
@@ -178,12 +183,20 @@ class InterviewPlanningService:
             if self._story_versions is not None and focus == PracticeFocus.STORY
             else []
         )
+        # A target round practice stored its Mirror-written prompts before the session existed;
+        # any other session (or no loader) keeps the fixed questions exactly as before.
+        prompts = (
+            await self._target_prompts(session.id, user_id)
+            if self._target_prompts is not None and focus == PracticeFocus.ROLE
+            else []
+        )
         plan = build_practice_plan(
             PracticeMode(session.practice_mode),
             focus,
             source,
             theme=session.practice_theme,
             stories=[version.title for version in chosen],
+            questions=prompts,
         )
         return await self._plans.complete(record.id, user_id, uuid4(), plan)
 

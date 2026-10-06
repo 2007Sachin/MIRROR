@@ -1,12 +1,18 @@
 # Roadmap and backlog
 
+## Current disposition — 2026-10-06
+
+Loop 1 is accepted. Loop 2's bounded local architecture/product slice is accepted by Gatekeeper (A PASS; B India HELD; C hosted readiness NOT VERIFIED). Its local hypothesis is proven only with synthetic research/QA data and disposable local PostgreSQL. Amazon SDE I/SDE II India remain HELD; hosted migration, hosted PostgREST integration, deployment, and production release are NOT approved/verified. Loop 3 has not started. No active implementation objective is authorized by this status. See `RECEIPTS/LR-0002-amazon-swe-india-local-slice.md` and `RELEASES.md`.
+
+> The roadmap below is the pre-Loop2 planning snapshot. Its milestone/backlog statuses are historical and do not supersede the current disposition above.
+
 Order is by dependency first, candidate value second. One objective in flight at a time (`LOOP.md`). Items marked ⛔ need human approval before work starts.
 
-## Why this order
+## Original planning rationale (historical pre-Loop2)
 
 Mirror 2.0's value (company/round-aware preparation) rests on an intelligence layer and a multi-round blueprint, both of which add schema and AI behaviour. The repo cannot yet *prove* those changes are safe: no CI, no signed-in QA path, no executable AI eval, unknown hosted-DB state. So the trust baseline comes first, kept small; then a thin vertical slice proves the data model with curated, verified data before any pipeline or scale.
 
-## Milestones
+## Original milestone plan (historical pre-Loop2)
 
 | # | Milestone | Candidate value | Depends on | Gate focus |
 |---|---|---|---|---|
@@ -25,7 +31,7 @@ Mirror 2.0's value (company/round-aware preparation) rests on an intelligence la
 
 Parallel low-cost hygiene (can ride along, never blocks; the first two were already found by Loop 1): fix `skeptic_repository.py:426` (`users` was renamed `profiles`); add a migration-contract test asserting every public table has RLS and no anon grant (prerequisite for any `ii_*` migration); split `main.py` by the existing `routes_*.py` pattern; resolve `/plan` vs `/roles/[id]` and `/reflect` vs `/progress` naming; retire or document dormant legacy tables after M1's read-only DB inspection; fix doc drift (KI-003); FastAPI lifespan migration.
 
-## Prioritized backlog (top = next)
+## Earlier prioritized backlog (historical; not current authorization)
 
 1. M1c hosted-DB rollout decision (⛔ owner) and owner-run `scripts/ops/hosted_catalog_readonly.sql`
 2. M1b journey hygiene (reachability, repeat drills, company field)
@@ -33,6 +39,6 @@ Parallel low-cost hygiene (can ride along, never blocks; the first two were alre
 4. M2 taxonomy v1 draft (map round types to existing `RoundKind`)
 5. M3/M4 vertical slice specification (CPO + Head of II + UX Lead); DR-0004/0005 approved with constraints
 
-## Recommended first implementation objective
+## Earlier implementation recommendation (superseded)
 
 Loop 1 (M1) is **in progress, not closed**. The interrupted review batch produced no saved verdicts; browser PASS and a Release Gatekeeper decision remain unproven. The following is a proposed post-Loop-1 backlog, not authorization to begin another objective. Recommended **Loop 2**: M1b journey hygiene + M1d Skeptic guard (both small, both protect candidates, both now have an executable verification path), run alongside the owner's M1c rollout decision; then the M3→M4 vertical slice for one curated company×role. DR-0004 (schema in principle) and DR-0005 (company research, with provenance constraints) are approved by the owner; **no `ii_*` schema is to be created until the DR-0004 preconditions are met** (hosted state inspected and reconciled, RLS/ownership design reviewed, one research slice demonstrating the data shape, Architecture and Security/Data approval).

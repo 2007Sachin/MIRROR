@@ -1,0 +1,34 @@
+{
+  "role": {
+    "role_profile_id": "00000000-0000-4000-8000-000000000002",
+    "target_role": "QA Analyst (test role)"
+  },
+  "state": "READY",
+  "areas": [
+    {
+      "key": "qa_area_reporting",
+      "title": "Explaining a reporting tool",
+      "theme": "Reporting tools",
+      "from_job_description": true,
+      "why": "QA fixture excerpt (synthetic).",
+      "status": "GOOD",
+      "have": [],
+      "suggested": [],
+      "strengthen": "Say what changed because of your work.",
+      "primary_action": "PRACTICE"
+    },
+    {
+      "key": "qa_area_data",
+      "title": "Working with data models",
+      "theme": "Data models",
+      "from_job_description": false,
+      "why": null,
+      "status": "BUILD",
+      "have": [],
+      "suggested": [],
+      "strengthen": "Add one example from your work.",
+      "primary_action": "ADD_EXAMPLE"
+    }
+  ],
+  "recommended_area_key": "qa_area_reporting"
+}

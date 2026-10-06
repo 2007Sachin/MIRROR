@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createCollector } from '../lib/collector.mjs';
 const url = new URL('../lib/network.mjs', import.meta.url);
 const rail = fs.existsSync(url) ? await import(url.href) : {};
 
@@ -27,4 +28,33 @@ test('browser rail permits only exact QA origins and denies all websockets', asy
   assert.equal(closed, true);
   assert.equal(denied.length, 5);
   assert.ok(denied.every(item => !JSON.stringify(item).includes('secret')));
+});
+
+test('only the optional target-create 503 in T16 is an expected browser error', () => {
+  const observe = (step, requestUrl, status, consoleText) => {
+    const listeners = {};
+    const page = { on: (event, handler) => { listeners[event] = handler; }, url: () => 'http://127.0.0.1:3099/roles/new' };
+    const collector = createCollector();
+    collector.setStep(step);
+    collector.attach(page);
+    listeners.response({ status: () => status, url: () => requestUrl });
+    listeners.console({ type: () => 'error', text: () => consoleText });
+    return collector.findings();
+  };
+  const step = 't16-onboarding-continues-with-general-plan-without-target';
+  const apiUrl = 'http://127.0.0.1:8099/api/v1/targets';
+  const message = 'Failed to load resource: the server responded with a status of 503 (Service Unavailable)';
+
+  const expected = observe(step, apiUrl, 503, message);
+  assert.deepEqual(expected.badResponses, []);
+  assert.deepEqual(expected.consoleErrors, []);
+
+  const wrongStep = observe('t01-role-step-target-fields', apiUrl, 503, message);
+  assert.equal(wrongStep.badResponses.length, 1);
+  assert.equal(wrongStep.consoleErrors.length, 1);
+  const wrongPath = observe(step, `${apiUrl}/unexpected`, 503, message);
+  assert.equal(wrongPath.badResponses.length, 1);
+  const wrongStatus = observe(step, apiUrl, 500, 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)');
+  assert.equal(wrongStatus.badResponses.length, 1);
+  assert.equal(wrongStatus.consoleErrors.length, 1);
 });

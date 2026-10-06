@@ -1,5 +1,10 @@
 # Gap analysis: CURRENT MIRROR → TARGET MIRROR
 
+
+## Current status — 2026-10-06
+
+The matrix below is the pre-Loop2 gap snapshot and is historical. The bounded local Loop 2 target/research/round-practice slice is now implemented and accepted (Gatekeeper A PASS); see `docs/architecture/IMPLEMENTATION_STATUS.md` and `docs/mirror-company/RECEIPTS/LR-0002-amazon-swe-india-local-slice.md`. This does not prove Amazon India evidence validity, hosted migration/PostgREST integration, or production readiness; B remains HELD, C NOT VERIFIED, and Loop 3 has not started.
+
 Target chain from the bootstrap directive: Candidate → Target Company → Target Role → Seniority → Geography → Resume → Interview Intelligence → Expected Process → Customized Plan → Multiple Rounds → Adaptive Interview → Assessment → Diagnosis → Practice → Progress → Reassessment.
 
 Legend: ✅ exists · ◐ partial · ✗ absent. Size S/M/L/XL is a rough engineering estimate, not a commitment.
@@ -25,7 +30,7 @@ Legend: ✅ exists · ◐ partial · ✗ absent. Size S/M/L/XL is a rough engine
 | Provenance & uncertainty UX | ✗ | Limitation text only | Plain-language provenance in brief/Interview Map; never raw confidence jargon | M | Intelligence layer, UX Lead |
 | Org verification (CI, QA user, AI eval) | ✗ | Backend tests only | CI; synthetic QA user; executable AI eval harness | M | — (prerequisite) |
 
-## Runtime-agent coverage vs directive (so we don't build what exists)
+## Runtime-agent coverage vs directive (historical pre-Loop2 snapshot) (historical pre-Loop2 snapshot) (so we don't build what exists)
 
 | Directive capability | In code today | Action |
 |---|---|---|

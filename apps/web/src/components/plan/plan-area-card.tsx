@@ -11,12 +11,15 @@ export type PlanHrefs = Record<PlanAction, string>;
 export function PlanAreaCard({
   area,
   recommended,
+  demoted = false,
   hrefs,
   busy,
   onChoose,
 }: {
   area: PlanArea;
   recommended: boolean;
+  /** Another section holds the page's one filled action, so this card's action stays quiet. */
+  demoted?: boolean;
   hrefs: PlanHrefs;
   busy: boolean;
   onChoose: (link: PlanLink, confirmed: boolean) => void;
@@ -94,7 +97,7 @@ export function PlanAreaCard({
 
       <div className="pl-actions">
         {/* One filled action per page: only the recommended need's main action is filled. */}
-        <Link className={recommended ? "dh-primary-action" : "dh-primary-action is-quiet"} href={hrefs[main.key]}>
+        <Link className={recommended && !demoted ? "dh-primary-action" : "dh-primary-action is-quiet"} href={hrefs[main.key]}>
           {main.label}
         </Link>
         {rest.map((action) => (

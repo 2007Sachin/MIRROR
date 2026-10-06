@@ -9,25 +9,32 @@ import { useMemo, useRef, useState } from "react";
 
 import { PageAlert, PageHeader, PageLoading, PageShell, usePageData } from "@/components/workspace/page-shell";
 import { getActiveRole, type ActiveRoleState } from "@/lib/api-active-role";
-import { mirrorApi, type DashboardResponse, type Onboarding, type PracticeChoice, type PracticeFocusKey, type PracticeMode, type Story } from "@/lib/api";
+import { ApiError, mirrorApi, type DashboardResponse, type Onboarding, type PracticeChoice, type PracticeFocusKey, type PracticeMode, type Story } from "@/lib/api";
+import { getTarget, startRoundPractice, type TargetView } from "@/lib/api-targets";
 import { practice, practiceFocus, startPractice as t } from "@/lib/copy";
 import { preCheck } from "@/lib/copy-practice";
+import { roundLabel, targetCopy, targetLine } from "@/lib/copy-targets";
 import { newSessionHref, practiceOptions, type PracticeOption } from "@/lib/dashboard-view";
 import { MODES, briefHref, choiceFrom, choiceIsComplete, focusFor, modeCopy, sameRole, setupHref } from "@/lib/practice-view";
 import { canStartDirectly, createPractice } from "@/lib/start-practice";
+import { documentsForRoundRole } from "@/lib/round-practice-documents";
 
-type StartData = { workspace: DashboardResponse; onboarding: Onboarding; story: Story | null; active: ActiveRoleState | null };
+type StartData = { workspace: DashboardResponse; onboarding: Onboarding; story: Story | null; active: ActiveRoleState | null; target: TargetView | null };
 
-async function loadStart(storyId: string | null): Promise<StartData> {
-  const [workspace, onboarding, story, active] = await Promise.all([
+async function loadStart(storyId: string | null, targetId: string | null): Promise<StartData> {
+  const [workspace, onboarding, story, active, target] = await Promise.all([
     mirrorApi.dashboard(),
     mirrorApi.onboarding(),
     storyId ? mirrorApi.story(storyId).catch(() => null) : Promise.resolve(null),
     // Without the active role the page simply asks which role, as before.
     getActiveRole().catch(() => null),
+    // A round practice names its target on the check; without it the line is simply shorter.
+    targetId ? getTarget(targetId).then((result) => result.target).catch(() => null) : Promise.resolve(null),
   ]);
-  return { workspace, onboarding, story: story && !story.archived_at ? story : null, active };
+  return { workspace, onboarding, story: story && !story.archived_at ? story : null, active, target };
 }
+
+const ROUND_MODES: PracticeMode[] = ["QUICK_DRILL", "FOCUSED_PRACTICE"];
 
 type PickedRole = { role: string; id: string | null };
 
@@ -40,7 +47,11 @@ export function StartPractice() {
   const params = useSearchParams();
   // Practising one chosen story: only a short story practice, and only for a role that can start here.
   const storyId = params.get("story");
-  const { state, data, error, reload } = usePageData(() => loadStart(storyId), practice.errors.load, [storyId]);
+  // Practising one round of an interview target (from My plan): role focus, the round's own prompts.
+  const targetId = params.get("target");
+  const roundKey = params.get("round");
+  const round = !storyId && targetId && roundKey && roundLabel(roundKey) ? { targetId, key: roundKey, label: roundLabel(roundKey)! } : null;
+  const { state, data, error, reload } = usePageData(() => loadStart(storyId, round?.targetId ?? null), practice.errors.load, [storyId, round?.targetId]);
 
   const paramRole = params.get("role")?.trim() || null;
   // undefined: nothing chosen yet, so the active role is used; null: choosing a role.
@@ -50,7 +61,9 @@ export function StartPractice() {
   const [choice, setChoice] = useState<PracticeChoice>(() =>
     storyId
       ? { mode: params.get("mode") === "FOCUSED_PRACTICE" ? "FOCUSED_PRACTICE" : "QUICK_DRILL", focus: "story", theme: null }
-      : choiceFrom(params.get("mode"), params.get("focus"), params.get("theme")),
+      : round
+        ? { mode: params.get("mode") === "QUICK_DRILL" ? "QUICK_DRILL" : "FOCUSED_PRACTICE", focus: "role", theme: round.label }
+        : choiceFrom(params.get("mode"), params.get("focus"), params.get("theme")),
   );
   const [busy, setBusy] = useState(false);
   const [startError, setStartError] = useState("");
@@ -79,7 +92,7 @@ export function StartPractice() {
     setChoice((current) => ({ ...current, mode, focus: mode === "FULL_INTERVIEW" ? null : current.focus }));
   }
 
-  const modes = storyId ? MODES.filter((mode) => mode !== "FULL_INTERVIEW") : MODES;
+  const modes = storyId ? MODES.filter((mode) => mode !== "FULL_INTERVIEW") : round ? ROUND_MODES : MODES;
 
   function chooseFocus(focus: PracticeFocusKey) {
     // A theme belongs to role-specific practice only, and only the one that was offered.
@@ -91,6 +104,17 @@ export function StartPractice() {
     setBusy(true);
     setStartError("");
     try {
+      if (round) {
+        // The round's guarded prompts are stored and the session linked by the target service;
+        // documents and preparation then follow the usual practice path.
+        const started = await startRoundPractice(round.targetId, round.key, choice.mode === "QUICK_DRILL" ? "QUICK_DRILL" : "FOCUSED_PRACTICE", idempotencyKey.current);
+        const documentIds = documentsForRoundRole(data.target?.role_profile_id, data.onboarding);
+
+        if (documentIds.length) await mirrorApi.linkSessionDocuments(started.session.id, documentIds);
+        await mirrorApi.prepare(started.session.id);
+        router.push(briefHref(started.session.id));
+        return;
+      }
       const direct = canStartDirectly(role, data.onboarding) && (!roleProfileId || roleProfileId === data.onboarding.onboarding_role_profile_id);
       if (storyId) {
         // Never fall through to the setup flow here: it would quietly drop the chosen story.
@@ -105,8 +129,10 @@ export function StartPractice() {
         return;
       }
       router.push(setupHref(role, choice, roleProfileId));
-    } catch {
-      setStartError(t.focusStep.failed);
+    } catch (reason) {
+      const code = reason instanceof ApiError ? reason.code : undefined;
+      const quiet = reason instanceof ApiError && (reason.status === 503 || reason.status === 404);
+      setStartError(code === "SHORT_PACK" ? targetCopy.practice.shortPack : round && quiet ? targetCopy.practice.unavailable : t.focusStep.failed);
       setBusy(false);
     }
   }
@@ -181,7 +207,7 @@ export function StartPractice() {
               {data?.story ? <strong>{data.story.title}</strong> : <p>{t.story.missing}</p>}
               <p className="dh-fine-print">{t.story.body}</p>
             </div>
-          ) : choice.mode !== "FULL_INTERVIEW" ? (
+          ) : round ? null : choice.mode !== "FULL_INTERVIEW" ? (
             <fieldset className="dh-choice-list is-focus">
               <legend className="dh-subhead">{t.focusStep.whatLabel}</legend>
               {practiceFocus.options.map((option) => (
@@ -212,7 +238,11 @@ export function StartPractice() {
               </div>
               <div>
                 <dt>{preCheck.focus}</dt>
-                <dd>{focusLabel(choice, storyId ? data?.story?.title ?? null : null)}</dd>
+                <dd>
+                  {round
+                    ? targetCopy.practice.roundFocus(round.label, data?.target ? targetLine(data.target) : null)
+                    : focusLabel(choice, storyId ? data?.story?.title ?? null : null)}
+                </dd>
               </div>
               <div>
                 <dt>{preCheck.length}</dt>

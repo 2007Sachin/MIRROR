@@ -53,13 +53,14 @@ def test_existing_resume_is_reused_rather_than_uploaded_again() -> None:
     assert "saved" in EXPERIENCE
 
 
-def test_plan_ready_offers_two_equal_exits() -> None:
-    assert "Start a 5-minute practice" in COPY
-    assert "Explore my workspace" in COPY
-    exits = re.findall(r'className="([^"]*)"[^>]*onClick=\{\(\) => void leave\(', PLAN)
-    assert len(exits) == 2 and exits[0] == exits[1]
-    assert "button-primary" not in exits[0]
-    assert '"/dashboard"' in PLAN
+def test_plan_ready_opens_the_plan_with_a_short_practice_as_a_text_link() -> None:
+    # Loop 2 (UX proposal section 3): the promised plan is the one primary exit; practice is a text link.
+    assert "See your plan" in COPY and "Start a short practice instead" in COPY
+    assert "Explore my workspace" not in COPY
+    exits = re.findall(r'className="([^"]*)"[^>]*onClick=\{\(\) => void leave\(([^)]*)\)', PLAN)
+    assert [cls for cls, _ in exits] == ["button-primary op-target", "op-text op-target"]
+    assert exits[0][1].startswith("planHref(roleProfileId")
+    assert '"/dashboard"' not in PLAN
     assert "startPracticeHref" in PLAN and '"QUICK_DRILL"' in PLAN
 
 

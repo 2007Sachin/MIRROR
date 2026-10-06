@@ -18,5 +18,17 @@
   "review.json": "app.dashboard_summary:LatestReview",
   "report.json": "app.report_models:ReportResponse",
   "dashboard_summary.json": "app.dashboard_summary:DashboardSummaryResponse",
-  "session_create_request.json": "app.schemas:SessionCreate"
+  "session_create_request.json": "app.schemas:SessionCreate",
+  "plan.json": "app.plan_service:Plan",
+  "role_analysis.json": "app.role_models:RoleAnalysisResponse",
+  "interview_map.json": "app.interview_map:InterviewMap",
+  "career_evidence.json": "app.career_evidence:EvidenceList",
+  "target.json": "app.target_service:TargetView",
+  "blueprint_not_researched.json": "app.target_service:BlueprintView",
+  "blueprint_researched.json": "app.target_service:BlueprintView",
+  "round_coding_reasoning.json": "app.target_service:RoundDetail",
+  "round_coding_reasoning_researched.json": "app.target_service:RoundDetail",
+  "round_system_design.json": "app.target_service:RoundDetail",
+  "round_behavioural.json": "app.target_service:RoundDetail",
+  "round_practice_link.json": "app.target_service:LinkView"
 }

@@ -2535,6 +2535,7 @@ from .routes_active_role import router as _active_role_router  # noqa: E402
 from .routes_evidence import router as _evidence_router  # noqa: E402
 from .routes_plan import router as _plan_router  # noqa: E402
 from .routes_sessions_lifecycle import router as _lifecycle_router  # noqa: E402
+from .routes_targets import router as _targets_router  # noqa: E402
 
-for _router in (_evidence_router, _active_role_router, _lifecycle_router, _plan_router):
+for _router in (_evidence_router, _active_role_router, _lifecycle_router, _plan_router, _targets_router):
     app.include_router(_router)

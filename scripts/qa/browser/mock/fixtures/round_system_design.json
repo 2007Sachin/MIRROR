@@ -1,0 +1,155 @@
+{
+  "availability": "AVAILABLE",
+  "target": {
+    "id": "00000000-0000-4000-8000-000000000301",
+    "role_profile_id": "00000000-0000-4000-8000-000000000002",
+    "company_label": "Amazon",
+    "company_key": "amazon",
+    "role_family_key": "software_development_engineering",
+    "level_key": "not_sure",
+    "geography_key": "in",
+    "geography_label": "India",
+    "interview_date": null,
+    "status": "ACTIVE",
+    "archived_at": null,
+    "created_at": "2026-10-04T00:00:00Z"
+  },
+  "round": {
+    "key": "system_design",
+    "ordinal": 2,
+    "label_key": "round.system_design",
+    "basis": "MIRROR_SUGGESTED",
+    "competency_keys": [
+      "system_design",
+      "technical_communication"
+    ]
+  },
+  "match_state": "NOT_RESEARCHED",
+  "research_label_key": "research.not_yet_researched",
+  "content_state": "SERVED",
+  "claims": [],
+  "conflicts": [],
+  "unknowns": [
+    {
+      "key": "amazon.sde.india_specific_process",
+      "reason": "NOT_PUBLISHED",
+      "note": "QA fixture note (synthetic)."
+    }
+  ],
+  "priorities": [
+    {
+      "rank": 1,
+      "competency_key": "technical_communication",
+      "reason_codes": [
+        "NOT_LINKED_TO_YOUR_PLAN",
+        "NOT_PRACTISED_YET"
+      ],
+      "suggested_mode": "FOCUSED_PRACTICE"
+    },
+    {
+      "rank": 2,
+      "competency_key": "system_design",
+      "reason_codes": [
+        "NOT_LINKED_TO_YOUR_PLAN",
+        "NOT_PRACTISED_YET"
+      ],
+      "suggested_mode": "FOCUSED_PRACTICE"
+    }
+  ],
+  "priority_rules_version": "priority-1",
+  "pack": {
+    "state": "FULL",
+    "minimum": 4,
+    "label_key": "prompts.written_by_mirror",
+    "prompts": [
+      {
+        "position": 1,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 2,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 3,
+        "competency_key": "system_design",
+        "rationale_code": "YOUR_STORY",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 4,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 5,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 6,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 7,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 8,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 9,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 10,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 11,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 12,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 13,
+        "competency_key": "system_design",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 14,
+        "competency_key": "technical_communication",
+        "rationale_code": "MIRROR_SUGGESTED",
+        "provenance_class": "MIRROR_GENERATED"
+      }
+    ]
+  },
+  "practice": {
+    "count": 0,
+    "sessions": []
+  }
+}

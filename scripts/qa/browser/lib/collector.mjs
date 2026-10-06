@@ -14,6 +14,34 @@ export const ALLOW = [
     kind: "failed", url: /[?&]_rsc=/, error: /ERR_ABORTED/,
     reason: "Next cancels in-flight RSC prefetch/refresh requests when a client navigation supersedes them",
   },
+  // Loop 2 target journeys (tests/target-journeys.mjs): deliberate scenario answers, one step each.
+  {
+    kind: "response", url: /\/api\/v1\/targets\/[^/]+\/blueprint$/, status: 503, steps: ["t06-plan-section-unavailable"],
+    reason: "scenario unavailable503: target tables missing on this host; the plan section must stay quiet",
+  },
+  {
+    kind: "response", url: /\/api\/v1\/targets\/[^/]+\/blueprint$/, status: 500, steps: ["t07-plan-section-error-and-retry"],
+    reason: "scenario error500: the section shows its own alert and recovers on retry",
+  },
+  {
+    kind: "response", url: /\/api\/v1\/targets\/[^/]+\/rounds\/not_a_round$/, status: 404, steps: ["t11-round-unknown-key"],
+    reason: "an unknown round key renders the not-found message",
+  },
+  {
+    kind: "console", text: /status of (503|500|404)/,
+    steps: ["t06-plan-section-unavailable", "t07-plan-section-error-and-retry", "t11-round-unknown-key"],
+    reason: "Chrome logs the deliberate answers above as console errors",
+  },
+  {
+    kind: "response", url: /\/api\/v1\/targets$/, status: 503,
+    steps: ["t16-onboarding-continues-with-general-plan-without-target"],
+    reason: "target creation is deliberately unavailable in T16; the candidate continues with the general plan",
+  },
+  {
+    kind: "console", text: /^Failed to load resource: the server responded with a status of 503 \(Service Unavailable\)$/,
+    steps: ["t16-onboarding-continues-with-general-plan-without-target"],
+    reason: "Chrome logs the intentional T16 target-create 503 as a console error",
+  },
 ];
 
 export function createCollector() {

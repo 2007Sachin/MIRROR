@@ -7,6 +7,7 @@ export const planCopy = {
   titleGeneral: "Your plan",
   intro: "Each thing this role looks for, what you already have for it, and one way to make it stronger.",
   startHere: "Start here",
+  areasTitle: "What this role looks for",
   whyFromRole: "From the job description:",
   whyGeneral: "Often explored for this role.",
   haveTitle: "What you already have",

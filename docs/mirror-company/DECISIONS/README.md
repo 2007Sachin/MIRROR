@@ -27,4 +27,4 @@ Date · Owner
 | DR-0003 | Organization agents vs runtime agents | Accepted |
 | DR-0004 | Interview Intelligence as an additive, global, versioned, provenance-first layer | **Proposed — needs human approval** |
 | DR-0005 | Lift the "no company research" non-goal, under provenance rules | **Proposed — needs human approval** |
-| DR-0006 | First objective: trust baseline, then a curated vertical slice | **Proposed — needs human approval** |
+| DR-0006 | First objective: trust baseline, then a curated vertical slice | Accepted for Loop 1; later bounded Loop 2 authorization recorded in DR-0006 |

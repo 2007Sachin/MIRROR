@@ -15,6 +15,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createTargetsMock, QA_RESEARCHED_CODING_PROMPTS } from "./targets.mjs";
+
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
@@ -258,21 +260,22 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     { text: "What was your own part in it?", type: "DEPTH_PROBE" },
     { text: "What changed because of that work?", type: "PLANNED" },
   ];
+  let activeQuestions = QUESTIONS;
   const CLOSING = "Thank you. That is the end of this short practice.";
   const questionsAsked = () => state.turns.filter((turn) => turn.speaker === "INTERVIEWER" && turn.turn_type !== "CLOSING").length;
   const remaining = () => Math.max(0, 300 - (state.session?.elapsed_seconds ?? 0));
 
   function addInterviewerTurn() {
     const asked = questionsAsked();
-    const closing = asked >= QUESTIONS.length;
+    const closing = asked >= activeQuestions.length;
     const turn = {
       ...fixture("turn.json"),
       id: turnId(state.turns.length + 1),
       session_id: state.session.id,
       turn_index: state.turns.length + 1,
       speaker: "INTERVIEWER",
-      text: closing ? CLOSING : QUESTIONS[asked].text,
-      turn_type: closing ? "CLOSING" : QUESTIONS[asked].type,
+      text: closing ? CLOSING : activeQuestions[asked].text,
+      turn_type: closing ? "CLOSING" : activeQuestions[asked].type,
       phase: closing ? "CLOSING" : "PROJECTS",
       created_at: clock(),
     };
@@ -316,7 +319,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     const value = fixture("home_active_practice.json");
     value.active.session_id = s.id;
     value.active.kind = s.status === "ACTIVE" ? "ACTIVE" : "READY";
-    value.active.question_number = Math.min(questionsAsked(), QUESTIONS.length);
+    value.active.question_number = Math.min(questionsAsked(), activeQuestions.length);
     value.active.last_active_at = s.updated_at;
     return value;
   };
@@ -362,19 +365,17 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   route("GET", "/api/v1/dashboard/summary", () => ({ body: { latest_review: state.ended ? review() : null } }));
   route("GET", `/api/v1/roles/${IDS.role}/practice-recommendation`, () => ({ body: { recommendation: null } }));
 
-  route("POST", "/api/sessions", ({ body }) => {
-    if (!body || typeof body.target_role !== "string" || body.target_role.length < 2) return err(422, "target_role is required");
-    const mode = body.practice_mode ?? "FULL_INTERVIEW";
-    if (!["FULL_INTERVIEW", "FOCUSED_PRACTICE", "QUICK_DRILL"].includes(mode)) return err(422, "unknown practice_mode");
-    if (mode !== "FULL_INTERVIEW" && !body.practice_focus) return err(422, "a focused practice or quick drill needs one area to work on");
-    state.createBodies.push(body);
-    if (body.idempotency_key && state.idempotency.has(body.idempotency_key)) return { status: 201, body: state.session };
+  // One place that creates the (single) mock session, for POST /api/sessions and round practice.
+  function createSession(body) {
     const created = clock();
+    activeQuestions = body.qa_prompt_set === "qa_researched_coding"
+      ? QA_RESEARCHED_CODING_PROMPTS.map(({ text, type }) => ({ text, type }))
+      : QUESTIONS;
     state.session = {
       ...fixture("session.json"),
       target_role: body.target_role,
       role_profile_id: body.role_profile_id ?? null,
-      practice_mode: mode,
+      practice_mode: body.practice_mode ?? "FULL_INTERVIEW",
       practice_focus: body.practice_focus ?? null,
       practice_theme: body.practice_theme ?? null,
       created_at: created,
@@ -384,7 +385,17 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     state.turns = [];
     state.ended = false;
     if (body.idempotency_key) state.idempotency.set(body.idempotency_key, state.session.id);
-    return { status: 201, body: state.session };
+    return state.session;
+  }
+
+  route("POST", "/api/sessions", ({ body }) => {
+    if (!body || typeof body.target_role !== "string" || body.target_role.length < 2) return err(422, "target_role is required");
+    const mode = body.practice_mode ?? "FULL_INTERVIEW";
+    if (!["FULL_INTERVIEW", "FOCUSED_PRACTICE", "QUICK_DRILL"].includes(mode)) return err(422, "unknown practice_mode");
+    if (mode !== "FULL_INTERVIEW" && !body.practice_focus) return err(422, "a focused practice or quick drill needs one area to work on");
+    state.createBodies.push(body);
+    if (body.idempotency_key && state.idempotency.has(body.idempotency_key)) return { status: 201, body: state.session };
+    return { status: 201, body: createSession({ ...body, practice_mode: mode }) };
   });
   route("POST", "/api/v1/sessions/([^/]+)/documents", ({ match, body }) => {
     const missing = needSession(match[1]);
@@ -395,7 +406,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   route("POST", "/api/(?:v1/)?sessions/([^/]+)/prepare", ({ match }) => {
     const missing = needSession(match[1]);
     if (missing) return missing;
-    Object.assign(state.session, { status: "READY", total_questions: QUESTIONS.length, updated_at: clock() });
+    Object.assign(state.session, { status: "READY", total_questions: activeQuestions.length, updated_at: clock() });
     return { body: { ...fixture("prepare.json"), session: state.session } };
   });
   route("GET", "/api/(?:v1/)?sessions/([^/]+)", ({ match }) => needSession(match[1]) ?? { body: state.session });
@@ -468,7 +479,18 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   route("GET", "/api/v1/sessions/([^/]+)/attempts", ({ match }) => needSession(match[1]) ?? { body: [] });
   route("GET", "/api/v1/sessions/([^/]+)/story-suggestions", ({ match }) => needSession(match[1]) ?? { body: [] });
 
-  // Test-control surface (not part of the Mirror API). Read-only except reset.
+  // Loop 2: interview targets, plan and role-setup endpoints (./targets.mjs), with scenarios.
+  const targets = createTargetsMock({
+    fixture, clock, createSession, roleId: IDS.role, roleName: fixture("active_role.json").role?.target_role ?? "QA Analyst (test role)",
+  });
+  for (const [method, pattern, handler] of targets.routes) route(method, pattern, handler);
+
+  // Test-control surface (not part of the Mirror API). Read-only except reset and scenario.
+  route("POST", "/__qa/scenario", ({ body }) => targets.setScenario(body));
+  route("POST", "/__qa/targets/reset", () => {
+    targets.reset();
+    return { body: { ok: true } };
+  });
   route("GET", "/__qa/state", () => ({
     body: {
       sessionStatus: state.session?.status ?? null,
@@ -480,12 +502,23 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
       unmocked: state.unmocked,
       authLog,
       requests: state.requests,
+      targets: {
+        scenario: targets.state.scenario,
+        creates: targets.state.targetCreates,
+        roundPractice: targets.state.roundPracticeBodies,
+        roundPracticeResponses: targets.state.roundPracticeResponses,
+        analyze: targets.state.analyzeBodies,
+        activeRolePuts: targets.state.activeRolePuts,
+        links: targets.state.links,
+      },
     },
   }));
   route("POST", "/__qa/reset", () => {
     Object.assign(state, { session: null, turns: [], ended: false, createBodies: [], answers: [], heartbeats: 0, unmocked: [], requests: [] });
+    activeQuestions = QUESTIONS;
     state.idempotency.clear();
     state.clientTurns.clear();
+    targets.reset();
     return { body: { ok: true } };
   });
 
@@ -507,6 +540,8 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
       const match = entry.pattern.exec(pathname);
       if (entry.method !== request.method || !match) continue;
       const result = entry.handler({ match, body, url }) ?? err(500, "handler returned nothing");
+      // A scenario may slow one answer down so loading states can be seen (never used by default).
+      if (result.delayMs) await new Promise((resolve) => setTimeout(resolve, Math.min(result.delayMs, 5000)));
       const status = result.status ?? 200;
       if (!control) state.requests.push(`${request.method} ${pathname} ${status}`);
       return send(request, response, status, result.body);

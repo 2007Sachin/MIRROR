@@ -11,6 +11,7 @@ import { requireSupportedIsolation, resultOk } from '../lib/safety.mjs';
 import { resolveBrowser } from "../lib/browser.mjs";
 import { createCollector } from "../lib/collector.mjs";
 import { IDS, QA_NAME } from "../mock/server.mjs";
+import { runTargetJourneys } from "./target-journeys.mjs";
 
 export const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 800 },
@@ -281,7 +282,10 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await overflow("home-after-practice");
   });
 
-  // 6. Sign out; the session is really gone.
+  // 6. Loop 2: interview target, plan, research-scoped round practice and no-target recovery (T1–T16, including T3b/T9b).
+  await runTargetJourneys({ page, step, baseUrl, mock, viewport, overflow, getState, poll });
+
+  // 7. Sign out; the session is really gone.
   await step("sign-out", async () => {
     await page.getByRole("button", { name: /^Your account/ }).click();
     await page.getByRole("menuitem", { name: "Sign out" }).click();

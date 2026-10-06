@@ -637,8 +637,8 @@ export const homeNow = {
   prep: {
     eyebrow: "Your preparation",
     map: {
-      title: "Interview map",
-      open: "Explore",
+      title: "Your plan",
+      open: "Open your plan",
       ready: (count: number) =>
         count === 0 ? "Every area has an example." : `${count} ${count === 1 ? "area has" : "areas have"} no example yet.`,
       preparing: "Still getting to know this role.",

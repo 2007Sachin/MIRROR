@@ -207,7 +207,16 @@ def get_interview_planning_service() -> InterviewPlanningService:
         transition_reserve_seconds=settings.planner_transition_reserve_seconds,
         closing_reserve_seconds=settings.planner_closing_reserve_seconds,
         story_versions=_pinned_story_versions,
+        target_prompts=_target_prompt_texts,
     )
+
+
+async def _target_prompt_texts(session_id, user_id):
+    """Mirror-written prompts stored for a target round practice; empty unless targets are on and linked."""
+    from .routes_targets import get_target_capability, get_target_repository
+    from .target_service import linked_prompt_texts
+
+    return await linked_prompt_texts(get_target_repository(), get_target_capability(), session_id, user_id)
 
 
 async def _pinned_story_versions(session_id, user_id):

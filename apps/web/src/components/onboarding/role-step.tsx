@@ -1,12 +1,15 @@
 "use client";
 
 import { ArrowRight, Check, FileText, UploadSimple } from "@phosphor-icons/react";
-import { ChangeEvent, FormEvent, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 
 import { StepHeading, type Report } from "@/components/onboarding/shared";
+import { TargetFields, looksLikeSde, targetBody, type TargetChoice } from "@/components/onboarding/target-fields";
 import { mirrorApi, uploadRoleBriefDocument, type MirrorDocument, type RoleAnalysis } from "@/lib/api";
+import { createTarget, getBlueprint, listTargets, targetsAvailable } from "@/lib/api-targets";
 import { onboardingCopy } from "@/lib/copy-onboarding";
 import { describeFileRejection, friendlyAnalysisError, friendlyDocumentError } from "@/lib/documents";
+import { recoverTarget } from "@/lib/target-recovery";
 
 const t = onboardingCopy.role;
 type BriefMode = "upload" | "paste" | "none" | null;
@@ -44,8 +47,30 @@ export function RoleStep({
   const [pasted, setPasted] = useState(initialBrief?.original_filename ? "" : initialBrief?.raw_text ?? "");
   const [progress, setProgress] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  // Replacement controls stay locked while an upload or the role setup runs.
+
   const locked = busy || progress !== null;
+  // Optional interview target (company, SDE family, level, country): only offered when targets are available.
+  const [targetsOn, setTargetsOn] = useState(false);
+  const [targetOpen, setTargetOpen] = useState(false);
+  const [familyTouched, setFamilyTouched] = useState(false);
+  const [target, setTarget] = useState<Omit<TargetChoice, "company">>({ family: false, level: "not_sure", country: "not_sure" });
+  const [pending, setPending] = useState<{ role: RoleAnalysis; brief: MirrorDocument | null; skipped: boolean; body: NonNullable<ReturnType<typeof targetBody>> } | null>(null);
+  const [targetFailure, setTargetFailure] = useState(false);
+  const [targetBusy, setTargetBusy] = useState(false);
+  const [targetReady, setTargetReady] = useState(false);
+  const controlsLocked = locked || targetBusy || Boolean(pending);
+  const sde = looksLikeSde(role);
+  const family = familyTouched ? target.family : sde;
+
+  useEffect(() => {
+    let active = true;
+    void targetsAvailable().then((on) => { if (active) setTargetsOn(on); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (targetsOn && sde) setTargetOpen(true);
+  }, [targetsOn, sde]);
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -66,8 +91,43 @@ export function RoleStep({
     }
   }
 
+  async function finishTargetSetup(candidate: NonNullable<typeof pending>, withoutTarget = false) {
+    setTargetBusy(true);
+    setTargetFailure(false);
+    if (!withoutTarget) {
+      try {
+        const result = await recoverTarget(candidate.body, {
+          create: createTarget,
+          list: listTargets,
+          blueprint: getBlueprint,
+        });
+        if (result.kind !== "READY") {
+          setTargetFailure(true);
+          setTargetBusy(false);
+          return;
+        }
+      } catch {
+        setTargetFailure(true);
+        setTargetBusy(false);
+        return;
+      }
+      setTargetReady(true);
+    }
+    setTargetFailure(false);
+    try {
+      await onReady({ role: candidate.role, company: company.trim(), brief: candidate.brief, skipped: candidate.skipped });
+      setPending(null);
+    } catch (reason) {
+      setTargetFailure(true);
+      report(friendlyAnalysisError(reason, "role"), reason);
+    } finally {
+      setTargetBusy(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     const cleanRole = role.trim();
     if (cleanRole.length < 2) return;
     if (!mode) return report(t.chooseBrief);
@@ -88,6 +148,13 @@ export function RoleStep({
         ...(reuseId ? { role_profile_id: reuseId } : {}),
       });
       if (analysed.latest_analysis?.status !== "COMPLETED") return report(t.roleNotReady);
+      const body = targetsOn ? targetBody(analysed.id, { ...target, family, company }) : null;
+      if (body) {
+        const candidate = { role: analysed, brief: chosen, skipped: mode === "none", body };
+        setPending(candidate);
+        await finishTargetSetup(candidate);
+        return;
+      }
       await onReady({ role: analysed, company: company.trim(), brief: chosen, skipped: mode === "none" });
     } catch (reason) {
       report(friendlyAnalysisError(reason, "role"), reason);
@@ -99,17 +166,30 @@ export function RoleStep({
   return (
     <form onSubmit={submit} className="ob-step" aria-busy={busy}>
       <StepHeading eyebrow={eyebrow} title={t.title} intro={t.intro} />
-      <div className={withCompany ? "ob-fields ob-two-col" : "ob-fields"}>
+      <div className={withCompany && !targetsOn ? "ob-fields ob-two-col" : "ob-fields"}>
         <label>
           <span>{t.roleLabel}</span>
-          <input className="field" value={role} onChange={(event) => setRole(event.target.value)} minLength={2} maxLength={160} required disabled={busy} placeholder={t.rolePlaceholder} />
+          <input className="field" value={role} onChange={(event) => setRole(event.target.value)} minLength={2} maxLength={160} required disabled={controlsLocked} placeholder={t.rolePlaceholder} />
         </label>
-        {withCompany && <label>
+        {withCompany && !targetsOn && <label>
           <span>{t.orgLabel} <small>{t.optional}</small></span>
-          <input className="field" value={company} onChange={(event) => setCompany(event.target.value)} maxLength={160} disabled={busy} placeholder={t.orgPlaceholder} />
+          <input className="field" value={company} onChange={(event) => setCompany(event.target.value)} maxLength={160} disabled={controlsLocked} placeholder={t.orgPlaceholder} />
         </label>}
       </div>
-      <fieldset className="op-brief" disabled={locked}>
+      {targetsOn && (
+        <TargetFields
+          value={{ ...target, family, company }}
+          onChange={(next) => {
+            if (next.family !== family) setFamilyTouched(true);
+            setCompany(next.company);
+            setTarget({ family: next.family, level: next.level, country: next.country });
+          }}
+          open={targetOpen}
+          onToggle={setTargetOpen}
+          disabled={controlsLocked}
+        />
+      )}
+      <fieldset className="op-brief" disabled={controlsLocked}>
         <legend>{t.briefTitle}</legend>
         <p className="op-muted">{t.briefIntro}</p>
         <div className="op-choice-row">
@@ -142,12 +222,14 @@ export function RoleStep({
           </>
         )}
       </fieldset>
-      {busy && <p role="status" aria-live="polite" className="op-muted">{t.workingNote}</p>}
+      {(busy || targetBusy) && <p role="status" aria-live="polite" className="op-muted">{t.workingNote}</p>}
+      {targetReady && <p role="status" aria-live="polite" className="op-muted">{t.targetReady}</p>}
+      {targetFailure && <div role="alert" className="op-error"><p>{t.targetSetupError}</p><button type="button" className="button-secondary" disabled={targetBusy || busy} onClick={() => pending && finishTargetSetup(pending)}>{t.retryTarget}</button><button type="button" className="button-secondary" disabled={busy} onClick={() => pending && finishTargetSetup(pending, true)}>{t.continueWithoutTarget}</button></div>}
       <div className="ob-actions">
         <span />
-        <button className="button-primary op-target" disabled={locked || role.trim().length < 2 || !mode}>
+        {!targetFailure && <button className="button-primary op-target" disabled={controlsLocked || role.trim().length < 2 || !mode}>
           {busy ? t.working : t.continue} <ArrowRight size={18} aria-hidden="true" />
-        </button>
+        </button>}
       </div>
     </form>
   );

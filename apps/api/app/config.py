@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     # A reflection is marked as coming from a shorter conversation below these.
     report_short_min_answers: int = 4
     report_short_min_seconds: int = 180
+    # Loop 2 interview targets. Off by default; when on, a cached probe of the target tables
+    # decides whether they are available on this host (hosted apply is a separate gate).
+    loop2_targets_enabled: bool = False
+    loop2_target_probe_ttl_seconds: int = 60
 
     model_config = SettingsConfigDict(
         env_file=(".env", ".env.local"), extra="ignore", case_sensitive=False
