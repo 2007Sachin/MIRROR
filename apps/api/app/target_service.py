@@ -6,8 +6,7 @@ Rules kept here (each has a route test):
   role's seniority and never read from the job description;
 - geography is exact (owner rule): research scoped elsewhere, including ``global``, is never
   shown for a target; with no claims for exactly this target the state is NOT_RESEARCHED;
-- a blueprint pins (catalog version, content hash); refresh appends a new pin and every
-  earlier pin is still served from its own catalog version; a hash mismatch serves nothing;
+- a blueprint pins (catalog version, content hash, and ``rules_version``); ``rules_version`` also pins the immutable taxonomy file used for its rounds/competencies; refresh appends a new pin and every earlier pin is still served from its own catalog and taxonomy versions; a hash mismatch serves nothing;
 - practice prompts are Mirror-written, guarded and stored before the session exists, and a
   session's target link is written once.
 """
@@ -61,11 +60,11 @@ from .target_rounds import (
     build_round_pack,
     find_round,
 )
-from .target_taxonomy import NOT_SURE, Taxonomy, TaxonomyError, load_taxonomy
+from .target_taxonomy import NOT_SURE, TAXONOMY_VERSION, Taxonomy, TaxonomyError, load_taxonomy
 
 logger = logging.getLogger("mirror.targets")
 
-BLUEPRINT_RULES_VERSION = "blueprint-1"
+BLUEPRINT_RULES_VERSION = f"blueprint-2-taxonomy-{TAXONOMY_VERSION}"
 ContentState = Literal["SERVED", "PIN_MISMATCH", "CATALOG_UNAVAILABLE"]
 # Role families, their levels and practice rounds, and company aliases are taxonomy data
 # (app.target_taxonomy); this module never names a company or role family.
@@ -646,24 +645,46 @@ class TargetService:
         self._taxonomy_override = taxonomy
         self._coverage = coverage
 
-    def _taxonomy(self) -> Taxonomy:
+    def _taxonomy_for_version(self, version: int) -> Taxonomy:
         if self._taxonomy_override is not None:
             return self._taxonomy_override
         try:
-            return load_taxonomy()
+            return load_taxonomy(version=version)
         except TaxonomyError as exc:  # altered/missing data serves nothing, like the catalog lock
             raise CatalogUnavailable from exc
 
-    def _rounds(self, target: CandidateTarget) -> tuple[PracticeRound, ...]:
-        return self._taxonomy().rounds(target.role_family_key)
+    def _taxonomy(self) -> Taxonomy:
+        return self._taxonomy_for_version(TAXONOMY_VERSION)
 
-    def _round(self, target: CandidateTarget, round_key: str) -> PracticeRound:
+    def _taxonomy_for_rules(self, rules_version: str) -> Taxonomy:
+        """Resolve the immutable taxonomy version recorded in this blueprint pin.
+
+        Loop 2 pins used ``blueprint-1`` before taxonomy data existed; preserve them against
+        taxonomy v1 (the SWE rounds were moved verbatim). New pins carry an explicit taxonomy
+        version, e.g. ``blueprint-2-taxonomy-1``. Unknown formats fail closed.
+        """
+        if rules_version == "blueprint-1":
+            version = 1
+        else:
+            prefix, separator, version_text = rules_version.partition("-taxonomy-")
+            if not separator or not prefix.startswith("blueprint-") or not prefix[len("blueprint-"):].isdigit() or not version_text.isdigit():
+                raise CatalogUnavailable
+            version = int(version_text)
+        return self._taxonomy_for_version(version)
+
+    def _rounds(self, target: CandidateTarget, rules_version: str | None = None) -> tuple[PracticeRound, ...]:
+        taxonomy = self._taxonomy() if rules_version is None else self._taxonomy_for_rules(rules_version)
+        return taxonomy.rounds(target.role_family_key)
+
+    def _round(self, target: CandidateTarget, round_key: str, rules_version: str | None = None) -> PracticeRound:
         try:
-            return find_round(self._rounds(target), round_key)
+            return find_round(self._rounds(target, rules_version), round_key)
         except KeyError as exc:
             raise RoundNotFound from exc
 
-    async def _plan_coverage(self, user_id: UUID, target: CandidateTarget, competency_keys: Sequence[str]) -> dict[str, str]:
+    async def _plan_coverage(
+        self, user_id: UUID, target: CandidateTarget, competency_keys: Sequence[str], taxonomy: Taxonomy | None = None,
+    ) -> dict[str, str]:
         if self._coverage is None:
             return {}
         try:
@@ -671,7 +692,7 @@ class TargetService:
         except Exception:  # noqa: BLE001 - the plan is optional input; priorities still work without it
             logger.warning("plan coverage unavailable for target priorities", exc_info=True)
             return {}
-        return competency_coverage(competency_keys, self._taxonomy(), list(areas))
+        return competency_coverage(competency_keys, taxonomy or self._taxonomy(), list(areas))
 
     # targets ---------------------------------------------------------
 
@@ -777,7 +798,8 @@ class TargetService:
         claims, conflicts, unknowns = _content(match, catalog)
         return view.model_copy(update={
             "match_state": match.state, "research_label_key": _RESEARCH_LABEL[match.state],
-            "claims": claims, "conflicts": conflicts, "unknowns": unknowns, "rounds": round_summaries(match, self._rounds(target)),
+            "claims": claims, "conflicts": conflicts, "unknowns": unknowns,
+            "rounds": round_summaries(match, self._rounds(target, pin.rules_version)),
         })
 
     async def refresh(self, target_id: UUID, user_id: UUID) -> tuple[BlueprintView, bool]:
@@ -825,12 +847,17 @@ class TargetService:
 
     async def round_detail(self, target_id: UUID, round_key: str, user_id: UUID) -> RoundDetail:
         target = await self.get(target_id, user_id)
-        rounds = self._rounds(target)
-        round_ = self._round(target, round_key)  # only a round of this target's own role family
         rows = await self._blueprints(user_id, target)
         if not rows:
             raise BlueprintNotFound
-        state, match, catalog = self._pinned_match(target, rows[-1])
+        pin = rows[-1]
+        taxonomy = self._taxonomy_for_rules(pin.rules_version)
+        rounds = taxonomy.rounds(target.role_family_key)
+        try:
+            round_ = find_round(rounds, round_key)  # only a round in this pinned taxonomy + role family
+        except KeyError as exc:
+            raise RoundNotFound from exc
+        state, match, catalog = self._pinned_match(target, pin)
         links = await self._repo.links_for_target(target.id, user_id)
         usable_links = []
         for link in links:
@@ -856,7 +883,7 @@ class TargetService:
         )
         # The person's own plan coverage links to a competency only through its taxonomy evidence
         # terms; research-derived round counts and bands only exist when research matched.
-        coverage = await self._plan_coverage(user_id, target, round_.competency_keys)
+        coverage = await self._plan_coverage(user_id, target, round_.competency_keys, taxonomy)
         ranked = prioritise(
             competencies_in_process(match or _empty_match(), rounds, round_key=round_.key), coverage,
             practice_facts(links, rounds), self._today(), target.interview_date,
@@ -891,12 +918,12 @@ class TargetService:
         self, target_id: UUID, round_key: str, user_id: UUID, payload: PracticeStart
     ) -> PracticeStarted:
         target = await self.get(target_id, user_id)
-        round_ = self._round(target, round_key)  # only a round of this target's own role family
         if target.status != "ACTIVE":
             raise TargetArchived
         role = await self._roles.get(target.role_profile_id, user_id)
         pins = await self._blueprints(user_id, target)
         pin = pins[-1]
+        round_ = self._round(target, round_key, pin.rules_version)  # target family + its pinned taxonomy
         mode = PracticeMode(payload.mode)
         needed = MODE_SHAPE[mode].questions
         set_id = prompt_set_id_for(user_id, target.id, round_.key, payload.idempotency_key)

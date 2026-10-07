@@ -51,7 +51,7 @@ def world(catalogs, synthetic_companies=False, mapping=None):
     original_loader, original_mapping = target_service.load_taxonomy, target_service._mapping_for
     if synthetic_companies:
         taxonomy = qa_taxonomy()
-        target_service.load_taxonomy = lambda: taxonomy
+        target_service.load_taxonomy = lambda version=None: taxonomy
     if mapping is not None:
         target_service._mapping_for = lambda match: None if match.state == "NOT_RESEARCHED" else mapping
 

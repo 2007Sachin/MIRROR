@@ -17,6 +17,7 @@ from app.target_repository import (
     MemoryTargetRepository,
     QuestionCreate,
     TargetConflict,
+    TargetSessionLink,
     TargetSessionLinkCreate,
     TargetValues,
 )
@@ -114,3 +115,104 @@ def test_racing_link_inserts_keep_one_link_and_the_loser_sees_it():
     losers = [o for o in outcomes if isinstance(o, Exception)]
     assert len(losers) == 1 and isinstance(losers[0], LinkAlreadyExists) and losers[0].link is not None
     assert datetime.now(UTC) >= next(iter(repo.links.values())).created_at
+
+
+class _BarrierAppend(list):
+    """Force both writers to reach the append boundary after their read/check phase."""
+
+    def __init__(self, rows):
+        super().__init__(rows)
+        self.meet = threading.Barrier(2)
+
+    def append(self, row):
+        try:
+            self.meet.wait(timeout=1)
+        except threading.BrokenBarrierError:
+            pass
+        super().append(row)
+
+
+def test_racing_target_creates_cannot_both_pass_the_active_scope_check(monkeypatch):
+    import app.target_repository as target_module
+
+    repo = MemoryTargetRepository()
+    user, role = uuid4(), uuid4()
+    values = TargetValues(
+        role_profile_id=role, company_label="QA Consulting Co (synthetic)", company_key="qa_consulting",
+        role_family_key="business_analysis", level_key="consultant", level_label=None,
+        geography_key="qa_land", geography_label="QA Fictional Country", interview_date=None,
+    )
+    meet_after_old_check = threading.Barrier(2)
+    original_target = target_module.CandidateTarget
+
+    def wait_at_target_construction(**kwargs):
+        meet_after_old_check.wait(timeout=10)
+        return original_target(**kwargs)
+
+    monkeypatch.setattr(target_module, "CandidateTarget", wait_at_target_construction)
+    outcomes: list[object] = [None, None]
+
+    def worker(index):
+        try:
+            outcomes[index] = asyncio.run(repo.create_target(user, values))
+        except Exception as exc:  # noqa: BLE001 - outcome is the repository's concurrency contract
+            outcomes[index] = exc
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(2)]
+    for thread in threads: thread.start()
+    for thread in threads: thread.join(timeout=20)
+    active = [row for row in repo.targets.values() if row.status == "ACTIVE" and row.user_id == user]
+    assert len(active) == 1
+    assert sum(isinstance(outcome, TargetConflict) for outcome in outcomes) == 1
+
+
+def test_racing_blueprint_creates_allocate_distinct_versions():
+    repo, user, link, _rows = _world()
+    repo.blueprint_rows = _BarrierAppend(repo.blueprint_rows)
+    pin = BlueprintPin(catalog_version=2, catalog_sha256="1" * 64, match_state="NOT_RESEARCHED", rules_version="blueprint-1")
+    outcomes = _race(repo, lambda: repo.create_blueprint(user, link.candidate_target_id, pin))
+    assert all(not isinstance(outcome, Exception) for outcome in outcomes), outcomes
+    assert [row.version for row in sorted(repo.blueprint_rows, key=lambda row: row.version)] == [1, 2, 3]
+
+
+class _CountingDict(dict):
+    def __init__(self, values):
+        super().__init__(values)
+        self.writes = 0
+
+    def __setitem__(self, key, value):
+        self.writes += 1
+        super().__setitem__(key, value)
+
+
+def test_racing_prompt_completions_publish_complete_state_once(monkeypatch):
+    repo, user, link, rows = _world()
+    asyncio.run(repo.create_link(user, link))
+    asyncio.run(repo.record_questions(user, rows))
+    counted = _CountingDict(repo.links)
+    repo.links = counted
+    meet_at_state_copy = threading.Barrier(2)
+    original_copy = TargetSessionLink.model_copy
+
+    def wait_at_copy(self, *args, **kwargs):
+        try:
+            meet_at_state_copy.wait(timeout=1)
+        except threading.BrokenBarrierError:
+            pass
+        return original_copy(self, *args, **kwargs)
+
+    monkeypatch.setattr(TargetSessionLink, "model_copy", wait_at_copy)
+    outcomes: list[object] = [None, None]
+
+    def worker(index):
+        try:
+            outcomes[index] = asyncio.run(repo.complete_prompt_link(link.session_id, user))
+        except Exception as exc:  # noqa: BLE001 - outcome is the repository's concurrency contract
+            outcomes[index] = exc
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(2)]
+    for thread in threads: thread.start()
+    for thread in threads: thread.join(timeout=20)
+    assert all(isinstance(outcome, TargetSessionLink) and outcome.prompt_set_state == "COMPLETE" for outcome in outcomes)
+    assert repo.links[link.session_id].prompt_set_state == "COMPLETE"
+    assert counted.writes == 1

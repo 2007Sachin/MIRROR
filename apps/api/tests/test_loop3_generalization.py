@@ -532,6 +532,9 @@ def test_taxonomy_is_locked_and_validated():
     taxonomy = load_taxonomy()
     lock = json.loads((ROOT / "apps/api/app/research_content/LOCK.json").read_text(encoding="utf-8"))
     assert lock["taxonomies"]["taxonomy_v1.json"]["sha256"] == taxonomy.sha256
+    assert load_taxonomy(1).sha256 == taxonomy.sha256
+    with pytest.raises(TaxonomyError):
+        load_taxonomy(999)
     raw = taxonomy_raw()
     raw["role_families"][BA]["rounds"][0]["competency_keys"].append("not_a_competency")
     with pytest.raises(TaxonomyError):
@@ -651,3 +654,52 @@ def test_the_structural_check_catches_a_branch_when_one_is_added(tmp_path):
     planted = ast.parse('def plan(target):\n    if target.company_key == "amazon":\n        return 1\n')
     hits = [n.value for n in ast.walk(planted) if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value.casefold() in literals]
     assert hits == ["amazon"]
+
+
+def test_blueprint_rounds_are_bound_to_the_taxonomy_version_in_the_pin(monkeypatch):
+    """A future taxonomy version must not rewrite rounds on an already pinned blueprint."""
+    import app.target_service as service_module
+
+    taxonomy_v1 = load_taxonomy()
+    raw_v2 = taxonomy_raw()
+    raw_v2["version"] = 2
+    raw_v2["competencies"]["regulatory_review"] = {"evidence_terms": ["regulatory review"]}
+    case_round = raw_v2["role_families"][BA]["rounds"][0]
+    case_round["competency_keys"].append("regulatory_review")
+    case_round["templates"].append({
+        "id": "case.qa_regulatory_review", "family_key": "regulatory_context",
+        "competency_key": "regulatory_review",
+        "fallback": "A fictional company needs to follow a new rule. What information would you clarify before recommending a change?",
+    })
+    taxonomy_v2 = taxonomy_from_dict(raw_v2)
+    current = {"value": taxonomy_v1}
+
+    def load_version(version=None):
+        if version is None:
+            return current["value"]
+        return {1: taxonomy_v1, 2: taxonomy_v2}[version]
+
+    monkeypatch.setattr(service_module, "load_taxonomy", load_version)
+    catalog = synthetic_catalog()
+    repo = MemoryTargetRepository()
+    service = TargetService(
+        repo, StaticCatalogProvider({catalog.version: catalog}), Roles(), Stories(), engine=None,
+        today=lambda: TODAY,
+    )
+    user = uuid4()
+    v1_target = make_target(SimpleNamespace(service=service), user, company="QA Consulting Co (synthetic)", family=BA, level="consultant")
+    v1_pin = asyncio.run(repo.blueprints(v1_target.id, user))[-1]
+
+    current["value"] = taxonomy_v2
+    monkeypatch.setattr(service_module, "TAXONOMY_VERSION", 2)
+    monkeypatch.setattr(service_module, "BLUEPRINT_RULES_VERSION", "blueprint-2-taxonomy-2")
+    v1_view = blueprint_of(SimpleNamespace(service=service), v1_target, user)
+    old_case = next(row for row in v1_view.rounds if row.key == "business_problem_solving")
+    assert "regulatory_review" not in old_case.competency_keys
+
+    v2_target = make_target(SimpleNamespace(service=service), user, company="QA Consulting Co (synthetic)", family=BA, level="consultant")
+    v2_pin = asyncio.run(repo.blueprints(v2_target.id, user))[-1]
+    v2_view = blueprint_of(SimpleNamespace(service=service), v2_target, user)
+    new_case = next(row for row in v2_view.rounds if row.key == "business_problem_solving")
+    assert "regulatory_review" in new_case.competency_keys
+    assert v1_pin.rules_version != v2_pin.rules_version

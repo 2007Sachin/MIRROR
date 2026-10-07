@@ -189,15 +189,17 @@ class MemoryTargetRepository:
         return True
 
     async def create_target(self, user_id: UUID, values: TargetValues) -> CandidateTarget:
-        key = _scope_key(user_id, values)
-        for row in self.targets.values():
-            if row.status == "ACTIVE" and _scope_key(row.user_id, row) == key:
-                raise TargetConflict(row.id)
+        # Construct before entering the critical section; uniqueness check + insert are atomic.
         now = datetime.now(UTC)
         target = CandidateTarget(
             **values.model_dump(), id=uuid4(), user_id=user_id, status="ACTIVE", created_at=now, updated_at=now
         )
-        self.targets[target.id] = target
+        key = _scope_key(user_id, values)
+        with self._write_lock:
+            for row in self.targets.values():
+                if row.status == "ACTIVE" and _scope_key(row.user_id, row) == key:
+                    raise TargetConflict(row.id)
+            self.targets[target.id] = target
         return target
 
     async def list_targets(self, user_id: UUID) -> list[CandidateTarget]:
@@ -209,15 +211,16 @@ class MemoryTargetRepository:
         return row if row is not None and row.user_id == user_id else None
 
     async def archive_target(self, target_id: UUID, user_id: UUID) -> CandidateTarget | None:
-        row = await self.get_target(target_id, user_id)
-        if row is None:
-            return None
-        if row.status == "ARCHIVED":
-            return row
-        now = datetime.now(UTC)
-        archived = row.model_copy(update={"status": "ARCHIVED", "archived_at": now, "updated_at": now})
-        self.targets[target_id] = archived
-        return archived
+        with self._write_lock:
+            row = self.targets.get(target_id)
+            if row is None or row.user_id != user_id:
+                return None
+            if row.status == "ARCHIVED":
+                return row
+            now = datetime.now(UTC)
+            archived = row.model_copy(update={"status": "ARCHIVED", "archived_at": now, "updated_at": now})
+            self.targets[target_id] = archived
+            return archived
 
     async def _owned_target(self, target_id: UUID, user_id: UUID) -> CandidateTarget:
         row = await self.get_target(target_id, user_id)
@@ -227,13 +230,17 @@ class MemoryTargetRepository:
 
     async def create_blueprint(self, user_id: UUID, target_id: UUID, pin: BlueprintPin) -> InterviewBlueprint:
         await self._owned_target(target_id, user_id)
-        version = 1 + max((b.version for b in self.blueprint_rows if b.candidate_target_id == target_id), default=0)
-        row = InterviewBlueprint(
-            **pin.model_dump(), id=uuid4(), user_id=user_id, candidate_target_id=target_id,
-            version=version, created_at=datetime.now(UTC),
-        )
-        self.blueprint_rows.append(row)
-        return row
+        with self._write_lock:
+            target = self.targets.get(target_id)
+            if target is None or target.user_id != user_id:
+                raise LookupError("target does not belong to this owner")
+            version = 1 + max((b.version for b in self.blueprint_rows if b.candidate_target_id == target_id), default=0)
+            row = InterviewBlueprint(
+                **pin.model_dump(), id=uuid4(), user_id=user_id, candidate_target_id=target_id,
+                version=version, created_at=datetime.now(UTC),
+            )
+            self.blueprint_rows.append(row)
+            return row
 
     async def blueprints(self, target_id: UUID, user_id: UUID) -> list[InterviewBlueprint]:
         rows = [b for b in self.blueprint_rows if b.candidate_target_id == target_id and b.user_id == user_id]
@@ -313,24 +320,26 @@ class MemoryTargetRepository:
             raise LinkAlreadyExists(existing if existing.user_id == user_id else None)
 
     async def complete_prompt_link(self, session_id: UUID, user_id: UUID) -> TargetSessionLink:
-        link = self.links.get(session_id)
-        if link is None or link.user_id != user_id or link.prompt_set_id is None:
-            raise TargetConflict()
-        rows = await self.questions_for_set(link.prompt_set_id, user_id)
-        expected = link.expected_prompt_count
-        if (expected is None or link.prompt_manifest is None
-            or any(q.candidate_target_id != link.candidate_target_id for q in rows)
-            or [q.position for q in rows] != list(range(1, expected + 1))
-            or any(q.model_dump(exclude={"id", "user_id", "created_at", "provenance_class"})
-                   != link.prompt_manifest[q.position - 1].model_dump() for q in rows)):
-            raise TargetConflict()
-        if link.prompt_set_state == "COMPLETE":
-            return link
-        if link.prompt_set_state != "PENDING":
-            raise TargetConflict()
-        completed = link.model_copy(update={"prompt_set_state": "COMPLETE"})
-        self.links[session_id] = completed
-        return completed
+        with self._write_lock:
+            link = self.links.get(session_id)
+            if link is None or link.user_id != user_id or link.prompt_set_id is None:
+                raise TargetConflict()
+            rows = sorted((q for q in self.questions if q.prompt_set_id == link.prompt_set_id and q.user_id == user_id),
+                          key=lambda row: row.position)
+            expected = link.expected_prompt_count
+            if (expected is None or link.prompt_manifest is None
+                or any(q.candidate_target_id != link.candidate_target_id for q in rows)
+                or [q.position for q in rows] != list(range(1, expected + 1))
+                or any(q.model_dump(exclude={"id", "user_id", "created_at", "provenance_class"})
+                       != link.prompt_manifest[q.position - 1].model_dump() for q in rows)):
+                raise TargetConflict()
+            if link.prompt_set_state == "COMPLETE":
+                return link
+            if link.prompt_set_state != "PENDING":
+                raise TargetConflict()
+            completed = link.model_copy(update={"prompt_set_state": "COMPLETE"})
+            self.links[session_id] = completed
+            return completed
 
     async def link_for_session(self, session_id: UUID, user_id: UUID) -> TargetSessionLink | None:
         row = self.links.get(session_id)

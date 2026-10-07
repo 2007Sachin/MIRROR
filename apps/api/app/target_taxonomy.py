@@ -29,7 +29,10 @@ from .research_catalog import KEY_PATTERN, content_sha256
 
 TAXONOMY_SCHEMA = "mirror.target_taxonomy/1"
 CONTENT_DIR = Path(__file__).parent / "research_content"
-TAXONOMY_FILE = "taxonomy_v1.json"
+# Increment only when publishing a new taxonomy_vN.json. Prior versions stay in LOCK.json
+# and are append-only so existing blueprint rules_version pins remain reproducible.
+TAXONOMY_VERSION = 1
+TAXONOMY_FILE = f"taxonomy_v{TAXONOMY_VERSION}.json"
 NOT_SURE = "not_sure"
 _KEY = re.compile(KEY_PATTERN)
 
@@ -184,14 +187,30 @@ def taxonomy_from_dict(raw: dict[str, Any]) -> Taxonomy:
     return Taxonomy(document, content_sha256(json.dumps(raw, sort_keys=True).encode("utf-8")))
 
 
-@lru_cache(maxsize=1)
-def load_taxonomy() -> Taxonomy:
-    """The repository taxonomy, refused unless its bytes match LOCK.json."""
-    path = CONTENT_DIR / TAXONOMY_FILE
+@lru_cache(maxsize=8)
+def load_taxonomy(version: int | None = None) -> Taxonomy:
+    """Load the active or an explicitly pinned taxonomy, refused unless its bytes match LOCK.json.
+
+    Blueprint rules store the taxonomy version. New taxonomies are added as new files/lock
+    entries; never rewrite an existing version because old blueprint pins still refer to it.
+    """
     try:
-        raw = path.read_bytes()
         lock = json.loads((CONTENT_DIR / "LOCK.json").read_text(encoding="utf-8"))
-        entry = lock["taxonomies"][TAXONOMY_FILE]
+        entries = lock["taxonomies"]
+        if version is None:
+            selected_version = max(int(entry["version"]) for entry in entries.values())
+        else:
+            selected_version = version
+        matches = [(name, entry) for name, entry in entries.items() if int(entry["version"]) == selected_version]
+        if len(matches) != 1:
+            raise TaxonomyError("taxonomy version is missing or duplicated in LOCK.json")
+        filename, entry = matches[0]
+        path = (CONTENT_DIR / filename).resolve()
+        if path.parent != CONTENT_DIR.resolve() or not filename.startswith("taxonomy_v") or not filename.endswith(".json"):
+            raise TaxonomyError("taxonomy lock entry has an unsafe filename")
+        raw = path.read_bytes()
+    except TaxonomyError:
+        raise
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise TaxonomyError("taxonomy or its lock entry is unreadable") from exc
     digest = content_sha256(raw)
@@ -201,6 +220,6 @@ def load_taxonomy() -> Taxonomy:
         document = TaxonomyDocument.model_validate(json.loads(raw.decode("utf-8")))
     except ValueError as exc:
         raise TaxonomyError(str(exc)) from exc
-    if document.version != entry.get("version"):
+    if document.version != selected_version or document.version != entry.get("version"):
         raise TaxonomyError("taxonomy version does not match LOCK.json")
     return Taxonomy(document, digest)
