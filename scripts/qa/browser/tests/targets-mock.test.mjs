@@ -120,6 +120,14 @@ test("business-roles slice: same routes and shapes, its own rounds, and no engin
   assert.deepEqual(view.rounds.map((r) => r.key), ["business_problem_solving", "requirements_and_stakeholders", "behavioural"]);
   assert.equal(view.rounds[1].presence, "CONDITIONAL");
   assert.equal(get(`/api/v1/targets/${TARGET_IDS.target}/rounds/coding_reasoning`).status, 404);
+  const plan = get("/api/v1/plan", new URL(`http://x/api/v1/plan?role_profile_id=${ROLE}`)).body;
+  assert.equal(plan.role.target_role, "QA Business Analyst (test role)");
+  assert.equal(plan.areas[0].theme, "Requirements gathering");
+  assert.equal(plan.recommended_area_key, "qa_area_requirements");
+  const map = get(`/api/v1/roles/${ROLE}/interview-map`).body;
+  assert.equal(map.target_role, "QA Business Analyst (test role)");
+  assert.deepEqual(map.preparation_areas.map((area) => area.title), ["Clarifying business requirements", "Working through a business problem"]);
+  assert.ok(map.preparation_areas.every((area) => !/coding|system design/i.test(area.title)));
   const detail = get(`/api/v1/targets/${TARGET_IDS.target}/rounds/business_problem_solving`).body;
   assert.ok(detail.pack.prompts.every((p) => p.question_family === "case_discussion" && !("text" in p)));
   const started = mock.handle("POST", `/api/v1/targets/${TARGET_IDS.target}/rounds/business_problem_solving/practice`, {

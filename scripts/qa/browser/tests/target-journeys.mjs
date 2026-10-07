@@ -13,7 +13,7 @@ import { QA_BUSINESS_CASE_PROMPTS, QA_RESEARCHED_CODING_PROMPTS, TARGET_IDS } fr
 const BANNED = /\b(evidence|diagnostics?|assessments?|assessor|skeptic|scor(e|ed|es|ing)|weakness(es)?|gaps?|deficienc(y|ies)|fail(s|ed|ure|ing)?|incorrect|wrong|red flag|critical|candidates?|verdicts?|evaluat\w*|analys\w*|audit\w*|test(s|ed|ing)?|verif\w*|proof|performance|scrutiny|substantiat\w*|flag(s|ged)?)\b/i;
 // Fixture names that are deliberately marked as test data. The whole marked name goes, not just the
 // marker: the Loop 1 fixture role "QA Analyst (test role)" is user data shown in the role switcher.
-const FIXTURE_TEXT = [/QA Analyst \(test role\)/g, /\(test role\)/g, /\(test only\)/g, /QA fixture[^.]*\./g];
+const FIXTURE_TEXT = [/QA Analyst \(test role\)/g, /QA Business Analyst \(test role\)/g, /\(test role\)/g, /\(test only\)/g, /QA fixture[^.]*\./g];
 
 export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, overflow, getState, poll }) {
   const control = { "x-qa-control-token": mock.controlToken, "content-type": "application/json" };
@@ -446,6 +446,11 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
 
     await page.goto(`${baseUrl}/plan/rounds/coding_reasoning?role=${IDS.role}`);
     await heading("We couldn't find that round.", 1).waitFor();
+    // Keep the expected 404 assertion, then leave the browser at the valid BA route so the
+    // step-end screenshot documents the working path rather than only its negative control.
+    await page.goto(`${baseUrl}/plan/rounds/business_problem_solving?role=${IDS.role}`);
+    await heading("Business problem conversation", 1).waitFor();
+    await screen("business-roles-round-detail-after-negative-control", { primaries: 1 });
   });
 
   // T19 Practice start, the interview and the review run through the existing pipeline for a case-style round.
@@ -520,6 +525,10 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await screen("business-roles-role-step", { primaries: 1 });
     await page.getByRole("button", { name: /Continue/ }).click();
     await heading(/preparation plan is ready/, 1).waitFor();
+    await heading("Your Business Analyst (test role) preparation plan is ready.").waitFor();
+    await page.getByText("Clarifying business requirements", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Talking through a coding approach", { exact: true }).count(), 0,
+      "business-roles onboarding preview must not inherit the engineering fixture");
     const state = await getState();
     assert.deepEqual(state.targets.creates, [{
       role_profile_id: TARGET_IDS.newRole, company: "QA Consulting Co (synthetic)", role_family: "business_analysis", level: "consultant",

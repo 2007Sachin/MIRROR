@@ -123,7 +123,9 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     const target = state.targets.get(id);
     return target ? view(target) : null;
   };
-  const nameFor = (id) => (id === TARGET_IDS.newRole ? NEW_ROLE_NAME : roleName);
+  const nameFor = (id) => businessRoles()
+    ? "QA Business Analyst (test role)"
+    : (id === TARGET_IDS.newRole ? NEW_ROLE_NAME : roleName);
 
   function setScenario(body) {
     if (!body || typeof body !== "object" || Array.isArray(body)) return err(422, "scenario must be an object");
@@ -268,6 +270,21 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
   function plan({ url }) {
     const requested = url?.searchParams?.get("role_profile_id") || roleId;
     const value = fixture("plan.json");
+    if (businessRoles()) {
+      value.areas = [
+        {
+          key: "qa_area_requirements", title: "Clarifying business requirements", theme: "Requirements gathering",
+          from_job_description: true, why: "QA fixture excerpt (synthetic).", status: "BUILD", have: [], suggested: [],
+          strengthen: "Ask what outcome the team needs.", primary_action: "PRACTICE",
+        },
+        {
+          key: "qa_area_case", title: "Working through a business problem", theme: "Business problem solving",
+          from_job_description: true, why: "QA fixture excerpt (synthetic).", status: "BUILD", have: [], suggested: [],
+          strengthen: "Show how you reached a recommendation.", primary_action: "PRACTICE",
+        },
+      ];
+      value.recommended_area_key = "qa_area_requirements";
+    }
     value.role = { role_profile_id: requested, target_role: nameFor(requested) };
     return { body: value };
   }
@@ -287,7 +304,14 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
   }
 
   function interviewMap({ match }) {
-    return { body: { ...fixture("interview_map.json"), role_profile_id: match[1], target_role: nameFor(match[1]) } };
+    const value = fixture("interview_map.json");
+    if (businessRoles()) {
+      value.preparation_areas = [
+        { key: "qa_prep_requirements", title: "Clarifying business requirements", body: "QA fixture area (synthetic).", action: "PRACTICE", theme_key: null, focus: "role" },
+        { key: "qa_prep_case", title: "Working through a business problem", body: "QA fixture area (synthetic).", action: "PRACTICE", theme_key: null, focus: "role" },
+      ];
+    }
+    return { body: { ...value, role_profile_id: match[1], target_role: nameFor(match[1]) } };
   }
 
   const routes = [
