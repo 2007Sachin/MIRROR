@@ -28,6 +28,7 @@ from .auth import AuthenticatedUser, get_current_user
 from .config import get_settings
 from .dependencies import (
     get_interview_state_machine,
+    get_readiness_service,
     get_role_analysis_service,
     get_role_progress_service,
     get_story_repository,
@@ -57,9 +58,11 @@ from .target_service import (
     RoundNotFound,
     ShortPack,
     TargetArchived,
+    CoverageSource,
     TargetCreate,
     TargetNotFound,
     TargetService,
+    UnsupportedTarget,
     target_view,
 )
 
@@ -100,14 +103,29 @@ def get_catalog_provider() -> CatalogProvider:
     return RepoCatalogProvider()
 
 
+def get_plan_coverage(
+    readiness: Any = Depends(get_readiness_service),
+    stories: Any = Depends(get_story_repository),
+) -> CoverageSource:
+    """The person's own My plan areas as (theme, status) pairs, for target priorities."""
+    from .routes_plan import _load, get_coverage_link_repository
+
+    async def areas(role_profile_id: UUID, user_id: UUID) -> list[tuple[str, str]]:
+        plan = await _load(user_id, role_profile_id, readiness, stories, get_coverage_link_repository())
+        return [(area.theme, area.status.value) for area in plan.areas]
+
+    return areas
+
+
 def get_target_service(
     repo: TargetRepository = Depends(get_target_repository),
     catalogs: CatalogProvider = Depends(get_catalog_provider),
     roles: Any = Depends(get_role_analysis_service),
     stories: Any = Depends(get_story_repository),
     engine: Any = Depends(get_interview_state_machine),
+    coverage: CoverageSource = Depends(get_plan_coverage),
 ) -> TargetService:
-    return TargetService(repo, catalogs, roles, stories, engine)
+    return TargetService(repo, catalogs, roles, stories, engine, coverage=coverage)
 
 
 async def availability(capability: TargetCapability = Depends(get_target_capability)) -> TargetAvailability:
@@ -157,6 +175,8 @@ async def create_target(
 ) -> dict[str, Any]:
     try:
         target, blueprint = await service.create(user.id, payload)
+    except UnsupportedTarget as exc:
+        raise HTTPException(status_code=422, detail={"code": "UNSUPPORTED_TARGET", "field": exc.field}) from exc
     except RoleProfileNotFoundForUser as exc:
         raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
     except TargetConflict as exc:

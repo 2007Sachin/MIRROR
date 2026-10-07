@@ -13,13 +13,19 @@ from uuid import uuid4
 from app.interview_engine import InterviewStateMachine
 from app.repository import MemorySessionRepository
 from app.research_catalog import CatalogDocument, RepoResearchCatalog, content_sha256, load_catalog
-from app.target_rounds import get_round
+from app.target_rounds import find_round
+from app.target_taxonomy import load_taxonomy
 from app.target_repository import MemoryTargetRepository, TargetValues
 from app.target_service import PracticeStart, StaticCatalogProvider, TargetService, _round_claims, competencies_in_process, round_summaries
 
 COMPANY = "fictional_co"
 ROLE = "software_development_engineering"
 GEO = "fictional_region"
+ROUNDS = load_taxonomy().rounds(ROLE)
+
+
+def get_round(key: str):
+    return find_round(ROUNDS, key)
 CLAIM_ID = "fictional_co.sde.sde_ii.synthetic_process"
 STATEMENT = "The fictional company uses a structured debugging exercise for this fictional region."
 EXCERPT = "Fictional source: You have just written a small function in a fictional setting."
@@ -75,13 +81,13 @@ def test_in_scope_synthetic_research_changes_blueprint_round_and_priority_basis(
     match = match_scope(synthetic_catalog(), TargetScope(
         company=COMPANY, role_family=ROLE, level="sde_ii", geography=GEO,
     ))
-    blueprint_rounds = round_summaries(match)
+    blueprint_rounds = round_summaries(match, ROUNDS)
     coding = get_round("coding_reasoning")
     assert match.state == "RESEARCHED"
     assert CLAIM_ID in {claim.id for claim in match.claims}
     assert any(r.key == coding.key and r.basis == "PUBLISHED_GUIDANCE" for r in blueprint_rounds)
     assert _round_claims(match, coding)
-    assert any(c.round_count > 0 and c.band == "HIGH" for c in competencies_in_process(match))
+    assert any(c.round_count > 0 and c.band == "HIGH" for c in competencies_in_process(match, ROUNDS))
 
 
 def test_removing_rescoping_or_level_mismatch_removes_product_effects(monkeypatch):
@@ -96,9 +102,9 @@ def test_removing_rescoping_or_level_mismatch_removes_product_effects(monkeypatc
     ):
         match = match_scope(catalog, target)
         assert match.state == "NOT_RESEARCHED"
-        assert all(r.basis == "MIRROR_SUGGESTED" for r in round_summaries(match))
+        assert all(r.basis == "MIRROR_SUGGESTED" for r in round_summaries(match, ROUNDS))
         assert not _round_claims(match, get_round("coding_reasoning"))
-        assert all(c.round_count == 0 and c.band is None for c in competencies_in_process(match))
+        assert all(c.round_count == 0 and c.band is None for c in competencies_in_process(match, ROUNDS))
 
 
 def test_unmapped_research_claim_does_not_change_coding_round(monkeypatch):

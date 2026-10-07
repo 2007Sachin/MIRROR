@@ -112,8 +112,8 @@ export function RoundPage({ roleProfileId, roundKey }: { roleProfileId: string; 
 
 function RoundBody({ target, detail, roleProfileId }: { target: TargetView; detail: RoundDetail; roleProfileId: string }) {
   const round = detail.round!;
-  const claims = detail.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version, round.key));
-  const conflicts = detail.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version, round.key)));
+  const claims = detail.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version, claim.copy_key));
+  const conflicts = detail.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version, claim.copy_key)));
   const unknowns = detail.unknowns.filter((unknown) => unknownCopy(unknown.key));
   const researched = detail.match_state === "RESEARCHED" || detail.match_state === "GENERAL_ONLY";
   const pack = detail.pack;
@@ -122,19 +122,19 @@ function RoundBody({ target, detail, roleProfileId }: { target: TargetView; deta
     : [];
   const canPractise = pack?.state === "FULL" && pack.prompts.length > 0;
   const history = detail.practice ?? { count: 0, sessions: [] };
-  const amazon = target.company_key === "amazon";
 
   return (
     <div className="pl-round">
       <section aria-labelledby="round-covers">
         <h2 id="round-covers" className="pl-run-title">{t.coversTitle}</h2>
         <p>{roundCovers(round.label_key)}</p>
+        {round.presence === "CONDITIONAL" ? <p className="pl-quiet">{t.conditional}</p> : null}
         {researched && claims.length ? <h3 className="pl-run-sub">{t.publishedGuidanceTitle}</h3> : null}
         {researched && claims.length ? (
           <ul className="pl-stages">
             {claims.map((claim) => (
               <li key={claim.key}>
-                <p>{claimCopy(claim.key, claim.version, round.key)}</p>
+                <p>{claimCopy(claim.key, claim.version, claim.copy_key)}</p>
                 <p className="pl-source">{sourceLabel(claim, target.company_label)}</p>
               </li>
             ))}
@@ -157,9 +157,9 @@ function RoundBody({ target, detail, roleProfileId }: { target: TargetView; deta
                 <p className="pl-state-title">{targetCopy.section.conflictTitle}</p>
                 <p>{conflictCopy(conflict.key)}</p>
                 <ul className="pl-conflict-sides">
-                  {conflict.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version, round.key)).map((claim) => (
+                  {conflict.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version, claim.copy_key)).map((claim) => (
                     <li key={claim.key}>
-                      <p>{claimCopy(claim.key, claim.version, round.key)}</p>
+                      <p>{claimCopy(claim.key, claim.version, claim.copy_key)}</p>
                       <p className="pl-source">{sourceLabel(claim, target.company_label)}</p>
                     </li>
                   ))}
@@ -177,7 +177,7 @@ function RoundBody({ target, detail, roleProfileId }: { target: TargetView; deta
 
       <section aria-labelledby="round-cannot" className="pl-note">
         <h2 id="round-cannot" className="pl-run-title">{t.cannotTitle}</h2>
-        <p>{cannotDo(round.key, amazon)}</p>
+        <p>{cannotDo(round.key)}</p>
       </section>
 
       <div className="pl-run-actions">

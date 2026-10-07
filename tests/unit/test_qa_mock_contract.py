@@ -46,7 +46,7 @@ def test_fixtures_contain_only_obviously_fake_data() -> None:
 
 
 def test_round_fixtures_do_not_expose_exact_prompt_text() -> None:
-    for path in FIXTURES.glob("round_*.json"):
+    for path in FIXTURES.glob("*round_*.json"):
         payload = json.loads(path.read_text(encoding="utf-8"))
         assert all("text" not in prompt for prompt in payload.get("pack", {}).get("prompts", [])), path.name
 
@@ -60,7 +60,10 @@ def test_researched_fixtures_are_versioned_and_fully_synthetic() -> None:
         claims = _all_claims(payload)
         if payload.get("blueprint"):
             assert payload["claims"]
-            assert {claim["version"] for claim in claims} == {payload["blueprint"]["catalog_version"]}
+            # A claim view carries the claim's own reviewed version (copy is keyed by claim id and
+            # version), not the catalog version: a new catalog must not hide every reviewed claim.
+            assert {claim["version"] for claim in claims} == {1}
+            assert payload["blueprint"]["catalog_version"] == 2
         else:
             assert payload["claims"] == []  # synthetic IDs have no production round mapping
             assert all(isinstance(claim.get("version"), int) and claim["version"] >= 1 for claim in claims)
@@ -68,6 +71,26 @@ def test_researched_fixtures_are_versioned_and_fully_synthetic() -> None:
         assert "amazon" not in blob
         assert "india" not in blob
         assert all(claim["key"].startswith("qa.synthetic.") for claim in _all_claims(payload))
+
+
+def test_business_roles_fixtures_are_the_same_api_with_different_intelligence() -> None:
+    blueprint = json.loads((FIXTURES / "ba_blueprint_researched.json").read_text(encoding="utf-8"))
+    sde = json.loads((FIXTURES / "blueprint_researched.json").read_text(encoding="utf-8"))
+    assert set(blueprint) == set(sde)  # one product system: same shape
+    assert blueprint["target"]["role_family_key"] == "business_analysis"
+    assert blueprint["target"]["company_key"] == "qa_consulting" and blueprint["target"]["geography_key"] == "qa_land"
+    assert [r["key"] for r in blueprint["rounds"]] == ["business_problem_solving", "requirements_and_stakeholders", "behavioural"]
+    assert {r["question_family"] for r in blueprint["rounds"]}.isdisjoint({"coding_walkthrough", "design_discussion"})
+    assert {r["key"]: r["presence"] for r in blueprint["rounds"]}["requirements_and_stakeholders"] == "CONDITIONAL"
+    for name in ("ba_target.json", "ba_blueprint_researched.json", "ba_round_business_problem_solving.json",
+                 "ba_round_requirements_and_stakeholders.json", "ba_round_behavioural.json"):
+        blob = (FIXTURES / name).read_text(encoding="utf-8").casefold()
+        for real in ("amazon", "deloitte", "india", "coding_reasoning", "system_design"):
+            assert real not in blob, (name, real)
+    for key in ("business_problem_solving", "requirements_and_stakeholders", "behavioural"):
+        detail = json.loads((FIXTURES / f"ba_round_{key}.json").read_text(encoding="utf-8"))
+        assert detail["round"]["key"] == key
+        assert detail["pack"]["prompts"] and all(p["provenance_class"] == "MIRROR_GENERATED" for p in detail["pack"]["prompts"])
 
 
 def test_researched_fixture_generator_uses_no_real_catalog() -> None:

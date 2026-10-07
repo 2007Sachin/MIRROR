@@ -14,7 +14,10 @@ import ast
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1] / "app"
-LOOP2 = {"target_rounds", "target_repository", "target_capability", "target_service", "routes_targets", "research_catalog", "prompt_originality", "target_priority"}
+LOOP2 = {
+    "target_rounds", "target_repository", "target_capability", "target_service", "routes_targets", "research_catalog",
+    "prompt_originality", "target_priority", "target_taxonomy",  # target_taxonomy: Loop 3 role-family data loader
+}
 GUARDED_PREFIXES = ("assessment_", "verdict_", "skeptic_", "specialist_", "report_", "claim_resolution_")
 GUARDED = {
     "final_assessment_aggregator", "state_machine", "interview_engine", "evidence_validator", "role_progress",

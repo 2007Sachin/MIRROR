@@ -1,14 +1,14 @@
 {
   "availability": "AVAILABLE",
   "target": {
-    "id": "00000000-0000-4000-8000-000000000301",
-    "role_profile_id": "00000000-0000-4000-8000-000000000002",
-    "company_label": "Amazon",
-    "company_key": "amazon",
-    "role_family_key": "software_development_engineering",
-    "level_key": "not_sure",
-    "geography_key": "in",
-    "geography_label": "India",
+    "id": "00000000-0000-4000-8000-000000000302",
+    "role_profile_id": "00000000-0000-4000-8000-000000000005",
+    "company_label": "QA Consulting Co (synthetic)",
+    "company_key": "qa_consulting",
+    "role_family_key": "business_analysis",
+    "level_key": "consultant",
+    "geography_key": "qa_land",
+    "geography_label": "QA Fictional Country",
     "interview_date": null,
     "status": "ACTIVE",
     "archived_at": null,
@@ -25,14 +25,14 @@
     "question_family": "past_example",
     "presence": null
   },
-  "match_state": "NOT_RESEARCHED",
-  "research_label_key": "research.not_yet_researched",
+  "match_state": "RESEARCHED",
+  "research_label_key": "research.researched",
   "content_state": "SERVED",
   "claims": [],
   "conflicts": [],
   "unknowns": [
     {
-      "key": "amazon.sde.india_specific_process",
+      "key": "qa_unknown_ba",
       "reason": "NOT_PUBLISHED",
       "note": "QA fixture note (synthetic)."
     }
@@ -79,7 +79,7 @@
         "position": 4,
         "competency_key": "behavioural_examples",
         "question_family": "past_example",
-        "rationale_code": "YOUR_STORY",
+        "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
@@ -100,7 +100,7 @@
         "position": 7,
         "competency_key": "behavioural_examples",
         "question_family": "past_example",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "rationale_code": "YOUR_STORY",
         "provenance_class": "MIRROR_GENERATED"
       },
       {

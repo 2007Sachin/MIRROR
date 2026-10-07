@@ -33,7 +33,7 @@ def _keys(items) -> list[str]:
 
 
 def test_rules_are_versioned() -> None:
-    assert PRIORITY_RULES_VERSION == "priority-1"
+    assert PRIORITY_RULES_VERSION == "priority-2"
 
 
 def test_more_rounds_and_less_coverage_rank_first_with_reason_codes() -> None:
@@ -110,7 +110,8 @@ def test_loop1_report_grades_are_not_an_input() -> None:
         "competencies", "coverage", "practice", "today", "interview_date",
     ]
     assert set(PracticeFact.model_fields) == {"count", "last_practised_on"}
-    assert set(CompetencyInProcess.model_fields) == {"key", "round_count", "first_round_ordinal", "band"}
+    # Every input is research-derived round coverage (conditional rounds: Loop 3), never a report grade.
+    assert set(CompetencyInProcess.model_fields) == {"key", "round_count", "conditional_round_count", "first_round_ordinal", "band"}
     source = inspect.getsource(target_priority)
     for forbidden in ("report", "assessment", "verdict", "grade", "final_assessment"):
         assert f"import {forbidden}" not in source and f"app.{forbidden}" not in source

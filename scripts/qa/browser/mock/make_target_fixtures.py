@@ -31,16 +31,32 @@ QA_SESSION = "00000000-0000-4000-8000-000000000101"
 STORY = "QA story about a reporting tool (synthetic)"
 
 
-def world(catalogs, company_keys=None):
+def qa_taxonomy():
+    """The real taxonomy plus fictional QA companies (aliases are taxonomy data, never code)."""
+    from app.target_taxonomy import TAXONOMY_FILE, CONTENT_DIR, taxonomy_from_dict
+
+    raw = json.loads((CONTENT_DIR / TAXONOMY_FILE).read_text(encoding="utf-8"))
+    raw["companies"]["qa_company"] = {"aliases": ["QA Fictional Company"], "process_terms": []}
+    raw["companies"]["qa_consulting"] = {"aliases": ["QA Consulting Co (synthetic)"], "process_terms": []}
+    return taxonomy_from_dict(raw)
+
+
+def world(catalogs, synthetic_companies=False, mapping=None):
     from types import SimpleNamespace
 
     from app.interview_engine import InterviewStateMachine
     from app.repository import MemorySessionRepository
     from app import target_service
 
-    original_company_keys = target_service.COMPANY_KEYS
-    if company_keys is not None:
-        target_service.COMPANY_KEYS = {**original_company_keys, **company_keys}
+    original_loader, original_mapping = target_service.load_taxonomy, target_service._mapping_for
+    if synthetic_companies:
+        taxonomy = qa_taxonomy()
+        target_service.load_taxonomy = lambda: taxonomy
+    if mapping is not None:
+        target_service._mapping_for = lambda match: None if match.state == "NOT_RESEARCHED" else mapping
+
+    def restore():
+        target_service.load_taxonomy, target_service._mapping_for = original_loader, original_mapping
 
     repo = tr.SpyRepository()
     sessions = MemorySessionRepository()
@@ -48,7 +64,7 @@ def world(catalogs, company_keys=None):
     return SimpleNamespace(
         repo=repo, sessions=sessions, engine=engine, capability=tr.FixedCapability(),
         catalogs=StaticCatalogProvider(catalogs), stories=tr.FakeStories((STORY,)), progress=tr.FakeProgress(),
-        restore_company_keys=lambda: setattr(target_service, "COMPANY_KEYS", original_company_keys),
+        restore_company_keys=restore,
     )
 
 
@@ -100,7 +116,8 @@ def scrub(value, ids, synthetic_scope=False):
 
 
 def build(catalogs, level, label, synthetic_scope=False):
-    w = world(catalogs, {"qa fictional company": "qa_company"} if synthetic_scope else None)
+    # The synthetic researched round is linked by a test-only mapping, exactly as a reviewed mapping would link it.
+    w = world(catalogs, synthetic_companies=synthetic_scope, mapping=SDE_MAPPING if synthetic_scope else None)
     c = tr.client(w)
     try:
         created = tr.create(c, level=level, company="QA Fictional Company" if synthetic_scope else "Amazon", geography="qa_land" if synthetic_scope else "in", geography_label="QA Fictional Country" if synthetic_scope else "India").json()
@@ -116,6 +133,81 @@ def build(catalogs, level, label, synthetic_scope=False):
             ids[started["link"]["blueprint_id"]] = "00000000-0000-4000-8000-000000000501"
         return (scrub(target, ids, synthetic_scope), scrub(blueprint, ids, synthetic_scope),
                 {k: scrub(v, ids, synthetic_scope) for k, v in rounds.items()}, scrub(started["link"], ids, synthetic_scope))
+    finally:
+        w.restore_company_keys()
+
+
+SDE_MAPPING = {"rounds": {"coding_reasoning": ["qa.synthetic.claim_one"]}, "round_specific_claims": [], "conditional_links": []}
+BA_ROUNDS = ("business_problem_solving", "requirements_and_stakeholders", "behavioural")
+BA_TARGET = "00000000-0000-4000-8000-000000000302"
+BA_ROLE = "00000000-0000-4000-8000-000000000005"
+
+
+def ba_catalogs():
+    """Synthetic business-roles research for a fictional consulting company in a fictional country."""
+    from datetime import date
+
+    today = date(2026, 10, 7)
+    scope = Scope(company="qa_consulting", role_family="business_analysis", level="consultant", geography="qa_land")
+    source = {
+        "id": "qa_ba_source", "url": "https://qa-fixture.invalid/ba-source", "publisher": "QA Fixture Press",
+        "tier": "T1_OFFICIAL", "official": True, "published_at": today.isoformat(),
+        "retrieved_at": today.isoformat(), "text_sha256_prefix": "fedcba9876543210",
+        "independence_group": "qa_group_ba", "access_note": "Synthetic source for browser QA only.",
+    }
+
+    def claim(identifier, subject, band):
+        return {
+            "id": identifier, "version": 1, "verifier_ref": "qa-fixture", "status": "PUBLISHED",
+            "provenance_class": "FACT", "dating": "PUBLISHED_DATE", "freshness": "CURRENT",
+            "published_at": today.isoformat(), "retrieved_at": today.isoformat(), "confidence_band": band,
+            "confidence_features": {}, "scope": scope.model_dump(), "subject": subject,
+            "predicate": "qa_description", "value": subject, "statement": f"A fictional company describes a {subject} stage.",
+            "limits": ["Synthetic test fixture; not real-world guidance."], "process_content": True,
+            "candidate_visible": True, "conflict_set": None, "staleness_flags": [], "supersedes": None,
+            "basis_claim_ids": [],
+            "evidence": [{"source_id": "qa_ba_source", "stance": "SUPPORTS", "excerpt": f"Synthetic test-only evidence about {subject}."}],
+        }
+
+    doc = CatalogDocument.model_validate({
+        "schema": "mirror.research_catalog/1", "version": 3, "status": "PUBLISHED", "supersedes_version": 2,
+        "verifier_receipt": {"ref": "qa-only", "verdict": "PASS"}, "sources": [source],
+        "claims": [claim("qa.synthetic.ba_case", "case_interview", "HIGH"),
+                   claim("qa.synthetic.ba_stakeholder", "stakeholder_discussion", "MEDIUM")],
+        "conflict_sets": [],
+        "unknowns": [{"key": "qa_unknown_ba", "scope": scope.model_dump(), "reason": "NOT_PUBLISHED",
+                      "note": "Synthetic unknown for mock QA.", "related_claim_ids": []}],
+    })
+    digest = content_sha256(json.dumps(doc.model_dump(mode="json", by_alias=True), sort_keys=True).encode())
+    return {3: RepoResearchCatalog(doc, digest)}
+
+
+BA_MAPPING = {
+    "rounds": {"business_problem_solving": ["qa.synthetic.ba_case"], "requirements_and_stakeholders": ["qa.synthetic.ba_stakeholder"]},
+    "round_specific_claims": [],
+    "conditional_links": [{"claim_id": "qa.synthetic.ba_stakeholder", "round_key": "requirements_and_stakeholders"}],
+}
+
+
+def build_business_roles():
+    """Journey B: the same routes and service for a business-roles target (synthetic consulting company)."""
+    w = world(ba_catalogs(), synthetic_companies=True, mapping=BA_MAPPING)
+    c = tr.client(w)
+    try:
+        created = tr.create(
+            c, company="QA Consulting Co (synthetic)", role_family="business_analysis", level="consultant",
+            geography="qa_land", geography_label="QA Fictional Country",
+        ).json()
+        target = created["target"]
+        ids = {target["id"]: BA_TARGET, str(tr.ROLE_A): BA_ROLE, str(tr.USER_A): QA_USER}
+        blueprint = c.get(f"/api/v1/targets/{target['id']}/blueprint", headers=tr.A).json()
+        rounds = {key: c.get(f"/api/v1/targets/{target['id']}/rounds/{key}", headers=tr.A).json() for key in BA_ROUNDS}
+        started = tr.start(c, target["id"], round_key="business_problem_solving").json()
+        ids[started["session"]["id"]] = "00000000-0000-4000-8000-000000000102"
+        ids[started["link"]["prompt_set_id"]] = "00000000-0000-4000-8000-000000000402"
+        if started["link"].get("blueprint_id"):
+            ids[started["link"]["blueprint_id"]] = "00000000-0000-4000-8000-000000000502"
+        return (scrub(target, ids), scrub(blueprint, ids), {k: scrub(v, ids) for k, v in rounds.items()}, scrub(started["link"], ids))
     finally:
         w.restore_company_keys()
 
@@ -191,6 +283,14 @@ def main():
     assert researched["match_state"] == "RESEARCHED" and researched["claims"] and researched["conflicts"]
     write("blueprint_researched.json", researched)
     write("round_coding_reasoning_researched.json", rounds_r["coding_reasoning"])
+
+    ba_target, ba_blueprint, ba_rounds, ba_link = build_business_roles()
+    assert ba_blueprint["match_state"] == "RESEARCHED" and [r["key"] for r in ba_blueprint["rounds"]] == list(BA_ROUNDS)
+    write("ba_target.json", ba_target)
+    write("ba_blueprint_researched.json", ba_blueprint)
+    for key, detail in ba_rounds.items():
+        write(f"ba_round_{key}.json", detail)
+    write("ba_round_practice_link.json", ba_link)
 
     write("plan.json", {
         "role": {"role_profile_id": QA_ROLE, "target_role": "QA Analyst (test role)"},

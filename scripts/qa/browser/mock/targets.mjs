@@ -10,6 +10,8 @@
 //              | no_notes (company Mirror has no notes for) | unavailable503 | error500 | slow
 //   targets:   available (default) | disabled (flag off: list says DISABLED, writes 503) | none
 //   pack:      full (default) | short (SHORT_PACK)
+//   slice:     engineering (default; Amazon-style SDE fixtures) | business_roles (Journey B: a synthetic
+//              consulting company, role family business_analysis, served by the same routes and shapes)
 
 export const TARGET_IDS = {
   target: "00000000-0000-4000-8000-000000000301",
@@ -34,23 +36,56 @@ export const QA_RESEARCHED_CODING_PROMPTS = [
   },
 ];
 
+export const QA_BUSINESS_CASE_PROMPTS = [
+  {
+    text: "A fictional bakery chain sells more but earns less. Where would you look first?",
+    type: "PLANNED",
+    answer: "QA-SYNTHETIC-CASE-ANSWER-ONE: I would split profit into price, volume and cost per store before looking at numbers.",
+  },
+  {
+    text: "Which rough numbers would you want before suggesting anything?",
+    type: "DEPTH_PROBE",
+    answer: "QA-SYNTHETIC-CASE-ANSWER-TWO: Sales per store, ingredient cost per item and staff hours, each for the last four quarters.",
+  },
+  {
+    text: "What would you recommend if you had to decide today?",
+    type: "PLANNED",
+    answer: "QA-SYNTHETIC-CASE-ANSWER-THREE: Pause the new menu in the weakest stores and check the cost change in two weeks.",
+  },
+];
+
 export const SCENARIO_VALUES = {
   blueprint: ["not_researched", "researched", "no_notes", "unavailable503", "error500", "slow"],
   targets: ["available", "disabled", "none"],
   pack: ["full", "short"],
+  slice: ["engineering", "business_roles"],
 };
 
+// Practice themes by round key, the same words as the backend taxonomy (round keys are unique per
+// family except the shared "behavioural" round, whose theme is the same in both families).
 const ROUND_THEMES = {
   coding_reasoning: "Talking through a coding approach",
   system_design: "Designing a system",
   behavioural: "Examples from your own work",
+  business_problem_solving: "Working through a business problem",
+  requirements_and_stakeholders: "Requirements and stakeholder situations",
 };
+// Level keys each role family accepts (backend taxonomy) and exact company aliases (taxonomy data).
+const FAMILY_LEVELS = {
+  software_development_engineering: ["sde_i", "sde_ii", "sde_iii", "university", "not_sure"],
+  business_analysis: ["analyst", "consultant", "senior_consultant", "manager", "not_sure"],
+};
+const COMPANY_ALIASES = { amazon: "amazon", "deloitte india": "deloitte_india", "deloitte usi": "deloitte_usi", "qa consulting co (synthetic)": "qa_consulting" };
+// Journey B fixtures are the backend's own answers for a business-roles target, prefixed "ba_".
+const SLICE_PREFIX = { engineering: "", business_roles: "ba_" };
 const NEW_ROLE_NAME = "Software Development Engineer (test role)";
 const NOT_AVAILABLE = { code: "TARGETS_NOT_AVAILABLE", message: "Targets aren't available yet." };
 
 export function createTargetsMock({ fixture, clock = () => new Date().toISOString(), createSession, roleId, roleName }) {
-  const defaults = () => ({ blueprint: "not_researched", targets: "available", pack: "full" });
-  const seed = () => ({ ...fixture("target.json"), id: TARGET_IDS.target, role_profile_id: roleId });
+  const defaults = () => ({ blueprint: "not_researched", targets: "available", pack: "full", slice: "engineering" });
+  const prefix = () => SLICE_PREFIX[state.scenario.slice];
+  const seed = () => ({ ...fixture(`${prefix()}target.json`), id: TARGET_IDS.target, role_profile_id: roleId });
+  const businessRoles = () => state.scenario.slice === "business_roles";
   const state = {
     scenario: defaults(),
     targets: new Map(),
@@ -74,6 +109,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
   const err = (status, detail) => ({ status, body: { detail } });
   const disabled = () => state.scenario.targets === "disabled";
   const view = (target) => {
+    if (businessRoles()) return target;
     if (state.scenario.blueprint === "researched") {
       const synthetic = fixture("blueprint_researched.json").target;
       return { ...target, company_label: synthetic.company_label, company_key: synthetic.company_key,
@@ -95,6 +131,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       if (!SCENARIO_VALUES[key]?.includes(value)) return err(422, `unknown scenario ${key}=${value}`);
     }
     Object.assign(state.scenario, body);
+    if (body.slice) state.targets = new Map([[TARGET_IDS.target, seed()]]);
     if (body.targets === "none") state.targets.clear();
     if (body.targets === "available" && !state.targets.size) state.targets.set(TARGET_IDS.target, seed());
     return { body: state.scenario };
@@ -111,7 +148,8 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     if (!body || typeof body.role_profile_id !== "string" || typeof body.company !== "string" || !body.company.trim()) {
       return err(422, "role_profile_id and company are required");
     }
-    if (!["sde_i", "sde_ii", "sde_iii", "university", "not_sure", undefined].includes(body.level)) return err(422, "unknown level");
+    if (!FAMILY_LEVELS[body.role_family]) return err(422, { code: "UNSUPPORTED_TARGET", field: "role_family" });
+    if (!FAMILY_LEVELS[body.role_family].includes(body.level ?? "not_sure")) return err(422, { code: "UNSUPPORTED_TARGET", field: "level" });
     if (body.geography === "global") return err(422, "a target is a real place; 'global' is not one");
     state.targetCreates.push(body);
     const clash = [...state.targets.values()].find((t) => t.role_profile_id === body.role_profile_id);
@@ -122,7 +160,8 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       id,
       role_profile_id: body.role_profile_id,
       company_label: body.company.trim(),
-      company_key: body.company.trim().toLowerCase() === "amazon" ? "amazon" : null,
+      company_key: COMPANY_ALIASES[body.company.trim().toLowerCase()] ?? null,
+      role_family_key: body.role_family,
       level_key: body.level ?? "not_sure",
       geography_key: body.geography ?? null,
       geography_label: body.geography_label ?? null,
@@ -145,7 +184,9 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     const scenario = state.scenario.blueprint;
     if (scenario === "unavailable503") return err(503, "Targets aren't available right now. Please try again in a moment.");
     if (scenario === "error500") return err(500, "qa-mock: deliberate server error");
-    const base = fixture(scenario === "researched" ? "blueprint_researched.json" : "blueprint_not_researched.json");
+    const base = businessRoles()
+      ? fixture("ba_blueprint_researched.json")
+      : fixture(scenario === "researched" ? "blueprint_researched.json" : "blueprint_not_researched.json");
     if (scenario === "no_notes") Object.assign(base, { unknowns: [] });
     return { body: { ...base, target }, ...(scenario === "slow" ? { delayMs: 1500 } : {}) };
   }
@@ -156,9 +197,16 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
   }
 
   function roundFixtureName(key) {
+    if (businessRoles()) return `ba_round_${key}.json`;
     return state.scenario.blueprint === "researched" && key === "coding_reasoning"
       ? "round_coding_reasoning_researched.json"
       : `round_${key}.json`;
+  }
+
+  /** Only the target's own role-family rounds exist (the backend answers 404 for any other key). */
+  function ownsRound(key) {
+    const blueprintName = businessRoles() ? "ba_blueprint_researched.json" : "blueprint_not_researched.json";
+    return fixture(blueprintName).rounds.some((r) => r.key === key);
   }
 
   function round({ match }) {
@@ -166,7 +214,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     const target = owned(match[1]);
     if (!target) return err(404, "We couldn't find that target.");
     const key = match[2];
-    if (!ROUND_THEMES[key]) return err(404, "We couldn't find that round.");
+    if (!ownsRound(key)) return err(404, "We couldn't find that round.");
     const detail = { ...fixture(roundFixtureName(key)), target, practice: history(target.id, key) };
     if (state.scenario.pack === "short" && detail.pack) detail.pack = { ...detail.pack, state: "SHORT_PACK", prompts: detail.pack.prompts.slice(0, 3) };
     return { body: detail };
@@ -177,7 +225,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     const target = owned(match[1]);
     if (!target) return err(404, "We couldn't find that target.");
     const key = match[2];
-    if (!ROUND_THEMES[key]) return err(404, "We couldn't find that round.");
+    if (!ownsRound(key)) return err(404, "We couldn't find that round.");
     if (!body || !["QUICK_DRILL", "FOCUSED_PRACTICE"].includes(body.mode) || typeof body.idempotency_key !== "string") {
       return err(422, "mode and idempotency_key are required");
     }
@@ -188,9 +236,11 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       return { status: 201, body: replay.response };
     }
     if (state.scenario.pack === "short") return err(422, { code: "SHORT_PACK", available: 3 });
-    const qaPromptSet = state.scenario.blueprint === "researched" && key === "coding_reasoning"
-      ? "qa_researched_coding"
-      : null;
+    const qaPromptSet = businessRoles() && key === "business_problem_solving"
+      ? "qa_business_case"
+      : state.scenario.blueprint === "researched" && key === "coding_reasoning"
+        ? "qa_researched_coding"
+        : null;
     const session = createSession({
       target_role: nameFor(target.role_profile_id),
       role_profile_id: target.role_profile_id,
@@ -200,7 +250,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       idempotency_key: body.idempotency_key,
       ...(qaPromptSet ? { qa_prompt_set: qaPromptSet } : {}),
     });
-    const link = { ...fixture("round_practice_link.json"), session_id: session.id, candidate_target_id: target.id, round_key: key, created_at: clock() };
+    const link = { ...fixture(`${prefix()}round_practice_link.json`), session_id: session.id, candidate_target_id: target.id, round_key: key, created_at: clock() };
     state.links.push(link);
     const count = body.mode === "QUICK_DRILL" ? 3 : 4;
     const packPrompts = fixture(roundFixtureName(key)).pack?.prompts ?? [];

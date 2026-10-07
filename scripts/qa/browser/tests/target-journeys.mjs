@@ -1,4 +1,5 @@
-// Loop 2 browser journeys (T1–T16, with synthetic researched cases T3b and T9b, adapted to what was built).
+// Loop 2 browser journeys (T1–T16, with synthetic researched cases T3b and T9b, adapted to what was built),
+// plus Loop 3 journey B (T17–T20): a synthetic business-roles target on the same product system.
 // Runs inside critical-path.mjs's runViewport, after the Loop 1 path and before sign-out, against the
 // fake Auth/API (mock/targets.mjs scenarios). Every step also checks: no banned word on screen, one
 // <h1>, at most the expected number of filled primary actions, named controls, and (mobile) no horizontal scroll.
@@ -6,7 +7,7 @@
 import assert from "node:assert/strict";
 
 import { IDS } from "../mock/server.mjs";
-import { QA_RESEARCHED_CODING_PROMPTS, TARGET_IDS } from "../mock/targets.mjs";
+import { QA_BUSINESS_CASE_PROMPTS, QA_RESEARCHED_CODING_PROMPTS, TARGET_IDS } from "../mock/targets.mjs";
 
 // Same list as docs/copy-guide.md (whole word, case-insensitive, inflections).
 const BANNED = /\b(evidence|diagnostics?|assessments?|assessor|skeptic|scor(e|ed|es|ing)|weakness(es)?|gaps?|deficienc(y|ies)|fail(s|ed|ure|ing)?|incorrect|wrong|red flag|critical|candidates?|verdicts?|evaluat\w*|analys\w*|audit\w*|test(s|ed|ing)?|verif\w*|proof|performance|scrutiny|substantiat\w*|flag(s|ged)?)\b/i;
@@ -33,6 +34,16 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await page.locator("#typed-answer").waitFor();
   };
   const planUrl = (role) => `${baseUrl}/plan?role=${role}`;
+  // The target section's structure (headings and round count), to compare role families side by side.
+  const planStructure = () => page.evaluate(() => {
+    const run = document.querySelector(".pl-run");
+    return {
+      headings: [...(run?.querySelectorAll("h2, h3") ?? [])].map((el) => el.tagName),
+      rounds: run?.querySelectorAll(".pl-rounds > li").length ?? 0,
+      labels: [...(run?.querySelectorAll(".pl-rounds > li > a") ?? [])].map((el) => el.textContent.trim()),
+    };
+  });
+  let engineeringPlan = null;
 
   /** Shared checks for every Loop 2 screen. */
   async function screen(label, { primaries = 1 } = {}) {
@@ -66,7 +77,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await details.waitFor();
     await page.waitForFunction(() => document.querySelector("details.ob-target")?.open === true);
     await page.getByLabel("Company").fill("Amazon");
-    assert.equal(await page.getByLabel("This is a Software Development Engineer (SDE) role").isChecked(), true);
+    assert.equal(await page.getByRole("radio", { name: "Software development (SDE)" }).isChecked(), true, "the role title hints at the family");
     const notSure = page.getByRole("radio", { name: "Not sure yet" }).first();
     assert.equal(await notSure.isChecked(), true, "level defaults to Not sure yet");
     await notSure.focus();
@@ -80,7 +91,8 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await heading(/preparation plan is ready/, 1).waitFor();
     const state = await getState();
     assert.deepEqual(state.targets.creates, [{
-      role_profile_id: TARGET_IDS.newRole, company: "Amazon", level: "sde_ii", geography: "in", geography_label: "India",
+      role_profile_id: TARGET_IDS.newRole, company: "Amazon", role_family: "software_development_engineering",
+      level: "sde_ii", geography: "in", geography_label: "India",
     }]);
     assert.equal(state.targets.analyze.length, 1);
   });
@@ -121,6 +133,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     assert.equal(await page.locator(".pl-conflict").count(), 0, "synthetic conflict ids do not resolve to company copy");
     assert.equal(await page.getByText(/Amazon|India/).count(), 0, "fictional researched fixture does not impersonate a real scope");
     await screen("plan-researched", { primaries: 1 });
+    engineeringPlan = await planStructure();
   });
 
   // T4 Loading stays inside the section; the plan below is already there.
@@ -379,5 +392,134 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     assert.equal(await page.locator(".pl-run").count(), 0, "no company target is shown");
     assert.equal(await page.getByText(/Amazon|India/).count(), 0, "no unsupported company or geography claim");
     await screen("general-plan-without-target", { primaries: 1 });
+  });
+
+  // ------------------------------------------------------------------ Loop 3 journey B: business roles
+
+  // T17 Same plan section, different intelligence: business-roles rounds, conditional stage, no engineering words.
+  await step("t17-business-roles-plan", async () => {
+    await reset();
+    await scenario({ slice: "business_roles", blueprint: "not_researched", targets: "available", pack: "full" });
+    await page.goto(planUrl(IDS.role));
+    await heading("Your interview target", 2).waitFor();
+    await page.getByText("QA Consulting Co (synthetic) · QA Fictional Country · Consultant").waitFor();
+    await page.getByText("From published guidance for where you're applying.").waitFor();
+    const business = await planStructure();
+    assert.ok(engineeringPlan, "the engineering structure was captured in T3b");
+    assert.deepEqual(business.headings, engineeringPlan.headings, "same product structure for both role families");
+    assert.equal(business.rounds, engineeringPlan.rounds);
+    assert.deepEqual(business.labels, ["Business problem conversation", "Requirements and stakeholder situations", "Examples from your own work"]);
+    assert.notDeepEqual(business.labels, engineeringPlan.labels, "the content is not just a renamed engineering plan");
+    await page.locator("#round-requirements_and_stakeholders").getByText(/only some processes include this part/).waitFor();
+    assert.equal(await page.getByText(/Coding conversation|System design|whiteboard|run your code/).count(), 0, "no engineering round leaks in");
+    assert.equal(await page.getByText(/Amazon|Deloitte|India/).count(), 0, "a fictional company never borrows a real scope");
+    await page.getByRole("link", { name: /Practise the business problem conversation/ }).waitFor();
+    await screen("business-roles-plan", { primaries: 1 });
+  });
+
+  // T18 Round pages are the same page for a different format; another family's round does not exist here.
+  await step("t18-business-roles-round-detail", async () => {
+    await page.goto(`${baseUrl}/plan/rounds/business_problem_solving?role=${IDS.role}`);
+    await heading("Business problem conversation", 1).waitFor();
+    await page.waitForFunction(() => document.activeElement?.tagName === "H1");
+    await heading("What Mirror can and can't do here", 2).waitFor();
+    await page.getByText(/doesn't give you a spreadsheet or charts/).waitFor();
+    await page.getByText("Published guidance is linked to this practice round, but Mirror has no reviewed summary to show here. Mirror's practice questions are original.").waitFor();
+    const priorities = page.locator("[aria-labelledby='round-priorities'] li");
+    assert.ok((await priorities.count()) >= 1 && (await priorities.count()) <= 3);
+    await priorities.filter({ hasText: /Breaking a problem into clear parts|Working with numbers and data|Weighing business choices/ }).first().waitFor();
+    for (const prompt of QA_BUSINESS_CASE_PROMPTS) {
+      assert.equal(await page.getByText(prompt.text, { exact: true }).count(), 0, "question wording stays hidden on the round page");
+    }
+    await screen("business-roles-round-detail", { primaries: 1 });
+
+    await page.goto(`${baseUrl}/plan/rounds/requirements_and_stakeholders?role=${IDS.role}`);
+    await heading("Requirements and stakeholder situations", 1).waitFor();
+    await page.getByText(/only some processes include this part/).first().waitFor();
+    await page.locator("[aria-labelledby='round-priorities'] li").filter({ hasText: "only some processes include" }).first().waitFor();
+    await screen("business-roles-conditional-round", { primaries: 1 });
+
+    await page.goto(`${baseUrl}/plan/rounds/coding_reasoning?role=${IDS.role}`);
+    await heading("We couldn't find that round.", 1).waitFor();
+  });
+
+  // T19 Practice start, the interview and the review run through the existing pipeline for a case-style round.
+  await step("t19-business-roles-practice-to-review", async () => {
+    const before = await getState();
+    const answersBefore = before.answers.length;
+    const genericStartsBefore = before.createBodies.length;
+    await page.goto(`${baseUrl}/plan/rounds/business_problem_solving?role=${IDS.role}`);
+    await page.getByRole("link", { name: "Practise this round" }).click();
+    await page.waitForURL((url) => url.pathname === "/practice/start" && url.searchParams.get("round") === "business_problem_solving");
+    await page.locator(".pr-check").getByText("Mirror practice round: Business problem conversation — for QA Consulting Co (synthetic) · QA Fictional Country · Consultant").waitFor();
+    for (const prompt of QA_BUSINESS_CASE_PROMPTS) {
+      assert.equal(await page.getByText(prompt.text, { exact: true }).count(), 0, "question wording stays hidden before the session begins");
+    }
+    await screen("business-roles-practice-check", { primaries: 1 });
+    await page.getByRole("button", { name: "Start practice" }).click();
+    await page.waitForURL(/\/sessions\/[^/]+\/brief$/);
+    const started = await getState();
+    assert.equal(started.createBodies.length, genericStartsBefore, "round practice uses the target-linked session path");
+    const practice = started.targets.roundPractice.at(-1);
+    assert.equal(practice.round_key, "business_problem_solving");
+    const refs = started.targets.roundPracticeResponses.at(-1).prompts;
+    assert.ok(refs.every((prompt) => !("text" in prompt)), "the start response exposes metadata, not wording");
+    assert.ok(refs.some((prompt) => prompt.rationale_code === "PUBLISHED_GUIDANCE_AREA"));
+
+    await page.getByRole("link", { name: /Begin the conversation/ }).click();
+    await page.waitForURL(/\/app\/interview\/[^/]+$/);
+    await heading("Ready when you are.", 1).waitFor();
+    await joinWithTyping();
+    await heading(QA_BUSINESS_CASE_PROMPTS[0].text, 1).waitFor();
+    await overflow("business-roles-first-question");
+    for (let index = 0; index < QA_BUSINESS_CASE_PROMPTS.length; index += 1) {
+      await page.locator("#typed-answer").fill(QA_BUSINESS_CASE_PROMPTS[index].answer);
+      await page.getByRole("button", { name: "Send answer" }).click();
+      if (index < QA_BUSINESS_CASE_PROMPTS.length - 1) {
+        const next = QA_BUSINESS_CASE_PROMPTS[index + 1];
+        await heading(next.text, 1).waitFor();
+        const composerBack = await page.locator("#typed-answer").waitFor({ timeout: 2_500 }).then(() => true, () => false);
+        if (!composerBack) {
+          // KI-020 typing-only-room recovery (known issue, reported by the main critical path too).
+          await page.reload();
+          await heading("Ready when you are.", 1).waitFor();
+          await joinWithTyping();
+          await heading(next.text, 1).waitFor();
+        }
+      }
+    }
+    await heading("Interview complete", 1).waitFor();
+    await poll(async () => (await getState()).ended, { message: "the business-roles practice to end" });
+    const completed = await getState();
+    assert.deepEqual(completed.answers.slice(answersBefore), QA_BUSINESS_CASE_PROMPTS.map((prompt) => prompt.answer));
+    await page.getByRole("button", { name: "View review" }).click();
+    await page.waitForURL(/\/app\/report\/[^/]+$/);
+    await heading("What landed well").waitFor();
+    for (const prompt of QA_BUSINESS_CASE_PROMPTS) await page.getByText(prompt.answer, { exact: true }).waitFor();
+    await overflow("business-roles-review");
+  });
+
+  // T20 Onboarding offers the family the role title hints at, with that family's own levels.
+  await step("t20-business-roles-onboarding", async () => {
+    await reset();
+    await scenario({ slice: "business_roles" });
+    await page.goto(`${baseUrl}/roles/new`);
+    await heading("What role are you preparing for?", 1).waitFor();
+    await page.getByLabel("Role", { exact: true }).fill("Business Analyst (test role)");
+    await page.waitForFunction(() => document.querySelector("details.ob-target")?.open === true);
+    await page.getByLabel("Company").fill("QA Consulting Co (synthetic)");
+    assert.equal(await page.getByRole("radio", { name: "Business roles (BA)" }).isChecked(), true);
+    assert.equal(await page.getByRole("radio", { name: "SDE II", exact: true }).count(), 0, "no engineering levels for this family");
+    await page.getByRole("radio", { name: "Consultant", exact: true }).check();
+    await page.getByRole("button", { name: "Skip for now" }).click();
+    await screen("business-roles-role-step", { primaries: 1 });
+    await page.getByRole("button", { name: /Continue/ }).click();
+    await heading(/preparation plan is ready/, 1).waitFor();
+    const state = await getState();
+    assert.deepEqual(state.targets.creates, [{
+      role_profile_id: TARGET_IDS.newRole, company: "QA Consulting Co (synthetic)", role_family: "business_analysis", level: "consultant",
+    }]);
+    await scenario({ slice: "engineering" });
+    await reset();
   });
 }

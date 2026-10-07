@@ -46,7 +46,9 @@
         "algorithmic_problem_solving",
         "coding_quality",
         "technical_communication"
-      ]
+      ],
+      "question_family": "coding_walkthrough",
+      "presence": null
     },
     {
       "key": "system_design",
@@ -56,7 +58,9 @@
       "competency_keys": [
         "system_design",
         "technical_communication"
-      ]
+      ],
+      "question_family": "design_discussion",
+      "presence": null
     },
     {
       "key": "behavioural",
@@ -65,7 +69,9 @@
       "basis": "MIRROR_SUGGESTED",
       "competency_keys": [
         "behavioural_examples"
-      ]
+      ],
+      "question_family": "past_example",
+      "presence": null
     }
   ]
 }

@@ -15,7 +15,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createTargetsMock, QA_RESEARCHED_CODING_PROMPTS } from "./targets.mjs";
+import { createTargetsMock, QA_BUSINESS_CASE_PROMPTS, QA_RESEARCHED_CODING_PROMPTS } from "./targets.mjs";
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
@@ -368,8 +368,9 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   // One place that creates the (single) mock session, for POST /api/sessions and round practice.
   function createSession(body) {
     const created = clock();
-    activeQuestions = body.qa_prompt_set === "qa_researched_coding"
-      ? QA_RESEARCHED_CODING_PROMPTS.map(({ text, type }) => ({ text, type }))
+    const qaSets = { qa_researched_coding: QA_RESEARCHED_CODING_PROMPTS, qa_business_case: QA_BUSINESS_CASE_PROMPTS };
+    activeQuestions = qaSets[body.qa_prompt_set]
+      ? qaSets[body.qa_prompt_set].map(({ text, type }) => ({ text, type }))
       : QUESTIONS;
     state.session = {
       ...fixture("session.json"),

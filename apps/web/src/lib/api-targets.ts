@@ -8,7 +8,8 @@ import { ApiError, request } from "@/lib/api";
 import { failureKind } from "@/lib/copy-targets";
 
 export type TargetAvailability = "AVAILABLE" | "UNAVAILABLE" | "DISABLED";
-export type LevelKey = "sde_i" | "sde_ii" | "sde_iii" | "university" | "not_sure";
+/** Level keys are role-family data (backend taxonomy); the web only offers the reviewed options in copy. */
+export type LevelKey = string;
 
 export type TargetView = {
   id: string;
@@ -42,6 +43,7 @@ export type ClaimView = {
   limits: string[];
   sources: SourceRef[];
   conflict_set: string | null;
+  copy_key?: string | null;
 };
 
 export type ConflictView = { key: string; note: string; claims: ClaimView[] };
@@ -52,6 +54,8 @@ export type RoundSummary = {
   label_key: string;
   basis: "PUBLISHED_GUIDANCE" | "MIRROR_SUGGESTED";
   competency_keys: string[];
+  question_family: string;
+  presence?: "CORE" | "CONDITIONAL" | null;
 };
 
 export type BlueprintView = {
@@ -67,7 +71,8 @@ export type BlueprintView = {
   rounds: RoundSummary[];
 };
 
-export type PromptView = { position: number; text: string; competency_key: string; rationale_code: string; provenance_class: string };
+/** Prompt wording is never sent before practice starts; only its metadata is. */
+export type PromptView = { position: number; competency_key: string; question_family: string; rationale_code: string; provenance_class: string };
 
 export type RoundDetail = {
   availability: TargetAvailability;
@@ -93,6 +98,7 @@ export type PracticeStarted = {
 export type TargetCreate = {
   role_profile_id: string;
   company: string;
+  role_family: string;
   level: LevelKey;
   geography?: string | null;
   geography_label?: string | null;

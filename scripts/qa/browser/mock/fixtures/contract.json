@@ -30,5 +30,11 @@
   "round_coding_reasoning_researched.json": "app.target_service:RoundDetail",
   "round_system_design.json": "app.target_service:RoundDetail",
   "round_behavioural.json": "app.target_service:RoundDetail",
-  "round_practice_link.json": "app.target_service:LinkView"
+  "round_practice_link.json": "app.target_service:LinkView",
+  "ba_target.json": "app.target_service:TargetView",
+  "ba_blueprint_researched.json": "app.target_service:BlueprintView",
+  "ba_round_business_problem_solving.json": "app.target_service:RoundDetail",
+  "ba_round_requirements_and_stakeholders.json": "app.target_service:RoundDetail",
+  "ba_round_behavioural.json": "app.target_service:RoundDetail",
+  "ba_round_practice_link.json": "app.target_service:LinkView"
 }
