@@ -25,6 +25,7 @@ from app.research_catalog import CatalogDocument, RepoResearchCatalog, content_s
 from app.target_priority import CompetencyInProcess, PracticeFact, prioritise
 from app.target_repository import MemoryTargetRepository, TargetSessionLink
 from app.target_service import (
+    CatalogUnavailable,
     PracticeStart,
     RoundNotFound,
     StaticCatalogProvider,
@@ -547,6 +548,12 @@ def test_taxonomy_is_locked_and_validated():
     raw["role_families"][BA]["levels"].remove("not_sure")
     with pytest.raises(TaxonomyError):
         taxonomy_from_dict(raw)
+
+
+def test_injected_taxonomy_cannot_satisfy_a_different_blueprint_pin():
+    service = world().service  # injected synthetic taxonomy is version 1
+    with pytest.raises(CatalogUnavailable):
+        service._taxonomy_for_rules("blueprint-2-taxonomy-2")
 
 
 def test_every_template_is_original_and_uses_mirror_words():

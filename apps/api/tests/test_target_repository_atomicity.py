@@ -117,11 +117,146 @@ def test_racing_link_inserts_keep_one_link_and_the_loser_sees_it():
     assert datetime.now(UTC) >= next(iter(repo.links.values())).created_at
 
 
+def _pause_after_owned_target(repo):
+    checked = threading.Event()
+    resume = threading.Event()
+    original = repo._owned_target
+
+    async def owned_then_pause(*args, **kwargs):
+        row = await original(*args, **kwargs)
+        checked.set()
+        if not resume.wait(timeout=10):
+            raise TimeoutError("test did not release the ownership barrier")
+        return row
+
+    repo._owned_target = owned_then_pause
+    return checked, resume, original
+
+
+def test_archive_winning_after_link_precheck_prevents_linking_archived_target():
+    repo, user, link, _rows = _world()
+    checked, resume, original = _pause_after_owned_target(repo)
+    outcome: list[object] = [None]
+
+    def create_link():
+        try:
+            outcome[0] = asyncio.run(repo.create_link(user, link))
+        except Exception as exc:  # noqa: BLE001 - inspect the repository contract
+            outcome[0] = exc
+
+    thread = threading.Thread(target=create_link, name="link-writer")
+    thread.start()
+    assert checked.wait(timeout=10)
+    archived = asyncio.run(repo.archive_target(link.candidate_target_id, user))
+    assert archived is not None and archived.status == "ARCHIVED"
+    resume.set()
+    thread.join(timeout=20)
+    repo._owned_target = original
+    assert isinstance(outcome[0], TargetConflict)
+    assert repo.links == {}
+
+
+class _ReadBlockingValuesDict(dict):
+    def __init__(self, values, reader_name):
+        super().__init__(values)
+        self.reader_name = reader_name
+        self.reader_entered = threading.Event()
+        self.release_reader = threading.Event()
+
+    def values(self):
+        if threading.current_thread().name == self.reader_name:
+            self.reader_entered.set()
+            if not self.release_reader.wait(timeout=10):
+                raise TimeoutError("test did not release the blocked reader")
+        return super().values()
+
+
+class _ObservedLock:
+    def __init__(self, lock, writer_name):
+        self.lock = lock
+        self.writer_name = writer_name
+        self.writer_attempted = threading.Event()
+
+    def __enter__(self):
+        if threading.current_thread().name == self.writer_name:
+            self.writer_attempted.set()
+        self.lock.acquire()
+        return self
+
+    def __exit__(self, _exc_type, _exc, _tb):
+        self.lock.release()
+
+
+def test_list_targets_read_snapshot_serializes_against_target_writes():
+    repo, user, _link, _rows = _world()
+    targets = _ReadBlockingValuesDict(repo.targets, "target-reader")
+    repo.targets = targets
+    observed_lock = _ObservedLock(repo._write_lock, "target-writer")
+    setattr(repo, "_write_lock", observed_lock)
+    new_values = TargetValues(
+        role_profile_id=uuid4(), company_label="QA Consulting Co (synthetic)", company_key="qa_consulting",
+        role_family_key="business_analysis", level_key="analyst", level_label=None,
+        geography_key="qa_land", geography_label="QA Fictional Country", interview_date=None,
+    )
+    reader_result: list[object] = [None]
+    writer_result: list[object] = [None]
+    writer_done = threading.Event()
+
+    def reader():
+        reader_result[0] = asyncio.run(repo.list_targets(user))
+
+    def writer():
+        try:
+            writer_result[0] = asyncio.run(repo.create_target(user, new_values))
+        except Exception as exc:  # noqa: BLE001 - inspect serialization outcome
+            writer_result[0] = exc
+        finally:
+            writer_done.set()
+
+    reader_thread = threading.Thread(target=reader, name="target-reader")
+    reader_thread.start()
+    assert targets.reader_entered.wait(timeout=10)
+    writer_thread = threading.Thread(target=writer, name="target-writer")
+    writer_thread.start()
+    assert observed_lock.writer_attempted.wait(timeout=10)
+    writer_was_blocked = not writer_done.wait(timeout=0.2)
+    targets.release_reader.set()
+    reader_thread.join(timeout=20)
+    writer_thread.join(timeout=20)
+    assert writer_was_blocked
+    assert isinstance(reader_result[0], list)
+    assert not isinstance(writer_result[0], Exception)
+
+
+def test_archive_winning_after_blueprint_precheck_prevents_blueprint_write():
+    repo, user, link, _rows = _world()
+    checked, resume, original = _pause_after_owned_target(repo)
+    pin = BlueprintPin(catalog_version=2, catalog_sha256="1" * 64, match_state="NOT_RESEARCHED", rules_version="blueprint-1")
+    outcome: list[object] = [None]
+
+    def create_blueprint():
+        try:
+            outcome[0] = asyncio.run(repo.create_blueprint(user, link.candidate_target_id, pin))
+        except Exception as exc:  # noqa: BLE001 - inspect the repository contract
+            outcome[0] = exc
+
+    thread = threading.Thread(target=create_blueprint, name="blueprint-writer")
+    thread.start()
+    assert checked.wait(timeout=10)
+    archived = asyncio.run(repo.archive_target(link.candidate_target_id, user))
+    assert archived is not None and archived.status == "ARCHIVED"
+    resume.set()
+    thread.join(timeout=20)
+    repo._owned_target = original
+    assert isinstance(outcome[0], TargetConflict)
+    assert len(repo.blueprint_rows) == 1
+
+
 class _BarrierAppend(list):
     """Force both writers to reach the append boundary after their read/check phase."""
 
-    def __init__(self, rows):
-        super().__init__(rows)
+    def __init__(self, items):
+        super().__init__(items)
         self.meet = threading.Barrier(2)
 
     def append(self, row):

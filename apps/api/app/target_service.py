@@ -647,6 +647,8 @@ class TargetService:
 
     def _taxonomy_for_version(self, version: int) -> Taxonomy:
         if self._taxonomy_override is not None:
+            if self._taxonomy_override.version != version:
+                raise CatalogUnavailable
             return self._taxonomy_override
         try:
             return load_taxonomy(version=version)

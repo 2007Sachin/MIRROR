@@ -181,8 +181,8 @@ class MemoryTargetRepository:
         self.blueprint_rows: list[InterviewBlueprint] = []
         self.questions: list[GeneratedQuestion] = []
         self.links: dict[UUID, TargetSessionLink] = {}
-        # Check-and-write is one step, as in a database transaction with unique constraints:
-        # a racing writer validates only after the winner's rows exist.
+        # All snapshots and check-and-write transitions use one lock, like a DB transaction with
+        # unique constraints. Critical sections are synchronous; never await while holding it.
         self._write_lock = threading.Lock()
 
     async def probe(self) -> bool:
@@ -203,12 +203,14 @@ class MemoryTargetRepository:
         return target
 
     async def list_targets(self, user_id: UUID) -> list[CandidateTarget]:
-        rows = [row for row in self.targets.values() if row.user_id == user_id]
-        return sorted(rows, key=lambda row: row.created_at, reverse=True)
+        with self._write_lock:
+            rows = [row for row in self.targets.values() if row.user_id == user_id]
+            return sorted(rows, key=lambda row: row.created_at, reverse=True)
 
     async def get_target(self, target_id: UUID, user_id: UUID) -> CandidateTarget | None:
-        row = self.targets.get(target_id)
-        return row if row is not None and row.user_id == user_id else None
+        with self._write_lock:
+            row = self.targets.get(target_id)
+            return row if row is not None and row.user_id == user_id else None
 
     async def archive_target(self, target_id: UUID, user_id: UUID) -> CandidateTarget | None:
         with self._write_lock:
@@ -234,6 +236,8 @@ class MemoryTargetRepository:
             target = self.targets.get(target_id)
             if target is None or target.user_id != user_id:
                 raise LookupError("target does not belong to this owner")
+            if target.status != "ACTIVE":
+                raise TargetConflict()
             version = 1 + max((b.version for b in self.blueprint_rows if b.candidate_target_id == target_id), default=0)
             row = InterviewBlueprint(
                 **pin.model_dump(), id=uuid4(), user_id=user_id, candidate_target_id=target_id,
@@ -243,13 +247,18 @@ class MemoryTargetRepository:
             return row
 
     async def blueprints(self, target_id: UUID, user_id: UUID) -> list[InterviewBlueprint]:
-        rows = [b for b in self.blueprint_rows if b.candidate_target_id == target_id and b.user_id == user_id]
-        return sorted(rows, key=lambda row: row.version)
+        with self._write_lock:
+            rows = [b for b in self.blueprint_rows if b.candidate_target_id == target_id and b.user_id == user_id]
+            return sorted(rows, key=lambda row: row.version)
 
     async def record_questions(self, user_id: UUID, rows: Sequence[QuestionCreate]) -> list[GeneratedQuestion]:
         for row in rows:
             await self._owned_target(row.candidate_target_id, user_id)
         with self._write_lock:  # no await inside: one atomic batch, like one INSERT statement
+            for row in rows:
+                target = self.targets.get(row.candidate_target_id)
+                if target is None or target.user_id != user_id:
+                    raise LookupError("target does not belong to the question owner")
             return self._record_questions_locked(user_id, rows)
 
     def _record_questions_locked(self, user_id: UUID, rows: Sequence[QuestionCreate]) -> list[GeneratedQuestion]:
@@ -282,31 +291,41 @@ class MemoryTargetRepository:
         return stored
 
     async def questions_for_set(self, prompt_set_id: UUID, user_id: UUID) -> list[GeneratedQuestion]:
-        rows = [q for q in self.questions if q.prompt_set_id == prompt_set_id and q.user_id == user_id]
-        return sorted(rows, key=lambda row: row.position)
+        with self._write_lock:
+            rows = [q for q in self.questions if q.prompt_set_id == prompt_set_id and q.user_id == user_id]
+            return sorted(rows, key=lambda row: row.position)
 
     async def questions_for_target(self, target_id: UUID, user_id: UUID, since: datetime | None = None) -> list[GeneratedQuestion]:
+        # One synchronized snapshot; never await another repository method while holding the thread lock.
+        with self._write_lock:
+            links = tuple(self.links.values())
+            questions = tuple(self.questions)
         linked_sets = set()
-        for link in self.links.values():
+        for link in links:
             if link.candidate_target_id != target_id or link.user_id != user_id or link.prompt_set_id is None:
                 continue
-            rows = await self.questions_for_set(link.prompt_set_id, user_id)
+            rows = sorted((q for q in questions if q.prompt_set_id == link.prompt_set_id and q.user_id == user_id),
+                          key=lambda row: row.position)
             if (link.prompt_set_state == "COMPLETE" and link.expected_prompt_count is not None
                 and all(q.candidate_target_id == link.candidate_target_id for q in rows)
                 and [q.position for q in rows] == list(range(1, link.expected_prompt_count + 1))):
                 linked_sets.add(link.prompt_set_id)
         return [
-            q for q in self.questions
+            q for q in questions
             if q.candidate_target_id == target_id and q.user_id == user_id
             and q.prompt_set_id in linked_sets
             and (since is None or q.created_at >= since)
         ]
 
     async def create_link(self, user_id: UUID, link: TargetSessionLinkCreate) -> TargetSessionLink:
-        self._raise_if_session_linked(link.session_id, user_id)
         await self._owned_target(link.candidate_target_id, user_id)
         _validate_link_prompt_state(link)
-        with self._write_lock:  # re-check after the await, then write, as one step
+        with self._write_lock:  # re-check owner + active state after awaits, then write atomically
+            target = self.targets.get(link.candidate_target_id)
+            if target is None or target.user_id != user_id:
+                raise LookupError("target does not belong to this owner")
+            if target.status != "ACTIVE":
+                raise TargetConflict()
             self._raise_if_session_linked(link.session_id, user_id)
             if link.prompt_set_id is not None and any(existing.prompt_set_id == link.prompt_set_id for existing in self.links.values()):
                 raise TargetConflict()
@@ -342,12 +361,14 @@ class MemoryTargetRepository:
             return completed
 
     async def link_for_session(self, session_id: UUID, user_id: UUID) -> TargetSessionLink | None:
-        row = self.links.get(session_id)
-        return row if row is not None and row.user_id == user_id else None
+        with self._write_lock:
+            row = self.links.get(session_id)
+            return row if row is not None and row.user_id == user_id else None
 
     async def links_for_target(self, target_id: UUID, user_id: UUID) -> list[TargetSessionLink]:
-        rows = [row for row in self.links.values() if row.candidate_target_id == target_id and row.user_id == user_id]
-        return sorted(rows, key=lambda row: row.created_at)
+        with self._write_lock:
+            rows = [row for row in self.links.values() if row.candidate_target_id == target_id and row.user_id == user_id]
+            return sorted(rows, key=lambda row: row.created_at)
 
 
 # ------------------------------------------------------------------ Supabase (PostgREST, service role)
