@@ -450,6 +450,8 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     // step-end screenshot documents the working path rather than only its negative control.
     await page.goto(`${baseUrl}/plan/rounds/business_problem_solving?role=${IDS.role}`);
     await heading("Business problem conversation", 1).waitFor();
+    // The heading is rendered before the asynchronous round detail; wait for the practice CTA too.
+    await page.getByRole("link", { name: "Practise this round" }).waitFor();
     await screen("business-roles-round-detail-after-negative-control", { primaries: 1 });
   });
 
