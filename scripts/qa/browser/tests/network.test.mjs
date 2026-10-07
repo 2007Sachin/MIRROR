@@ -58,3 +58,25 @@ test('only the optional target-create 503 in T16 is an expected browser error', 
   assert.equal(wrongStatus.badResponses.length, 1);
   assert.equal(wrongStatus.consoleErrors.length, 1);
 });
+
+test('only the other-family round 404 in T18 is expected; any other round or step still fails', () => {
+  const observe = (step, requestUrl, status, consoleText) => {
+    const listeners = {};
+    const page = { on: (event, handler) => { listeners[event] = handler; }, url: () => 'http://127.0.0.1:3099/plan/rounds/coding_reasoning' };
+    const collector = createCollector();
+    collector.setStep(step);
+    collector.attach(page);
+    listeners.response({ status: () => status, url: () => requestUrl });
+    listeners.console({ type: () => 'error', text: () => consoleText });
+    return collector.findings();
+  };
+  const step = 't18-business-roles-round-detail';
+  const url = 'http://127.0.0.1:8099/api/v1/targets/00000000-0000-4000-8000-000000000301/rounds/coding_reasoning';
+  const message = 'Failed to load resource: the server responded with a status of 404 (Not Found)';
+  const expected = observe(step, url, 404, message);
+  assert.deepEqual(expected.badResponses, []);
+  assert.deepEqual(expected.consoleErrors, []);
+  assert.equal(observe('t19-business-roles-practice-to-review', url, 404, message).badResponses.length, 1);
+  assert.equal(observe(step, url.replace('coding_reasoning', 'business_problem_solving'), 404, message).badResponses.length, 1);
+  assert.equal(observe(step, url, 500, 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)').consoleErrors.length, 1);
+});

@@ -11,6 +11,7 @@ rules in-process for tests and for running without Supabase.
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime
 from typing import Any, Literal, Protocol
@@ -180,6 +181,9 @@ class MemoryTargetRepository:
         self.blueprint_rows: list[InterviewBlueprint] = []
         self.questions: list[GeneratedQuestion] = []
         self.links: dict[UUID, TargetSessionLink] = {}
+        # Check-and-write is one step, as in a database transaction with unique constraints:
+        # a racing writer validates only after the winner's rows exist.
+        self._write_lock = threading.Lock()
 
     async def probe(self) -> bool:
         return True
@@ -238,6 +242,11 @@ class MemoryTargetRepository:
     async def record_questions(self, user_id: UUID, rows: Sequence[QuestionCreate]) -> list[GeneratedQuestion]:
         for row in rows:
             await self._owned_target(row.candidate_target_id, user_id)
+        with self._write_lock:  # no await inside: one atomic batch, like one INSERT statement
+            return self._record_questions_locked(user_id, rows)
+
+    def _record_questions_locked(self, user_id: UUID, rows: Sequence[QuestionCreate]) -> list[GeneratedQuestion]:
+        for row in rows:
             link = next((item for item in self.links.values() if item.prompt_set_id == row.prompt_set_id), None)
             if link is None or link.user_id != user_id or link.candidate_target_id != row.candidate_target_id:
                 raise LookupError("prompt set does not have a matching target-session link")
@@ -287,16 +296,21 @@ class MemoryTargetRepository:
         ]
 
     async def create_link(self, user_id: UUID, link: TargetSessionLinkCreate) -> TargetSessionLink:
-        if link.session_id in self.links:
-            existing = self.links[link.session_id]
-            raise LinkAlreadyExists(existing if existing.user_id == user_id else None)
+        self._raise_if_session_linked(link.session_id, user_id)
         await self._owned_target(link.candidate_target_id, user_id)
         _validate_link_prompt_state(link)
-        if link.prompt_set_id is not None and any(existing.prompt_set_id == link.prompt_set_id for existing in self.links.values()):
-            raise TargetConflict()
-        link = TargetSessionLink(**link.model_dump(), user_id=user_id, created_at=datetime.now(UTC))
-        self.links[link.session_id] = link
-        return link
+        with self._write_lock:  # re-check after the await, then write, as one step
+            self._raise_if_session_linked(link.session_id, user_id)
+            if link.prompt_set_id is not None and any(existing.prompt_set_id == link.prompt_set_id for existing in self.links.values()):
+                raise TargetConflict()
+            stored = TargetSessionLink(**link.model_dump(), user_id=user_id, created_at=datetime.now(UTC))
+            self.links[stored.session_id] = stored
+            return stored
+
+    def _raise_if_session_linked(self, session_id: UUID, user_id: UUID) -> None:
+        if session_id in self.links:
+            existing = self.links[session_id]
+            raise LinkAlreadyExists(existing if existing.user_id == user_id else None)
 
     async def complete_prompt_link(self, session_id: UUID, user_id: UUID) -> TargetSessionLink:
         link = self.links.get(session_id)
