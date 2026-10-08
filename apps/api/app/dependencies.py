@@ -117,7 +117,7 @@ from .specialist_assessment_repository import (
     SpecialistAssessmentUnavailable,
     SupabaseSpecialistAssessmentRepository,
 )
-from .specialist_assessor_models import AssessorType
+from .specialist_assessor_models import AssessorType, TargetAssessmentScopeReader
 from .evidence_service import EvidenceQuoteValidator
 from .report_service import ReportService, SupabaseReportRepository
 from .assessment_pipeline_repository import AssessmentPipelineRepository, AssessmentPipelineUnavailable, MemoryAssessmentPipelineRepository, SupabaseAssessmentPipelineRepository
@@ -650,9 +650,17 @@ def get_claims_audit_service() -> ClaimsAuditService:
 
 
 @lru_cache
+def _target_assessment_scope_reader() -> TargetAssessmentScopeReader:
+    """Create the one injected bridge from the assessment pipeline to target contracts."""
+    from .target_assessment_contract import TargetAssessmentScopeResolver
+
+    return TargetAssessmentScopeResolver()
+
+
+@lru_cache
 def get_specialist_assessment_repository() -> SpecialistAssessmentRepository:
     try:
-        return SupabaseSpecialistAssessmentRepository(get_settings())
+        return SupabaseSpecialistAssessmentRepository(get_settings(), _target_assessment_scope_reader())
     except SpecialistAssessmentUnavailable as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -670,15 +678,28 @@ def get_specialist_assessment_orchestrator() -> AssessmentOrchestrator:
         runners[assessor_type] = AgentRunner(
             registry, _agent_provider(settings), PromptLoader()
         )
+    scoped_runners: dict[AssessorType, AgentRunner] = {}
+    scoped_registry = AgentRegistry()
+    scoped_registry.register(
+        create_specialist_assessor(
+            AssessorType.TECHNICAL,
+            settings.assessor_model,
+            prompt_version="v2",
+        )
+    )
+    scoped_runners[AssessorType.TECHNICAL] = AgentRunner(
+        scoped_registry, _agent_provider(settings), PromptLoader()
+    )
     return AssessmentOrchestrator(
         get_specialist_assessment_repository(), runners,
         EvidenceQuoteValidator(get_evidence_repository()),
+        scoped_runners=scoped_runners,
     )
 
 
 @lru_cache
 def get_report_service() -> ReportService:
-    return ReportService(SupabaseReportRepository(get_settings()))
+    return ReportService(SupabaseReportRepository(get_settings(), _target_assessment_scope_reader()))
 
 
 def get_dashboard_summary_service() -> "DashboardSummaryService":

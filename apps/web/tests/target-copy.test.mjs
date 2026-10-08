@@ -129,10 +129,13 @@ test("claim copy binds both identifier and version", () => {
 
 test("C2 sequence has distinct overview and system-design copy contexts", () => {
   const id = "amazon.sde.sde_ii.process_sequence";
+  // The backend's reviewed round mapping names the narrower copy key for the system design round.
+  const designCopy = "amazon.sde.sde_ii.system_design_expectation";
   assert.match(m.claimCopy(id, 1), /loop of four interviews/);
-  assert.match(m.claimCopy(id, 1, "system_design"), /at least one software systems design question/);
-  assert.doesNotMatch(m.claimCopy(id, 1, "system_design"), /loop of four interviews|outcome/);
-  assert.equal(m.claimCopy(id, 2, "system_design"), null);
+  assert.match(m.claimCopy(id, 1, designCopy), /at least one software systems design question/);
+  assert.doesNotMatch(m.claimCopy(id, 1, designCopy), /loop of four interviews|outcome/);
+  assert.equal(m.claimCopy(id, 2, designCopy), null);
+  assert.equal(m.claimCopy(id, 1, "not.a.reviewed.copy_key"), null, "an unknown copy key never falls back to other words");
 });
 
 test("a source label is text: who published it, for where, for which level, and how it is dated", () => {

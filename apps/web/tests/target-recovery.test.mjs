@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const { recoverTarget } = await import(new URL("../src/lib/target-recovery.ts", import.meta.url).href);
-const wanted = { role_profile_id: "r1", company: "Amazon", level: "sde_ii", geography: "in", geography_label: "India" };
+const wanted = { role_profile_id: "r1", company: "Amazon", role_family: "software_development_engineering", level: "sde_ii", geography: "in", geography_label: "India" };
 const view = (over = {}) => ({ id: "t1", role_profile_id: "r1", company_label: "Amazon", company_key: "amazon", role_family_key: "software_development_engineering", level_key: "sde_ii", geography_key: "in", geography_label: "India", status: "ACTIVE", ...over });
 
 function api({ createError, listed = [], blueprintError, onCreate } = {}) {
@@ -23,6 +23,13 @@ test("does not recover an active target whose exact creation scope differs", asy
   const a = api({ createError: Error("offline"), listed: [view({ geography_key: "other" })] });
   assert.equal((await recoverTarget(wanted, a)).kind, "FAILED");
   assert.deepEqual(a.calls.map((x) => x[0]), ["create", "list"]);
+});
+
+test("does not recover a target of another role family for the same company and role", async () => {
+  const a = api({ createError: Error("offline"), listed: [view({ role_family_key: "business_analysis" })] });
+  assert.equal((await recoverTarget(wanted, a)).kind, "FAILED");
+  const b = api({ createError: Error("offline"), listed: [view({ role_family_key: "business_analysis", level_key: "consultant" })] });
+  assert.equal((await recoverTarget({ ...wanted, role_family: "business_analysis", level: "consultant" }, b)).kind, "READY");
 });
 
 test("create succeeds but blueprint pin failure is reported as retryable", async () => {

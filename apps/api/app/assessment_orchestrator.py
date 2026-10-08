@@ -10,8 +10,8 @@ from .evidence_service import EvidenceQuoteValidator
 from .evidence_validator import EvidenceValidator, EvidenceValidationError
 from .specialist_assessment_repository import SpecialistAssessmentRepository
 from .specialist_assessor_models import (
-    AssessorType, SpecialistAssessmentBundle, SpecialistAssessmentOutput,
-    SpecialistStatus, StoredSpecialistAssessment,
+    AssessorType, AssessmentScope, SpecialistAssessmentBundle,
+    SpecialistAssessmentContext, SpecialistAssessmentOutput, SpecialistStatus, StoredSpecialistAssessment,
 )
 
 
@@ -30,9 +30,11 @@ class AssessmentOrchestrator:
         runners: dict[AssessorType, AgentRunner],
         quote_validator: EvidenceQuoteValidator,
         evidence_validator: EvidenceValidator | None = None,
+        scoped_runners: dict[AssessorType, AgentRunner] | None = None,
     ) -> None:
         self._repository = repository
         self._runners = runners
+        self._scoped_runners = scoped_runners or {}
         self._quotes = quote_validator
         self._evidence_validator = evidence_validator or EvidenceValidator()
 
@@ -41,9 +43,13 @@ class AssessmentOrchestrator:
             self._run_one(session_id, user_id, kind)
             for kind in AssessorType
         ])
-        by_type = {item.assessor_type: item for item in results if item is not None}
+        by_type = {item.assessor_type: item for item, _ in results if item is not None}
+        scopes = [scope for _, scope in results if scope is not None]
+        if scopes and any(scope != scopes[0] for scope in scopes[1:]):
+            raise SpecialistAssessmentRejected("assessment scope changed while specialists were loading context")
         return SpecialistAssessmentBundle(
             session_id=session_id,
+            assessment_scope=scopes[0] if scopes else None,
             technical=by_type.get(AssessorType.TECHNICAL),
             behaviour=by_type.get(AssessorType.BEHAVIOUR),
             claims=by_type.get(AssessorType.CLAIMS),
@@ -52,7 +58,7 @@ class AssessmentOrchestrator:
 
     async def _run_one(
         self, session_id: UUID, user_id: UUID, assessor_type: AssessorType
-    ) -> StoredSpecialistAssessment | None:
+    ) -> tuple[StoredSpecialistAssessment | None, AssessmentScope | None]:
         # Retried jobs reuse immutable specialist results instead of invoking again.
         get_latest = getattr(self._repository, "get_latest", None)
         if get_latest is not None:
@@ -66,8 +72,11 @@ class AssessmentOrchestrator:
                 try:
                     if context is None:
                         raise SpecialistAssessmentRejected("no context to revalidate cached assessment")
+                    if existing.rubric_version != context.rubric_version:
+                        raise SpecialistAssessmentRejected("cached specialist rubric version mismatch")
+                    self._validate_scope_output(existing.result_json, context)
                     await self._validate_evidence_b5(existing.result_json, context)
-                    return existing
+                    return existing, context.assessment_scope
                 except SpecialistAssessmentRejected:
                     logger.warning(
                         "B5 cached specialist unverifiable; regenerating",
@@ -80,8 +89,16 @@ class AssessmentOrchestrator:
                     )
         context = await self._repository.load_context(session_id, user_id, assessor_type)
         if context is None:
-            return None
-        runner = self._runners[assessor_type]
+            return None, None
+        if context.assessment_scope is not None and assessor_type not in context.assessment_scope.assessor_types:
+            raise SpecialistAssessmentRejected("context selected an assessor outside the round contract")
+        if context.assessment_scope is None:
+            runner = self._runners[assessor_type]
+        else:
+            runner = self._scoped_runners.get(assessor_type)
+            if runner is None:
+                raise SpecialistAssessmentRejected("round-scoped assessor prompt is unavailable")
+
         agent_name = f"assessor_{assessor_type.value.lower()}"
         execution = await runner.run(
             agent_name, context,
@@ -104,14 +121,33 @@ class AssessmentOrchestrator:
         output = SpecialistAssessmentOutput.model_validate(execution.output)
         if output.assessor_type != assessor_type:
             raise SpecialistAssessmentRejected("assessor output type mismatch")
+        self._validate_scope_output(output, context)
         # B5: Validate evidence before storage
         await self._validate_evidence_b5(output, context)
         await self._validate_quotes(output, context, user_id)
-        return await self._repository.store(
+        stored = await self._repository.store(
             session_id, assessor_type, output.status, output,
             execution.model, execution.model, execution.prompt_version,
             context.rubric_version,
         )
+        return stored, context.assessment_scope
+
+    @staticmethod
+    def _validate_scope_output(output: SpecialistAssessmentOutput, context: SpecialistAssessmentContext) -> None:
+        scope = context.assessment_scope
+        if scope is None:
+            return
+        if output.dimensions:
+            raise SpecialistAssessmentRejected("round-scoped output contains unscoped dimensions")
+        actual_keys = tuple(item.domain for item in output.competency_or_domain_assessments)
+        if actual_keys != scope.competency_keys:
+            raise SpecialistAssessmentRejected("round-scoped output competencies do not match the selected rubric")
+        has_complete_dimension = any(
+            item.status == SpecialistStatus.COMPLETE
+            for item in output.competency_or_domain_assessments
+        )
+        if has_complete_dimension != (output.status == SpecialistStatus.COMPLETE):
+            raise SpecialistAssessmentRejected("round-scoped overall status conflicts with dimension signal")
 
     async def _validate_evidence_b5(self, output, context) -> None:
         """B5: Validate that all evidence resolves to actual candidate content."""

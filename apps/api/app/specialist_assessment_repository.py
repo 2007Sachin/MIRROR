@@ -5,8 +5,10 @@ from uuid import UUID
 
 from .specialist_assessor_models import (
     AssessorType, SpecialistAssessmentContext, SpecialistAssessmentOutput,
-    SpecialistStatus, StoredSpecialistAssessment,
+    SpecialistStatus, StoredSpecialistAssessment, TargetAssessmentScopeReader,
 )
+
+
 from .config import Settings
 from .skeptic_repository import SkepticPersistenceUnavailable, SupabaseSkepticRepository
 
@@ -28,24 +30,52 @@ class SpecialistAssessmentUnavailable(Exception):
 
 
 class SupabaseSpecialistAssessmentRepository(SupabaseSkepticRepository):
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, scope_reader: TargetAssessmentScopeReader) -> None:
         try:
             super().__init__(settings)
         except SkepticPersistenceUnavailable as exc:
             raise SpecialistAssessmentUnavailable from exc
+        self._scope_reader = scope_reader
 
     async def load_context(self, session_id: UUID, user_id: UUID, assessor_type: AssessorType) -> SpecialistAssessmentContext | None:
-        sessions = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": "id", "limit": "1"})
+        sessions = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": "id,role_profile_id", "limit": "1"})
         if not sessions:
             return None
+        raw_profile_id = sessions[0].get("role_profile_id")
+        try:
+            role_profile_id = UUID(str(raw_profile_id)) if raw_profile_id else None
+        except (TypeError, ValueError) as exc:
+            raise ValueError("session role attribution is invalid") from exc
+        scope = await self._scope_reader.load_scope(session_id, user_id, role_profile_id)
+        if scope is not None and assessor_type not in scope.assessor_types:
+            return None
         turns = await self._get("turns", {"session_id": f"eq.{session_id}", "select": "id,speaker,text,turn_type,phase", "order": "turn_index.asc", "limit": "100"})
-        claims = await self._get("claims", {"user_id": f"eq.{user_id}", "or": f"(session_id.eq.{session_id},session_id.is.null)", "select": "id,claim_text,status,confidence,verification_priority", "limit": "100"})
-        evidence = await self._get("claim_evidence", {"user_id": f"eq.{user_id}", "validated": "eq.true", "select": "claim_id,turn_id,quote_text,evidence_direction,strength,evidence_strength", "limit": "200"})
-        flags = await self._get("flags", {"session_id": f"eq.{session_id}", "select": "flag_type,severity,confidence,reason", "limit": "100"})
+        if scope is None:
+            claims = await self._get("claims", {"user_id": f"eq.{user_id}", "or": f"(session_id.eq.{session_id},session_id.is.null)", "select": "id,claim_text,status,confidence,verification_priority", "limit": "100"})
+            evidence = await self._get("claim_evidence", {"user_id": f"eq.{user_id}", "validated": "eq.true", "select": "claim_id,turn_id,quote_text,evidence_direction,strength,evidence_strength", "limit": "200"})
+            flags = await self._get("flags", {"session_id": f"eq.{session_id}", "select": "flag_type,severity,confidence,reason", "limit": "100"})
+        else:
+            claims, evidence, flags = [], [], []
+        anchors = [
+            {
+                "competency_key": dimension["competency_key"],
+                "title": dimension["title"],
+                "criteria": dimension["criteria"],
+                "insufficient_signal": dimension["insufficient_signal"],
+            }
+            for dimension in (scope.dimensions if scope is not None else ())
+        ]
         return SpecialistAssessmentContext(
-            session_id=session_id, assessor_type=assessor_type,
+            session_id=session_id,
+            assessor_type=assessor_type,
+            assessment_scope=scope,
+            role_competencies=[{"competency_key": anchor["competency_key"], "title": anchor["title"]} for anchor in anchors],
             transcript_turns=[{**row, "speaker": str(row["speaker"]).upper(), "turn_type": str(row["turn_type"]).upper(), "phase": str(row["phase"]).upper()} for row in turns],
-            claims=claims, validated_evidence=evidence, skeptic_observations=flags,
+            claims=claims,
+            validated_evidence=evidence,
+            skeptic_observations=flags,
+            rubric_anchors=anchors,
+            rubric_version=scope.rubric_version if scope is not None else "v1",
         )
 
     async def get_latest(self, session_id: UUID, user_id: UUID, assessor_type: AssessorType) -> StoredSpecialistAssessment | None:

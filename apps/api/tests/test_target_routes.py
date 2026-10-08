@@ -28,6 +28,7 @@ from app.research_catalog import CatalogDocument, RepoResearchCatalog, content_s
 from app.role_service import RoleProfileNotFoundForUser
 from app.routes_targets import (
     get_catalog_provider,
+    get_plan_coverage,
     get_target_capability,
     get_target_repository,
     router,
@@ -139,6 +140,7 @@ def world():
     state = SimpleNamespace(
         repo=repo, sessions=sessions, engine=engine, capability=FixedCapability(),
         catalogs=StaticCatalogProvider({1: load_catalog()}), stories=FakeStories(), progress=FakeProgress(),
+        coverage=None,
     )
     return state
 
@@ -154,11 +156,15 @@ def client(world) -> TestClient:
     app.dependency_overrides[get_story_repository] = lambda: world.stories
     app.dependency_overrides[get_interview_state_machine] = lambda: world.engine
     app.dependency_overrides[get_role_progress_service] = lambda: world.progress
+    app.dependency_overrides[get_plan_coverage] = lambda: getattr(world, "coverage", None)
     return TestClient(app)
 
 
 def create(c, headers=A, **over):
-    body = {"role_profile_id": str(ROLE_A), "company": "Amazon", "geography": "in", "geography_label": "India"}
+    body = {
+        "role_profile_id": str(ROLE_A), "company": "Amazon", "role_family": "software_development_engineering",
+        "geography": "in", "geography_label": "India",
+    }
     body.update(over)
     return c.post("/api/v1/targets", headers=headers, json=body)
 

@@ -1,0 +1,191 @@
+{
+  "availability": "AVAILABLE",
+  "target": {
+    "id": "00000000-0000-4000-8000-000000000302",
+    "role_profile_id": "00000000-0000-4000-8000-000000000005",
+    "company_label": "QA Consulting Co (synthetic)",
+    "company_key": "qa_consulting",
+    "role_family_key": "business_analysis",
+    "level_key": "consultant",
+    "geography_key": "qa_land",
+    "geography_label": "QA Fictional Country",
+    "interview_date": null,
+    "status": "ACTIVE",
+    "archived_at": null,
+    "created_at": "2026-10-04T00:00:00Z"
+  },
+  "round": {
+    "key": "requirements_and_stakeholders",
+    "ordinal": 2,
+    "label_key": "round.requirements_and_stakeholders",
+    "basis": "PUBLISHED_GUIDANCE",
+    "competency_keys": [
+      "requirements_analysis",
+      "stakeholder_communication"
+    ],
+    "question_family": "workplace_scenario",
+    "presence": "CONDITIONAL"
+  },
+  "match_state": "RESEARCHED",
+  "research_label_key": "research.researched",
+  "content_state": "SERVED",
+  "claims": [
+    {
+      "key": "qa.synthetic.ba_stakeholder",
+      "version": 1,
+      "statement": "A fictional company describes a stakeholder_discussion stage.",
+      "provenance_class": "FACT",
+      "class_label_key": "class.fact",
+      "scope": {
+        "company": "qa_consulting",
+        "role_family": "business_analysis",
+        "level": "consultant",
+        "geography": "qa_land"
+      },
+      "scope_label_key": "scope.this_level_here",
+      "confidence_band": "MEDIUM",
+      "dating": "PUBLISHED_DATE",
+      "retrieved_at": "2026-10-07",
+      "published_at": "2026-10-07",
+      "limits": [
+        "QA fixture limit (synthetic)."
+      ],
+      "sources": [
+        {
+          "publisher": "QA fixture publisher",
+          "url": "https://qa-fixture.invalid/source-1",
+          "retrieved_at": "2026-10-07",
+          "published_at": "2026-10-07"
+        }
+      ],
+      "conflict_set": null,
+      "copy_key": null
+    }
+  ],
+  "conflicts": [],
+  "unknowns": [
+    {
+      "key": "qa_unknown_ba",
+      "reason": "NOT_PUBLISHED",
+      "note": "QA fixture note (synthetic)."
+    }
+  ],
+  "priorities": [
+    {
+      "rank": 1,
+      "competency_key": "requirements_analysis",
+      "reason_codes": [
+        "IN_CONDITIONAL_ROUND",
+        "NOT_LINKED_TO_YOUR_PLAN",
+        "NOT_PRACTISED_YET"
+      ],
+      "suggested_mode": "FOCUSED_PRACTICE"
+    },
+    {
+      "rank": 2,
+      "competency_key": "stakeholder_communication",
+      "reason_codes": [
+        "IN_CONDITIONAL_ROUND",
+        "NOT_LINKED_TO_YOUR_PLAN",
+        "NOT_PRACTISED_YET"
+      ],
+      "suggested_mode": "FOCUSED_PRACTICE"
+    }
+  ],
+  "priority_rules_version": "priority-2",
+  "pack": {
+    "state": "FULL",
+    "minimum": 4,
+    "label_key": "prompts.written_by_mirror",
+    "prompts": [
+      {
+        "position": 1,
+        "competency_key": "requirements_analysis",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 2,
+        "competency_key": "stakeholder_communication",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 3,
+        "competency_key": "stakeholder_communication",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 4,
+        "competency_key": "requirements_analysis",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 5,
+        "competency_key": "requirements_analysis",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 6,
+        "competency_key": "stakeholder_communication",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 7,
+        "competency_key": "requirements_analysis",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 8,
+        "competency_key": "stakeholder_communication",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 9,
+        "competency_key": "requirements_analysis",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 10,
+        "competency_key": "requirements_analysis",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 11,
+        "competency_key": "stakeholder_communication",
+        "question_family": "workplace_scenario",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
+        "provenance_class": "MIRROR_GENERATED"
+      },
+      {
+        "position": 12,
+        "competency_key": "stakeholder_communication",
+        "question_family": "workplace_scenario",
+        "rationale_code": "YOUR_STORY",
+        "provenance_class": "MIRROR_GENERATED"
+      }
+    ]
+  },
+  "practice": {
+    "count": 0,
+    "sessions": []
+  }
+}

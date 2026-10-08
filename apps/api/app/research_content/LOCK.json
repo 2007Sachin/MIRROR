@@ -12,5 +12,11 @@
       "catalog_version": 1,
       "sha256": "039ec50badbb8726f73ed0898cfeb8f9c9f234f10490213aeb3d967ae624434f"
     }
+  },
+  "taxonomies": {
+    "taxonomy_v1.json": {
+      "version": 1,
+      "sha256": "1c7de1e2d69a1151a7fc3d21aadf9e0db19d7d765614ef077d13ebd0d632eeb5"
+    }
   }
 }

@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.copy_guard import find_banned
 from app.research_catalog import RepoResearchCatalog
+from app.target_taxonomy import load_taxonomy
 
 ORIGINALITY_RULES_VERSION = "originality-1"
 
@@ -27,10 +28,9 @@ SHORT_EXCERPT_MIN = 3  # excerpts shorter than OVERLAP_N are matched whole (if >
 REPEAT_WINDOW_DAYS = 30
 REPEAT_JACCARD = 0.6  # word 3-gram similarity to a recent prompt
 
-# Terms that identify a company's own process vocabulary, keyed by lower-case company name.
-COMPANY_TERMS: dict[str, tuple[str, ...]] = {
-    "amazon": ("amazon", "amazonian", "aws", r"leadership principles?", r"bar[ -]raisers?"),
-}
+# A company's own process vocabulary (regex fragments) is taxonomy data
+# (``companies.<key>.process_terms`` in research_content/taxonomy_v1.json), looked up by the
+# exact company names in the guard context. No company is named in this module.
 ATTRIBUTION_PHRASES: tuple[str, ...] = (
     r"(?:real|actual|leaked|reported) interview questions?",
     r"question banks?",
@@ -82,9 +82,10 @@ def _contains(tokens: list[str], run: list[str]) -> bool:
 
 def _attribution_re(company_names: tuple[str, ...]) -> re.Pattern[str]:
     terms: list[str] = list(ATTRIBUTION_PHRASES)
+    taxonomy = load_taxonomy()  # TaxonomyError propagates: no guard, no prompts
     for name in company_names:
         terms.append(re.escape(name))
-        terms.extend(COMPANY_TERMS.get(name.casefold(), ()))
+        terms.extend(taxonomy.process_terms(taxonomy.company_key(name)))
     return re.compile(r"(?<![\w-])(?:" + "|".join(terms) + r")(?![\w-])", re.IGNORECASE)
 
 

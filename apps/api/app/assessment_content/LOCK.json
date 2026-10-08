@@ -1,0 +1,9 @@
+{
+  "lock_version": 1,
+  "catalogs": {
+    "assessment_rubrics_v1.json": {
+      "version": 1,
+      "sha256": "e5e62340c21a035180fd757ce9decec1a1022101e5ad5d6bf985175f407df0d1"
+    }
+  }
+}

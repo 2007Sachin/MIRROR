@@ -11,6 +11,23 @@ import type { BlueprintView, ClaimView, TargetView } from "@/lib/api-targets";
 
 const OA = "online coding round";
 
+/**
+ * Role families Mirror has practice rounds for (keys mirror the backend taxonomy), how a role title
+ * hints at each, and each family's level keys in order. Data, not words: labels live in targetCopy.
+ */
+export const ROLE_FAMILIES: { key: string; hint: RegExp; levels: string[] }[] = [
+  {
+    key: "software_development_engineering",
+    hint: /\b(sde|software\s+(development|dev)\s+engineer|software\s+engineer)\b/i,
+    levels: ["sde_i", "sde_ii", "sde_iii", "not_sure"],
+  },
+  {
+    key: "business_analysis",
+    hint: /\b(business\s+analyst|business\s+analysis|BA)\b/i,
+    levels: ["analyst", "consultant", "senior_consultant", "manager", "not_sure"],
+  },
+];
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "2026-10-04" -> "4 Oct 2026" (no locale guessing). */
@@ -52,6 +69,10 @@ export const targetCopy = {
     sde_ii: "SDE II",
     sde_iii: "SDE III",
     university: "University hire",
+    analyst: "Entry level",
+    consultant: "Consultant",
+    senior_consultant: "Senior Consultant",
+    manager: "Manager",
     not_sure: "Level not set yet",
   } as Record<string, string>,
   countryNotSet: "Country not set yet",
@@ -73,23 +94,38 @@ export const targetCopy = {
       title: "Examples from your own work",
       covers: "Telling real examples from your work, clearly and in order.",
     },
+    business_problem_solving: {
+      title: "Business problem conversation",
+      covers: "Breaking a business problem into parts, working with rough numbers and landing on a recommendation, out loud.",
+    },
+    requirements_and_stakeholders: {
+      title: "Requirements and stakeholder situations",
+      covers: "Explaining how you'd pin down what people need and handle the people involved.",
+    },
   } as Record<string, { title: string; covers: string }>,
   cannotDo: {
-    coding_reasoning: (amazon: boolean) =>
-      `Mirror practises the talking part: explaining your approach, the trade-offs you weigh and the inputs you'd try first. It doesn't run your code or time an ${amazon ? OA : "online coding round"}.`,
-    system_design: () => "Mirror practises explaining a design out loud. It can't see a drawing or a whiteboard, so describe the parts in words.",
-    behavioural: () => "Mirror practises telling real examples from your work. It only names stories you've written yourself.",
-  } as Record<string, (amazon: boolean) => string>,
+    coding_reasoning: `Mirror practises the talking part: explaining your approach, the trade-offs you weigh and the inputs you'd try first. It doesn't run your code or time an ${OA}.`,
+    system_design: "Mirror practises explaining a design out loud. It can't see a drawing or a whiteboard, so describe the parts in words.",
+    behavioural: "Mirror practises telling real examples from your work. It only names stories you've written yourself.",
+    business_problem_solving: "Mirror practises talking a business problem through out loud. It doesn't give you a spreadsheet or charts, and it doesn't time a written exercise, so say your numbers and steps in words.",
+    requirements_and_stakeholders: "Mirror practises explaining how you'd handle these situations. It can't see your documents or diagrams, so describe them in words.",
+  } as Record<string, string>,
   competency: {
     algorithmic_problem_solving: "Solving problems step by step",
     coding_quality: "Writing careful code and handling edge cases",
     technical_communication: "Explaining technical choices clearly",
     system_design: "Designing systems",
     behavioural_examples: "Telling examples from your own work",
+    structured_problem_solving: "Breaking a problem into clear parts",
+    quantitative_reasoning: "Working with numbers and data",
+    business_judgement: "Weighing business choices",
+    requirements_analysis: "Pinning down what people need",
+    stakeholder_communication: "Working with the people involved",
   } as Record<string, string>,
   reason: {
     IN_MANY_ROUNDS: "Part of more than one practice round in Mirror",
     IN_ONE_ROUND: "Part of one practice round in Mirror",
+    IN_CONDITIONAL_ROUND: "Part of a practice round in Mirror that only some processes include",
     NO_CONFIRMED_EXAMPLE: "No example confirmed for it yet",
     SOME_EXAMPLES: "You have some examples for it",
     NOT_LINKED_TO_YOUR_PLAN: "Not linked to your plan yet",
@@ -156,6 +192,7 @@ export const targetCopy = {
     themesLabel: "Mirror chooses original prompts when you start. Exact wording appears only during that practice.",
     linkedGuidanceNoSummary: "Published guidance is linked to this practice round, but Mirror has no reviewed summary to show here. Mirror's practice questions are original.",
     noMappedGuidance: "Mirror has not linked published guidance to this practice round. Mirror suggests these themes from the role.",
+    conditional: "Published guidance says only some processes include this part. Your recruiter's emails say whether yours does.",
     shortPack: "You've seen every practice question Mirror has for this round in the last 30 days. New ones open up after that, or try another round.",
     packUnavailable: "Practice for this round isn't available right now. Your plan still works.",
     historyTitle: "Your practice for this round",
@@ -178,16 +215,16 @@ export const targetCopy = {
     summary: "Add where and what level (optional)",
     intro: "This helps Mirror show how interviews for this role usually run. Your practice works without it.",
     company: "Company",
-    familyConfirm: "This is a Software Development Engineer (SDE) role",
-    familyHelp: "Mirror only has interview notes for SDE roles so far.",
+    family: "Kind of role",
+    familyHelp: "Mirror has practice rounds for these kinds of role so far. Pick the one this role is, or skip this part.",
+    familyNone: "Something else",
+    familyLabel: {
+      software_development_engineering: "Software development (SDE)",
+      business_analysis: "Business roles (BA)",
+    } as Record<string, string>,
+    notSureLevel: "Not sure yet",
     level: "Level",
     levelHelp: "Your offer letter or recruiter email usually says. You can set it again later by adding the role again.",
-    levelOptions: [
-      { key: "sde_i", label: "SDE I" },
-      { key: "sde_ii", label: "SDE II" },
-      { key: "sde_iii", label: "SDE III" },
-      { key: "not_sure", label: "Not sure yet" },
-    ],
     country: "Country",
     countryOptions: [
       { key: "in", label: "India" },
@@ -255,8 +292,26 @@ export function roundCovers(labelOrKey: string): string | null {
   return targetCopy.rounds[roundKeyOf(labelOrKey)]?.covers ?? null;
 }
 
-export function cannotDo(roundKey: string, amazon: boolean): string | null {
-  return targetCopy.cannotDo[roundKeyOf(roundKey)]?.(amazon) ?? null;
+export function cannotDo(roundKey: string): string | null {
+  return targetCopy.cannotDo[roundKeyOf(roundKey)] ?? null;
+}
+
+/** The role family a role title hints at (the person confirms it), or null. */
+export function familyHint(role: string): string | null {
+  return ROLE_FAMILIES.find((family) => family.hint.test(role))?.key ?? null;
+}
+
+/** Level choices for a family, labelled; "Not sure yet" for not_sure. Unknown family: none. */
+export function familyLevels(familyKey: string | null): { key: string; label: string }[] {
+  const family = ROLE_FAMILIES.find((item) => item.key === familyKey);
+  return (family?.levels ?? []).map((key) => ({
+    key,
+    label: key === "not_sure" ? targetCopy.setup.notSureLevel : targetCopy.level[key] ?? key,
+  }));
+}
+
+export function familyLabel(familyKey: string): string | null {
+  return targetCopy.setup.familyLabel[familyKey] ?? null;
 }
 
 export function competencyLabel(key: string): string | null {
@@ -278,11 +333,13 @@ export function claimMatchesTargetScope(claim: Pick<ClaimView, "scope">, target:
   );
 }
 
-export function claimCopy(key: string, version: number, roundKey?: string): string | null {
+/**
+ * Reviewed words for a claim (copy is reviewed for claim version 1). A round may show a claim
+ * through a narrower reviewed copy key that the backend's round mapping names (`copy_key`).
+ */
+export function claimCopy(key: string, version: number, copyKey?: string | null): string | null {
   if (!Number.isInteger(version) || version !== 1) return null;
-  if (key === "amazon.sde.sde_ii.process_sequence" && roundKey === "system_design") {
-    return targetCopy.claims["amazon.sde.sde_ii.system_design_expectation"];
-  }
+  if (copyKey) return targetCopy.claims[copyKey] ?? null;
   return targetCopy.claims[key] ?? null;
 }
 

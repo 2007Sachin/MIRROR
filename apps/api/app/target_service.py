@@ -6,8 +6,7 @@ Rules kept here (each has a route test):
   role's seniority and never read from the job description;
 - geography is exact (owner rule): research scoped elsewhere, including ``global``, is never
   shown for a target; with no claims for exactly this target the state is NOT_RESEARCHED;
-- a blueprint pins (catalog version, content hash); refresh appends a new pin and every
-  earlier pin is still served from its own catalog version; a hash mismatch serves nothing;
+- a blueprint pins (catalog version, content hash, and ``rules_version``); ``rules_version`` also pins the immutable taxonomy file used for its rounds/competencies; refresh appends a new pin and every earlier pin is still served from its own catalog and taxonomy versions; a hash mismatch serves nothing;
 - practice prompts are Mirror-written, guarded and stored before the session exists, and a
   session's target link is written once.
 """
@@ -15,6 +14,7 @@ Rules kept here (each has a route test):
 from __future__ import annotations
 
 import logging
+import re
 import json
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
@@ -24,6 +24,12 @@ from typing import Any, Literal, Protocol, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from .target_assessment_contract import (
+    ASSESSMENT_RUBRIC_CATALOG_VERSION,
+    AssessmentContractUnavailable,
+    parse_blueprint_rules_version,
+)
 
 from .practice_modes import MODE_SHAPE, PracticeFocus, PracticeMode
 from .prompt_originality import ORIGINALITY_RULES_VERSION, REPEAT_WINDOW_DAYS, GuardContext, RecentPrompt
@@ -55,20 +61,20 @@ from .target_repository import (
 from .target_rounds import (
     PACK_MIN,
     ROUND_PACK_VERSION,
-    ROUNDS,
     CandidateMaterial,
     PracticeRound,
     RoundPack,
     build_round_pack,
-    get_round,
+    find_round,
 )
+from .target_taxonomy import NOT_SURE, TAXONOMY_VERSION, Taxonomy, TaxonomyError, load_taxonomy
 
 logger = logging.getLogger("mirror.targets")
 
-BLUEPRINT_RULES_VERSION = "blueprint-1"
+BLUEPRINT_RULES_VERSION = f"blueprint-3-taxonomy-{TAXONOMY_VERSION}-assessment-{ASSESSMENT_RUBRIC_CATALOG_VERSION}"
 ContentState = Literal["SERVED", "PIN_MISMATCH", "CATALOG_UNAVAILABLE"]
-LevelKey = Literal["sde_i", "sde_ii", "sde_iii", "university", "not_sure"]
-COMPANY_KEYS = {"amazon": "amazon"}  # exact, case-insensitive alias -> catalog company key
+# Role families, their levels and practice rounds, and company aliases are taxonomy data
+# (app.target_taxonomy); this module never names a company or role family.
 MAX_PRIORITIES = 3
 MAX_STORY_TITLES = 4
 
@@ -104,6 +110,19 @@ class LinkConflict(Exception):
 
 class CatalogUnavailable(Exception):
     pass
+
+
+class UnsupportedTarget(Exception):
+    """The role family or level is not in the taxonomy; nothing is stored."""
+
+    def __init__(self, field: str) -> None:
+        super().__init__(f"unsupported {field}")
+        self.field = field
+
+
+# Optional source of the person's own plan coverage: (role_profile_id, user_id) ->
+# [(plan theme, PlanStatus value)]. Only the person's own confirmed plan is ever read.
+CoverageSource = Callable[[UUID, UUID], Any]
 
 
 # ------------------------------------------------------------------ catalog access
@@ -153,8 +172,8 @@ class _Api(BaseModel):
 class TargetCreate(_Api):
     role_profile_id: UUID
     company: str = Field(min_length=1, max_length=120)
-    role_family: str = Field(default="software_development_engineering", pattern=KEY_PATTERN)
-    level: LevelKey = "not_sure"
+    role_family: str = Field(pattern=KEY_PATTERN)  # must be a taxonomy role family
+    level: str = Field(default=NOT_SURE, pattern=KEY_PATTERN)  # must be one of that family's levels
     geography: str | None = Field(default=None, pattern=KEY_PATTERN)
     geography_label: str | None = Field(default=None, min_length=1, max_length=120)
     interview_date: date | None = None
@@ -222,6 +241,7 @@ class ClaimView(_Api):
     limits: list[str]
     sources: list[SourceRef]
     conflict_set: str | None
+    copy_key: str | None = None  # reviewed words for this claim in one round (round mapping data)
 
 
 class ConflictView(_Api):
@@ -242,6 +262,8 @@ class RoundSummary(_Api):
     label_key: str
     basis: Literal["PUBLISHED_GUIDANCE", "MIRROR_SUGGESTED"]
     competency_keys: list[str]
+    question_family: str
+    presence: Literal["CORE", "CONDITIONAL"] | None = None  # from exact-scope research only
 
 
 class BlueprintView(_Api):
@@ -267,6 +289,7 @@ class PriorityView(_Api):
 class PromptView(_Api):
     position: int
     competency_key: str
+    question_family: str
     rationale_code: str
     provenance_class: str
 
@@ -363,7 +386,7 @@ def scope_match(target: CandidateTarget, catalog: RepoResearchCatalog) -> ScopeM
     return match_scope(catalog, scope)
 
 
-def _claim_view(claim: Claim, catalog: RepoResearchCatalog) -> ClaimView:
+def _claim_view(claim: Claim, catalog: RepoResearchCatalog, copy_key: str | None = None) -> ClaimView:
     sources = {source.id: source for source in catalog.document.sources}
     refs = [
         SourceRef(publisher=s.publisher, url=s.url, retrieved_at=s.retrieved_at, published_at=s.published_at)
@@ -372,7 +395,7 @@ def _claim_view(claim: Claim, catalog: RepoResearchCatalog) -> ClaimView:
     ]
     return ClaimView(
         key=claim.id,
-        version=catalog.version,
+        version=claim.version,  # the reviewed claim's own version (copy is keyed by claim id + version)
         statement=claim.statement,
         provenance_class=claim.provenance_class,
         class_label_key=f"class.{claim.provenance_class.lower()}",
@@ -385,6 +408,7 @@ def _claim_view(claim: Claim, catalog: RepoResearchCatalog) -> ClaimView:
         limits=list(claim.limits),
         sources=refs,
         conflict_set=claim.conflict_set,
+        copy_key=copy_key,
     )
 
 
@@ -403,30 +427,43 @@ def _content(match: ScopeMatch, catalog: RepoResearchCatalog, subjects: frozense
 
 
 def _mapping_for(match: ScopeMatch) -> dict[str, Any] | None:
+    """The locked round mapping written for exactly the matched catalog version, or None.
+
+    LOCK.json lists every mapping file with the catalog version it was reviewed against; a
+    mapping for another version, an altered file or a malformed one serves no round links.
+    """
     if match.state == "NOT_RESEARCHED":
         return None
-    mapping_path = Path(__file__).parent / "research_content" / "round_mapping_v1.json"
-    lock_path = mapping_path.parent / "LOCK.json"
+    content_dir = Path(__file__).parent / "research_content"
     try:
+        lock = json.loads((content_dir / "LOCK.json").read_text(encoding="utf-8"))
+        names = [name for name, entry in lock["round_mappings"].items() if entry.get("catalog_version") == match.catalog_version]
+        if len(names) != 1:
+            return None
+        mapping_path = content_dir / names[0]
+        if mapping_path.parent != content_dir:
+            return None
         raw = mapping_path.read_bytes()
         mapping = json.loads(raw.decode("utf-8"))
-        lock = json.loads(lock_path.read_text(encoding="utf-8"))
-        entry = lock["round_mappings"][mapping_path.name]
         from .research_catalog import content_sha256
-        if content_sha256(raw) != entry["sha256"]:
+        if content_sha256(raw) != lock["round_mappings"][names[0]]["sha256"]:
             return None
-        if (mapping.get("schema") != "mirror.research_round_mapping/1"
-                or mapping.get("catalog_version") != match.catalog_version
-                or entry.get("catalog_version") != match.catalog_version):
+        if mapping.get("schema") != "mirror.research_round_mapping/1" or mapping.get("catalog_version") != match.catalog_version:
             return None
-        if not isinstance(mapping.get("round_specific_claims", []), list):
+        if not isinstance(mapping.get("rounds"), dict) or not isinstance(mapping.get("round_specific_claims", []), list):
             return None
         for item in mapping.get("round_specific_claims", []):
             if (not isinstance(item, dict) or set(item) != {"claim_id", "round_key", "copy_key"}
                     or not all(isinstance(item[k], str) for k in item)):
                 return None
+        if not isinstance(mapping.get("conditional_links", []), list):
+            return None
+        for item in mapping.get("conditional_links", []):
+            if (not isinstance(item, dict) or set(item) != {"claim_id", "round_key"}
+                    or not all(isinstance(item[k], str) for k in item)):
+                return None
         return mapping
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return None
 
 
@@ -447,70 +484,107 @@ def _round_specific_claims(match: ScopeMatch, round_: PracticeRound) -> list[Cla
 
 
 def _round_claims(match: ScopeMatch, round_: PracticeRound) -> list[Claim]:
+    """Exact-scope process claims a reviewed mapping links to this round.
+
+    One mapping file serves every company and role family of a catalog version, so a round's
+    list may name claims for other scopes (another level, company or role family). Only the
+    claims in this target's own exact-scope match count; the rest are never borrowed.
+    """
     mapping = _mapping_for(match)
     if mapping is None:
         return []
     try:
-        allowed = set(mapping["rounds"][round_.key])
+        allowed = set(mapping["rounds"].get(round_.key, ()))
         allowed.update(item["claim_id"] for item in mapping.get("round_specific_claims", []) if item["round_key"] == round_.key)
-        if not allowed <= {c.id for c in match.claims if c.process_content}:
-            return []
-    except (KeyError, TypeError):
+    except (KeyError, TypeError, AttributeError):
         return []
     return [c for c in match.claims if c.process_content and c.id in allowed]
 
 
-def round_summaries(match: ScopeMatch) -> list[RoundSummary]:
+RoundPresence = Literal["CORE", "CONDITIONAL"]
+
+
+def round_presence(match: ScopeMatch, round_: PracticeRound) -> RoundPresence | None:
+    """CONDITIONAL when an exact-scope claim linked to this round says only some processes include it.
+
+    The mapping's ``conditional_links`` name (claim, round) pairs, so the mark is as scoped as the
+    claim: another company's or level's conditional stage never changes this target's round.
+    """
+    claims = _round_claims(match, round_)
+    if not claims:
+        return None
+    mapping = _mapping_for(match) or {}
+    conditional = {item["claim_id"] for item in mapping.get("conditional_links", []) if item["round_key"] == round_.key}
+    return "CONDITIONAL" if conditional & {c.id for c in claims} else "CORE"
+
+
+def _copy_keys(match: ScopeMatch, round_key: str | None) -> dict[str, str]:
+    mapping = _mapping_for(match)
+    if mapping is None or round_key is None:
+        return {}
+    return {item["claim_id"]: item["copy_key"] for item in mapping.get("round_specific_claims", []) if item["round_key"] == round_key}
+
+
+def _summary(
+    round_: PracticeRound, basis: Literal["PUBLISHED_GUIDANCE", "MIRROR_SUGGESTED"], presence: RoundPresence | None = None,
+) -> RoundSummary:
+    return RoundSummary(
+        key=round_.key, ordinal=round_.ordinal, label_key=round_.label_key,
+        competency_keys=list(round_.competency_keys), basis=basis, question_family=round_.question_family,
+        presence=presence,
+    )
+
+
+def round_summaries(match: ScopeMatch, rounds: Sequence[PracticeRound]) -> list[RoundSummary]:
+    """The target's own role-family rounds; a round is linked to guidance only through exact-scope claims."""
     return [
-        RoundSummary(
-            key=r.key, ordinal=r.ordinal, label_key=r.label_key, competency_keys=list(r.competency_keys),
-            basis="PUBLISHED_GUIDANCE" if _round_claims(match, r) else "MIRROR_SUGGESTED",
-        )
-        for r in ROUNDS
+        _summary(r, "PUBLISHED_GUIDANCE" if _round_claims(match, r) else "MIRROR_SUGGESTED", round_presence(match, r))
+        for r in rounds
     ]
 
 
 _BAND_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 
 
-def competencies_in_process(match: ScopeMatch, *, round_key: str | None = None) -> list[CompetencyInProcess]:
-    """Research-derived coverage; optionally scope every row to one round for its priorities."""
-    if round_key is not None:
-        round_ = get_round(round_key)
-        claims = _round_claims(match, round_)
-        band = cast(Literal["LOW", "MEDIUM", "HIGH"] | None,
-                    max((claim.confidence_band for claim in claims), key=_BAND_ORDER.__getitem__) if claims else None)
-        return [
-            CompetencyInProcess(
-                key=key, round_count=1 if claims else 0,
-                first_round_ordinal=round_.ordinal, band=band,
-            )
-            for key in round_.competency_keys
-        ]
+def competencies_in_process(
+    match: ScopeMatch, rounds: Sequence[PracticeRound], *, round_key: str | None = None,
+) -> list[CompetencyInProcess]:
+    """Research-derived coverage of the target's rounds; optionally scope every row to one round.
+
+    A researched round counts towards ``round_count`` when research says it is part of the
+    process, and towards ``conditional_round_count`` when research says only some processes
+    include it. Rounds without exact-scope research count towards neither.
+    """
+    chosen = [find_round(rounds, round_key)] if round_key is not None else list(rounds)
     out: dict[str, dict[str, Any]] = {}
-    for round_ in ROUNDS:
+    for round_ in chosen:
         claims = _round_claims(match, round_)
+        presence = round_presence(match, round_)
         for key in round_.competency_keys:
-            row = out.setdefault(key, {"round_count": 0, "ordinal": round_.ordinal, "band": None})
+            row = out.setdefault(key, {"round_count": 0, "conditional": 0, "ordinal": round_.ordinal, "band": None})
             row["ordinal"] = min(row["ordinal"], round_.ordinal)
-            if claims:
-                row["round_count"] += 1
-                best = max((c.confidence_band for c in claims), key=_BAND_ORDER.__getitem__)
-                if row["band"] is None or _BAND_ORDER[best] > _BAND_ORDER[row["band"]]:
-                    row["band"] = best
+            if not claims:
+                continue
+            row["conditional" if presence == "CONDITIONAL" else "round_count"] += 1
+            best = max((c.confidence_band for c in claims), key=_BAND_ORDER.__getitem__)
+            if row["band"] is None or _BAND_ORDER[best] > _BAND_ORDER[row["band"]]:
+                row["band"] = best
     return [
-        CompetencyInProcess(key=key, round_count=row["round_count"], first_round_ordinal=row["ordinal"], band=row["band"])
+        CompetencyInProcess(
+            key=key, round_count=row["round_count"], conditional_round_count=row["conditional"],
+            first_round_ordinal=row["ordinal"], band=row["band"],
+        )
         for key, row in out.items()
     ]
 
 
-def practice_facts(links: Sequence[TargetSessionLink]) -> dict[str, PracticeFact]:
+def practice_facts(links: Sequence[TargetSessionLink], rounds: Sequence[PracticeRound]) -> dict[str, PracticeFact]:
     facts: dict[str, tuple[int, date | None]] = {}
     for link in links:
         if link.round_key is None:
             continue
         try:
-            round_ = get_round(link.round_key)
+            round_ = find_round(rounds, link.round_key)
         except KeyError:
             continue
         day = link.created_at.date()
@@ -518,6 +592,34 @@ def practice_facts(links: Sequence[TargetSessionLink]) -> dict[str, PracticeFact
             count, last = facts.get(key, (0, None))
             facts[key] = (count + 1, max(day, last) if last else day)
     return {key: PracticeFact(count=count, last_practised_on=last) for key, (count, last) in facts.items()}
+
+
+_COVERAGE_ORDER = {"BUILD": 0, "GOOD": 1, "STRONG": 2}
+
+
+def competency_coverage(
+    competency_keys: Sequence[str], taxonomy: Taxonomy, plan_areas: Sequence[tuple[str, str]],
+) -> dict[str, str]:
+    """Best plan status of the person's own plan areas that speak to each competency.
+
+    A competency is linked to a plan area only when one of its taxonomy ``evidence_terms``
+    usefully matches the area's theme (the same deterministic matcher the plan uses). A
+    competency with no matching area is absent ("not linked to your plan"); nothing is
+    inferred from other people, other roles or research.
+    """
+    from .interview_map import DEFAULT_MATCHER, MatchStrength
+
+    out: dict[str, str] = {}
+    for key in dict.fromkeys(competency_keys):
+        terms = taxonomy.competency_terms(key)
+        statuses = [
+            status for theme, status in plan_areas
+            if status in _COVERAGE_ORDER
+            and any(DEFAULT_MATCHER.strength(term, theme) == MatchStrength.USEFUL for term in terms)
+        ]
+        if statuses:
+            out[key] = max(statuses, key=_COVERAGE_ORDER.__getitem__)
+    return out
 
 
 def prompt_set_id_for(user_id: UUID, target_id: UUID, round_key: str, idempotency_key: UUID) -> UUID:
@@ -538,6 +640,8 @@ class TargetService:
         engine: Any,
         *,
         today: Callable[[], date] = lambda: datetime.now(UTC).date(),
+        taxonomy: Taxonomy | None = None,
+        coverage: CoverageSource | None = None,
     ) -> None:
         self._repo = repo
         self._catalogs = catalogs
@@ -545,16 +649,70 @@ class TargetService:
         self._stories = stories
         self._engine = engine
         self._today = today
+        self._taxonomy_override = taxonomy
+        self._coverage = coverage
+
+    def _taxonomy_for_version(self, version: int) -> Taxonomy:
+        if self._taxonomy_override is not None:
+            if self._taxonomy_override.version != version:
+                raise CatalogUnavailable
+            return self._taxonomy_override
+        try:
+            return load_taxonomy(version=version)
+        except TaxonomyError as exc:  # altered/missing data serves nothing, like the catalog lock
+            raise CatalogUnavailable from exc
+
+    def _taxonomy(self) -> Taxonomy:
+        return self._taxonomy_for_version(TAXONOMY_VERSION)
+
+    def _taxonomy_for_rules(self, rules_version: str) -> Taxonomy:
+        """Resolve immutable taxonomy and assessment versions recorded in the blueprint pin.
+
+        Loop 2 ``blueprint-1`` pins remain on taxonomy v1. Later pins carry the taxonomy version;
+        current pins also carry an explicit assessment-catalog version. Unknown formats fail closed.
+        """
+        try:
+            pin = parse_blueprint_rules_version(rules_version)
+        except AssessmentContractUnavailable as exc:
+            raise CatalogUnavailable from exc
+        return self._taxonomy_for_version(pin.taxonomy_version)
+
+    def _rounds(self, target: CandidateTarget, rules_version: str | None = None) -> tuple[PracticeRound, ...]:
+        taxonomy = self._taxonomy() if rules_version is None else self._taxonomy_for_rules(rules_version)
+        return taxonomy.rounds(target.role_family_key)
+
+    def _round(self, target: CandidateTarget, round_key: str, rules_version: str | None = None) -> PracticeRound:
+        try:
+            return find_round(self._rounds(target, rules_version), round_key)
+        except KeyError as exc:
+            raise RoundNotFound from exc
+
+    async def _plan_coverage(
+        self, user_id: UUID, target: CandidateTarget, competency_keys: Sequence[str], taxonomy: Taxonomy | None = None,
+    ) -> dict[str, str]:
+        if self._coverage is None:
+            return {}
+        try:
+            areas = await self._coverage(target.role_profile_id, user_id)
+        except Exception:  # noqa: BLE001 - the plan is optional input; priorities still work without it
+            logger.warning("plan coverage unavailable for target priorities", exc_info=True)
+            return {}
+        return competency_coverage(competency_keys, taxonomy or self._taxonomy(), list(areas))
 
     # targets ---------------------------------------------------------
 
     async def create(self, user_id: UUID, payload: TargetCreate) -> tuple[CandidateTarget, InterviewBlueprint]:
+        taxonomy = self._taxonomy()
+        if not taxonomy.has_role_family(payload.role_family):
+            raise UnsupportedTarget("role_family")
+        if payload.level not in taxonomy.levels(payload.role_family):
+            raise UnsupportedTarget("level")
         await self._roles.get(payload.role_profile_id, user_id)  # RoleProfileNotFoundForUser -> 404
         catalog = self._latest()
         values = TargetValues(
             role_profile_id=payload.role_profile_id,
             company_label=payload.company,
-            company_key=COMPANY_KEYS.get(payload.company.casefold()),
+            company_key=taxonomy.company_key(payload.company),
             role_family_key=payload.role_family,
             level_key=payload.level,  # explicit choice only; never derived from the role
             level_label=None,
@@ -645,7 +803,8 @@ class TargetService:
         claims, conflicts, unknowns = _content(match, catalog)
         return view.model_copy(update={
             "match_state": match.state, "research_label_key": _RESEARCH_LABEL[match.state],
-            "claims": claims, "conflicts": conflicts, "unknowns": unknowns, "rounds": round_summaries(match),
+            "claims": claims, "conflicts": conflicts, "unknowns": unknowns,
+            "rounds": round_summaries(match, self._rounds(target, pin.rules_version)),
         })
 
     async def refresh(self, target_id: UUID, user_id: UUID) -> tuple[BlueprintView, bool]:
@@ -692,15 +851,18 @@ class TargetService:
         return build_round_pack(round_, await self._material(user_id, target), context, researched=researched)
 
     async def round_detail(self, target_id: UUID, round_key: str, user_id: UUID) -> RoundDetail:
-        try:
-            round_ = get_round(round_key)
-        except KeyError as exc:
-            raise RoundNotFound from exc
         target = await self.get(target_id, user_id)
         rows = await self._blueprints(user_id, target)
         if not rows:
             raise BlueprintNotFound
-        state, match, catalog = self._pinned_match(target, rows[-1])
+        pin = rows[-1]
+        taxonomy = self._taxonomy_for_rules(pin.rules_version)
+        rounds = taxonomy.rounds(target.role_family_key)
+        try:
+            round_ = find_round(rounds, round_key)  # only a round in this pinned taxonomy + role family
+        except KeyError as exc:
+            raise RoundNotFound from exc
+        state, match, catalog = self._pinned_match(target, pin)
         links = await self._repo.links_for_target(target.id, user_id)
         usable_links = []
         for link in links:
@@ -713,9 +875,8 @@ class TargetService:
                 and [q.position for q in sorted(questions, key=lambda q: q.position)] == list(range(1, link.expected_prompt_count + 1))):
                 usable_links.append(link)
         links = usable_links
-        summary = next(r for r in round_summaries(match) if r.key == round_.key) if match else RoundSummary(
-            key=round_.key, ordinal=round_.ordinal, label_key=round_.label_key,
-            competency_keys=list(round_.competency_keys), basis="MIRROR_SUGGESTED",
+        summary = next(r for r in round_summaries(match, rounds) if r.key == round_.key) if match else _summary(
+            round_, "MIRROR_SUGGESTED",
         )
         mine = [link for link in links if link.round_key == round_.key]
         detail = RoundDetail(
@@ -725,10 +886,12 @@ class TargetService:
                 sessions=[PracticeHistoryItem(session_id=link.session_id, created_at=link.created_at) for link in mine],
             ),
         )
-        # Plan coverage is not mapped to target competencies in v1, so every item is "not linked
-        # to your plan"; research-derived round counts and bands only exist when research matched.
+        # The person's own plan coverage links to a competency only through its taxonomy evidence
+        # terms; research-derived round counts and bands only exist when research matched.
+        coverage = await self._plan_coverage(user_id, target, round_.competency_keys, taxonomy)
         ranked = prioritise(
-            competencies_in_process(match or _empty_match(), round_key=round_.key), {}, practice_facts(links), self._today(), target.interview_date,
+            competencies_in_process(match or _empty_match(), rounds, round_key=round_.key), coverage,
+            practice_facts(links, rounds), self._today(), target.interview_date,
         )
         in_round = [item for item in ranked if item.competency_key in round_.competency_keys][:MAX_PRIORITIES]
         priorities = [
@@ -739,7 +902,8 @@ class TargetService:
         if match is None or catalog is None:
             return detail
         claims, conflicts, unknowns = _content(match, catalog, frozenset(round_.claim_subjects), round_key=round_.key)
-        round_claim_views = [_claim_view(c, catalog) for c in _round_specific_claims(match, round_)
+        copy_keys = _copy_keys(match, round_.key)
+        round_claim_views = [_claim_view(c, catalog, copy_keys.get(c.id)) for c in _round_specific_claims(match, round_)
                              if c.id not in {claim.key for claim in claims}]
         pack = await self._pack(user_id, target, round_, match, catalog)
         return detail.model_copy(update={
@@ -748,7 +912,7 @@ class TargetService:
             "pack": PackView(
                 state=pack.state, minimum=pack.minimum,
                 prompts=[
-                    PromptView(position=p.position, competency_key=p.competency_key,
+                    PromptView(position=p.position, competency_key=p.competency_key, question_family=p.question_family,
                                rationale_code=p.rationale_code, provenance_class=p.provenance_class)
                     for p in pack.prompts
                 ],
@@ -758,16 +922,13 @@ class TargetService:
     async def start_round_practice(
         self, target_id: UUID, round_key: str, user_id: UUID, payload: PracticeStart
     ) -> PracticeStarted:
-        try:
-            round_ = get_round(round_key)
-        except KeyError as exc:
-            raise RoundNotFound from exc
         target = await self.get(target_id, user_id)
         if target.status != "ACTIVE":
             raise TargetArchived
         role = await self._roles.get(target.role_profile_id, user_id)
         pins = await self._blueprints(user_id, target)
         pin = pins[-1]
+        round_ = self._round(target, round_key, pin.rules_version)  # target family + its pinned taxonomy
         mode = PracticeMode(payload.mode)
         needed = MODE_SHAPE[mode].questions
         set_id = prompt_set_id_for(user_id, target.id, round_.key, payload.idempotency_key)

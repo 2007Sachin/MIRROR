@@ -22,7 +22,9 @@
     "competency_keys": [
       "system_design",
       "technical_communication"
-    ]
+    ],
+    "question_family": "design_discussion",
+    "presence": null
   },
   "match_state": "NOT_RESEARCHED",
   "research_label_key": "research.not_yet_researched",
@@ -39,7 +41,7 @@
   "priorities": [
     {
       "rank": 1,
-      "competency_key": "technical_communication",
+      "competency_key": "system_design",
       "reason_codes": [
         "NOT_LINKED_TO_YOUR_PLAN",
         "NOT_PRACTISED_YET"
@@ -48,7 +50,7 @@
     },
     {
       "rank": 2,
-      "competency_key": "system_design",
+      "competency_key": "technical_communication",
       "reason_codes": [
         "NOT_LINKED_TO_YOUR_PLAN",
         "NOT_PRACTISED_YET"
@@ -56,7 +58,7 @@
       "suggested_mode": "FOCUSED_PRACTICE"
     }
   ],
-  "priority_rules_version": "priority-1",
+  "priority_rules_version": "priority-2",
   "pack": {
     "state": "FULL",
     "minimum": 4,
@@ -65,84 +67,98 @@
       {
         "position": 1,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 2,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 3,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "YOUR_STORY",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 4,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 5,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 6,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 7,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 8,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 9,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 10,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 11,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 12,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 13,
         "competency_key": "system_design",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 14,
         "competency_key": "technical_communication",
+        "question_family": "design_discussion",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       }

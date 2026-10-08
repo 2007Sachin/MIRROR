@@ -1,0 +1,704 @@
+{
+  "schema": "mirror.target_taxonomy/1",
+  "version": 1,
+  "question_families": {
+    "coding_walkthrough": {
+      "description": "Talking through how to solve a coding problem, out loud."
+    },
+    "design_discussion": {
+      "description": "Describing how a system fits together and the choices weighed."
+    },
+    "past_example": {
+      "description": "Telling a real example from the person's own work."
+    },
+    "case_discussion": {
+      "description": "Structuring and reasoning through a business problem, including rough numbers."
+    },
+    "workplace_scenario": {
+      "description": "Explaining how the person would handle a described work situation."
+    }
+  },
+  "competencies": {
+    "algorithmic_problem_solving": {
+      "evidence_terms": [
+        "algorithms",
+        "data structures",
+        "problem solving"
+      ]
+    },
+    "coding_quality": {
+      "evidence_terms": [
+        "coding",
+        "testing",
+        "code quality"
+      ]
+    },
+    "technical_communication": {
+      "evidence_terms": [
+        "technical communication"
+      ]
+    },
+    "system_design": {
+      "evidence_terms": [
+        "system design",
+        "software architecture",
+        "distributed systems"
+      ]
+    },
+    "behavioural_examples": {
+      "evidence_terms": [
+        "ownership",
+        "teamwork",
+        "collaboration",
+        "leadership"
+      ]
+    },
+    "structured_problem_solving": {
+      "evidence_terms": [
+        "problem solving",
+        "structured thinking",
+        "root cause analysis"
+      ]
+    },
+    "quantitative_reasoning": {
+      "evidence_terms": [
+        "data analysis",
+        "quantitative analysis",
+        "excel",
+        "sql",
+        "financial analysis"
+      ]
+    },
+    "business_judgement": {
+      "evidence_terms": [
+        "business acumen",
+        "business strategy",
+        "commercial awareness"
+      ]
+    },
+    "requirements_analysis": {
+      "evidence_terms": [
+        "requirements gathering",
+        "business analysis",
+        "process mapping",
+        "user stories",
+        "documentation"
+      ]
+    },
+    "stakeholder_communication": {
+      "evidence_terms": [
+        "stakeholder management",
+        "stakeholder communication",
+        "client communication",
+        "presentation"
+      ]
+    }
+  },
+  "companies": {
+    "amazon": {
+      "aliases": [
+        "amazon"
+      ],
+      "process_terms": [
+        "amazon",
+        "amazonian",
+        "aws",
+        "leadership principles?",
+        "bar[ -]raisers?"
+      ]
+    },
+    "deloitte_india": {
+      "aliases": [
+        "Deloitte India",
+        "Deloitte Touche Tohmatsu India LLP",
+        "DTTILLP"
+      ],
+      "process_terms": [
+        "deloitte",
+        "deloitte touche tohmatsu",
+        "dttillp"
+      ]
+    },
+    "deloitte_usi": {
+      "aliases": [
+        "Deloitte USI",
+        "Deloitte US India",
+        "Deloitte US-India Offices",
+        "Deloitte Consulting India Private Limited"
+      ],
+      "process_terms": [
+        "deloitte",
+        "usi"
+      ]
+    }
+  },
+  "role_families": {
+    "software_development_engineering": {
+      "levels": [
+        "sde_i",
+        "sde_ii",
+        "sde_iii",
+        "university",
+        "not_sure"
+      ],
+      "rounds": [
+        {
+          "key": "coding_reasoning",
+          "ordinal": 1,
+          "theme": "Talking through a coding approach",
+          "competency_keys": [
+            "algorithmic_problem_solving",
+            "coding_quality",
+            "technical_communication"
+          ],
+          "claim_subjects": [
+            "coding_interview",
+            "online_assessment",
+            "interview_topics"
+          ],
+          "templates": [
+            {
+              "id": "coding.parcel_status",
+              "family_key": "stateful_stream",
+              "competency_key": "algorithmic_problem_solving",
+              "fallback": "Status updates for parcels can arrive late or twice. Talk me through how you would keep only the newest status for each parcel."
+            },
+            {
+              "id": "coding.repeated_log_lines",
+              "family_key": "counting_under_memory",
+              "competency_key": "algorithmic_problem_solving",
+              "fallback": "You have a very long list of log lines and little memory. How would you find which messages repeat most often, and what would you trade off?"
+            },
+            {
+              "id": "coding.merge_streams",
+              "family_key": "ordered_merge",
+              "competency_key": "algorithmic_problem_solving",
+              "fallback": "Walk me through how you would merge several already ordered streams of events into one ordered stream, and how the cost grows as streams are added."
+            },
+            {
+              "id": "coding.same_person",
+              "family_key": "fuzzy_matching",
+              "competency_key": "algorithmic_problem_solving",
+              "fallback": "Explain how you would spot that two entries in a large contact list are the same person when their names are spelled differently."
+            },
+            {
+              "id": "coding.edge_case",
+              "family_key": "edge_cases",
+              "competency_key": "coding_quality",
+              "fallback": "Pick one piece of code you wrote that had a tricky edge case. Explain the case and how you made sure it was handled.",
+              "story_text": "In “{story}”, pick one piece of logic with a tricky edge case. Explain the case and how you made sure your code handled it."
+            },
+            {
+              "id": "coding.lookup_choice",
+              "family_key": "data_structure_choice",
+              "competency_key": "technical_communication",
+              "fallback": "Talk me through how you would choose a data structure for a lookup that also needs every key between two values."
+            },
+            {
+              "id": "coding.job_order",
+              "family_key": "dependency_order",
+              "competency_key": "algorithmic_problem_solving",
+              "fallback": "How would you order a set of jobs that depend on each other, and what would you do if the dependencies formed a loop?"
+            },
+            {
+              "id": "coding.check_before_handover",
+              "family_key": "self_checking",
+              "competency_key": "coding_quality",
+              "fallback": "You have just written a small function. Which inputs would you try first before handing it over, and why those?"
+            },
+            {
+              "id": "coding.window_sum",
+              "family_key": "sliding_window",
+              "competency_key": "algorithmic_problem_solving",
+              "fallback": "Given a sequence of daily readings, how would you find the highest total across any fixed-length run of days? Explain how you would avoid rescanning each run."
+            },
+            {
+              "id": "coding.interval_overlap",
+              "family_key": "interval_sweep",
+              "competency_key": "algorithmic_problem_solving",
+              "fallback": "A calendar contains many time intervals. How would you find whether any two overlap, and how would your approach change if you needed every overlapping pair?"
+            },
+            {
+              "id": "coding.safe_parse",
+              "family_key": "input_validation",
+              "competency_key": "coding_quality",
+              "fallback": "A function receives a date and amount as text. How would you handle values it cannot use and explain the result to its caller?"
+            },
+            {
+              "id": "coding.explain_complexity",
+              "family_key": "complexity_analysis",
+              "competency_key": "technical_communication",
+              "fallback": "Choose an algorithm you know well. Explain its running time to a teammate, including what input characteristic makes the work grow."
+            }
+          ],
+          "question_family": "coding_walkthrough"
+        },
+        {
+          "key": "system_design",
+          "ordinal": 2,
+          "theme": "Designing a system",
+          "competency_keys": [
+            "system_design",
+            "technical_communication"
+          ],
+          "claim_subjects": [
+            "online_assessment",
+            "interview_topics"
+          ],
+          "templates": [
+            {
+              "id": "design.scheduled_prices",
+              "family_key": "scheduled_work",
+              "competency_key": "system_design",
+              "fallback": "Design a service that lets shop owners schedule price changes for a future time. What are the main parts, and what happens if the scheduler falls behind?"
+            },
+            {
+              "id": "design.order_updates",
+              "family_key": "fan_out_messaging",
+              "competency_key": "system_design",
+              "fallback": "Sketch a system that sends order updates to millions of phones. Where would messages wait, and how would you stop the same update arriving twice?"
+            },
+            {
+              "id": "design.ten_times",
+              "family_key": "growth_limits",
+              "competency_key": "system_design",
+              "fallback": "Think of a system you worked on. What would break first if usage grew ten times, and what would you change?",
+              "story_text": "In “{story}”, what would break first if usage grew ten times, and what would you change?"
+            },
+            {
+              "id": "design.clinic_booking",
+              "family_key": "booking_consistency",
+              "competency_key": "system_design",
+              "fallback": "Design a booking system for a small chain of clinics. How would you stop two people booking the same slot?"
+            },
+            {
+              "id": "design.van_tracking",
+              "family_key": "location_updates",
+              "competency_key": "system_design",
+              "fallback": "Design a service that shows which delivery vans are near each depot right now. How often would you update positions, and why?"
+            },
+            {
+              "id": "design.activity_feed",
+              "family_key": "precompute_vs_on_demand",
+              "competency_key": "system_design",
+              "fallback": "How would you design a list of recent activity for each user, and what would you prepare ahead of time versus build when asked?"
+            },
+            {
+              "id": "design.file_uploads",
+              "family_key": "resumable_uploads",
+              "competency_key": "system_design",
+              "fallback": "Design a service for uploading large files over an unreliable connection. How would clients resume, and how would you confirm the finished file?"
+            },
+            {
+              "id": "design.audit_history",
+              "family_key": "append_only_history",
+              "competency_key": "system_design",
+              "fallback": "A finance team needs a searchable history of every change to an account. How would you store and retrieve that history without losing earlier versions?"
+            },
+            {
+              "id": "design.email_digest",
+              "family_key": "batch_delivery",
+              "competency_key": "system_design",
+              "fallback": "Design a daily email digest for millions of users across time zones. How would you schedule delivery and handle a slow mail provider?"
+            },
+            {
+              "id": "design.feature_rollout",
+              "family_key": "gradual_rollout",
+              "competency_key": "system_design",
+              "fallback": "How would you release a new feature to a small share of users first, observe its impact, and quickly stop the rollout if problems appear?"
+            },
+            {
+              "id": "design.inventory_reservation",
+              "family_key": "temporary_reservations",
+              "competency_key": "system_design",
+              "fallback": "Design inventory reservations for an online store so abandoned checkouts eventually release stock without overselling it."
+            },
+            {
+              "id": "design.search_suggestions",
+              "family_key": "query_suggestions",
+              "competency_key": "system_design",
+              "fallback": "Design search suggestions that appear as someone types. How would you keep suggestions useful while updating them as popular searches change?"
+            },
+            {
+              "id": "design.photo_processing",
+              "family_key": "async_media_pipeline",
+              "competency_key": "system_design",
+              "fallback": "A photo-sharing app needs thumbnails in several sizes. How would uploads be processed if image conversion can take time or cannot be completed?"
+            },
+            {
+              "id": "design.explain_tradeoff",
+              "family_key": "explaining_tradeoffs",
+              "competency_key": "technical_communication",
+              "fallback": "Pick one design choice you would make for a busy online shop and explain it to someone who has never built a large system."
+            }
+          ],
+          "question_family": "design_discussion"
+        },
+        {
+          "key": "behavioural",
+          "ordinal": 3,
+          "theme": "Examples from your own work",
+          "competency_keys": [
+            "behavioural_examples"
+          ],
+          "claim_subjects": [
+            "interview_loop"
+          ],
+          "templates": [
+            {
+              "id": "behavioural.deadline_scope",
+              "family_key": "trade_offs",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you shipped something under a deadline that was not as complete as you wanted. What did you leave out, and what did you do afterwards?"
+            },
+            {
+              "id": "behavioural.beyond_task",
+              "family_key": "ownership",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you noticed a problem outside your own task and decided to act on it."
+            },
+            {
+              "id": "behavioural.user_need",
+              "family_key": "user_focus",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time a user's need changed how you built something."
+            },
+            {
+              "id": "behavioural.own_decision",
+              "family_key": "decisions",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a decision at work that was yours alone. What did you weigh up before making it?",
+              "story_text": "In “{story}”, which decision was yours alone, and what did you weigh up before making it?"
+            },
+            {
+              "id": "behavioural.root_cause",
+              "family_key": "digging_in",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you dug into the details to understand why something kept breaking."
+            },
+            {
+              "id": "behavioural.technical_disagreement",
+              "family_key": "disagreement",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you and a teammate disagreed about a technical choice. How did you settle it?"
+            },
+            {
+              "id": "behavioural.simplified",
+              "family_key": "simplifying",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you made something simpler for the people who had to use it."
+            },
+            {
+              "id": "behavioural.own_standard",
+              "family_key": "standards",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you held your own work to a higher standard than anyone asked for. What did that cost, and was it worth it?"
+            },
+            {
+              "id": "behavioural.failed_plan",
+              "family_key": "adaptability",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time a plan you owned stopped working. How did you respond, and what did you learn?"
+            },
+            {
+              "id": "behavioural.feedback_received",
+              "family_key": "growth",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about feedback that changed how you work. What did you do differently afterwards?"
+            },
+            {
+              "id": "behavioural.helped_teammate",
+              "family_key": "collaboration",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you helped a teammate succeed when it was not part of your assigned work."
+            },
+            {
+              "id": "behavioural.measured_outcome",
+              "family_key": "impact",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a piece of work whose outcome surprised you. How did you determine whether it had helped?"
+            }
+          ],
+          "question_family": "past_example"
+        }
+      ]
+    },
+    "business_analysis": {
+      "levels": [
+        "analyst",
+        "consultant",
+        "senior_consultant",
+        "manager",
+        "not_sure"
+      ],
+      "rounds": [
+        {
+          "key": "business_problem_solving",
+          "ordinal": 1,
+          "theme": "Working through a business problem",
+          "question_family": "case_discussion",
+          "competency_keys": [
+            "structured_problem_solving",
+            "quantitative_reasoning",
+            "business_judgement"
+          ],
+          "claim_subjects": [
+            "case_interview",
+            "problem_solving_assessment"
+          ],
+          "templates": [
+            {
+              "id": "case.cafe_profit",
+              "family_key": "profit_diagnosis",
+              "competency_key": "structured_problem_solving",
+              "fallback": "A chain of neighbourhood cafés has seen profit fall for three quarters while sales stayed flat. How would you structure your first look at why?"
+            },
+            {
+              "id": "case.repair_sizing",
+              "family_key": "market_sizing",
+              "competency_key": "quantitative_reasoning",
+              "fallback": "Roughly how many bicycle repairs happen in a year in a city of two million people? Talk through your assumptions and how you would check the answer feels sensible."
+            },
+            {
+              "id": "case.clinic_waits",
+              "family_key": "operations_bottleneck",
+              "competency_key": "structured_problem_solving",
+              "fallback": "Patients at a group of clinics now wait far longer than last year. How would you break down where the delay comes from before suggesting any fix?"
+            },
+            {
+              "id": "case.new_city",
+              "family_key": "market_entry",
+              "competency_key": "business_judgement",
+              "fallback": "A grocery delivery firm wants to start in a new city. What would you need to know before recommending yes or no, and in what order would you find it out?"
+            },
+            {
+              "id": "case.price_rise",
+              "family_key": "pricing_decision",
+              "competency_key": "business_judgement",
+              "fallback": "A subscription business is thinking of raising its price by ten percent. How would you judge whether that is a good idea?"
+            },
+            {
+              "id": "case.sales_and_returns",
+              "family_key": "data_interpretation",
+              "competency_key": "quantitative_reasoning",
+              "fallback": "Sales rose by a fifth while product returns doubled. Explain how you would work out whether the business is actually doing better."
+            },
+            {
+              "id": "case.cost_cut",
+              "family_key": "cost_breakdown",
+              "competency_key": "structured_problem_solving",
+              "fallback": "A logistics company wants to cut its costs by fifteen percent without slowing deliveries. How would you organise the problem before looking at any numbers?"
+            },
+            {
+              "id": "case.one_recommendation",
+              "family_key": "synthesis",
+              "competency_key": "business_judgement",
+              "fallback": "You have five minutes left with someone who wants one recommendation from your work. How would you sum it up, and which risk would you mention?"
+            },
+            {
+              "id": "case.gym_break_even",
+              "family_key": "break_even",
+              "competency_key": "quantitative_reasoning",
+              "fallback": "A gym has the same fixed costs each month and charges every member the same fee. Walk me through how you would find how many members it needs to break even."
+            },
+            {
+              "id": "case.two_of_six",
+              "family_key": "prioritisation",
+              "competency_key": "business_judgement",
+              "fallback": "A bank has money for only two of six improvement projects. How would you decide which two to fund, and what would make you change your mind?"
+            },
+            {
+              "id": "case.call_centre_staffing",
+              "family_key": "capacity_estimate",
+              "competency_key": "quantitative_reasoning",
+              "fallback": "A call centre gets about nine hundred calls on a busy day. Talk me through how you would estimate how many people it needs on shift."
+            },
+            {
+              "id": "case.second_attempt",
+              "family_key": "restructuring_an_analysis",
+              "competency_key": "structured_problem_solving",
+              "fallback": "Think of a problem you worked on where your first answer did not hold up. How did you structure it the second time?",
+              "story_text": "In “{story}”, how did you break the problem into parts, and what would you check first if you did it again?"
+            }
+          ]
+        },
+        {
+          "key": "requirements_and_stakeholders",
+          "ordinal": 2,
+          "theme": "Requirements and stakeholder situations",
+          "question_family": "workplace_scenario",
+          "competency_keys": [
+            "requirements_analysis",
+            "stakeholder_communication"
+          ],
+          "claim_subjects": [
+            "requirements_discussion",
+            "stakeholder_discussion"
+          ],
+          "templates": [
+            {
+              "id": "req.vague_dashboard",
+              "family_key": "clarifying_requirements",
+              "competency_key": "requirements_analysis",
+              "fallback": "A manager asks for a dashboard that shows how the team is doing. What questions would you ask before writing any requirements?"
+            },
+            {
+              "id": "req.opposite_asks",
+              "family_key": "conflicting_stakeholders",
+              "competency_key": "stakeholder_communication",
+              "fallback": "Two department heads want opposite changes to the same approval process. How would you move them towards one decision?"
+            },
+            {
+              "id": "req.growing_scope",
+              "family_key": "scope_control",
+              "competency_key": "stakeholder_communication",
+              "fallback": "Halfway through a project, the sponsor keeps adding small requests. How would you handle them without losing the sponsor's support?"
+            },
+            {
+              "id": "req.unwritten_process",
+              "family_key": "process_mapping",
+              "competency_key": "requirements_analysis",
+              "fallback": "Describe how you would map the current steps of an invoice approval process that nobody has ever written down."
+            },
+            {
+              "id": "req.address_change",
+              "family_key": "acceptance_criteria",
+              "competency_key": "requirements_analysis",
+              "fallback": "A team will build a feature that lets customers change a delivery address. How would you write acceptance criteria that testers can check?"
+            },
+            {
+              "id": "req.two_minute_update",
+              "family_key": "executive_update",
+              "competency_key": "stakeholder_communication",
+              "fallback": "Explain how you would present a delayed project to a senior leader who has two minutes and needs to know what to decide."
+            },
+            {
+              "id": "req.doubtful_data",
+              "family_key": "data_quality",
+              "competency_key": "requirements_analysis",
+              "fallback": "The report your stakeholders rely on uses data you suspect is incomplete. What would you do before the next review meeting?"
+            },
+            {
+              "id": "req.old_way_works",
+              "family_key": "change_resistance",
+              "competency_key": "stakeholder_communication",
+              "fallback": "The people who will use a new system say the old way works fine. How would you understand and respond to their concerns?"
+            },
+            {
+              "id": "req.twenty_requests",
+              "family_key": "backlog_prioritisation",
+              "competency_key": "requirements_analysis",
+              "fallback": "You have twenty requested changes and time for five. How would you decide, and how would you explain the choice to the people left out?"
+            },
+            {
+              "id": "req.handover_note",
+              "family_key": "documenting_decisions",
+              "competency_key": "requirements_analysis",
+              "fallback": "A project changes hands next week. What would you write down so the new team understands what was agreed and why?"
+            },
+            {
+              "id": "req.late_feature",
+              "family_key": "difficult_conversations",
+              "competency_key": "stakeholder_communication",
+              "fallback": "A client expects a feature next month that will not be ready in time. How would you prepare for and run that conversation?"
+            },
+            {
+              "id": "req.convincing_someone",
+              "family_key": "handling_disagreement",
+              "competency_key": "stakeholder_communication",
+              "fallback": "Tell me about a time someone you worked with disagreed with your recommendation. How did you handle it?",
+              "story_text": "In “{story}”, who disagreed with you or needed convincing, and how did you handle it?"
+            }
+          ]
+        },
+        {
+          "key": "behavioural",
+          "ordinal": 3,
+          "theme": "Examples from your own work",
+          "question_family": "past_example",
+          "competency_keys": [
+            "behavioural_examples"
+          ],
+          "claim_subjects": [
+            "behavioural_interview"
+          ],
+          "templates": [
+            {
+              "id": "ba_behavioural.tight_deadline",
+              "family_key": "trade_offs",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you had to deliver a report or set of findings under a tight deadline. What did you leave out, and why?"
+            },
+            {
+              "id": "ba_behavioural.little_direction",
+              "family_key": "ambiguity",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you started a piece of work with very little direction. How did you decide what to do first?"
+            },
+            {
+              "id": "ba_behavioural.team_disagreed",
+              "family_key": "disagreement",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time people in your team disagreed on how to proceed. What part did you play in settling it?"
+            },
+            {
+              "id": "ba_behavioural.own_mistake",
+              "family_key": "accountability",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a mistake in your own work that someone else noticed. What did you do next?"
+            },
+            {
+              "id": "ba_behavioural.changed_senior_mind",
+              "family_key": "influence",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you persuaded someone more senior than you to change their mind."
+            },
+            {
+              "id": "ba_behavioural.learned_fast",
+              "family_key": "learning",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you had to learn an unfamiliar subject quickly to get your work done."
+            },
+            {
+              "id": "ba_behavioural.your_call",
+              "family_key": "decisions",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a decision in a project that was yours to make. What did you weigh up before making it?",
+              "story_text": "In “{story}”, which decision was yours to make, and what did you weigh up first?"
+            },
+            {
+              "id": "ba_behavioural.feedback_changed",
+              "family_key": "growth",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about feedback from a client, user or manager that changed how you work."
+            },
+            {
+              "id": "ba_behavioural.helped_group",
+              "family_key": "collaboration",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you helped a group succeed with work that was not assigned to you."
+            },
+            {
+              "id": "ba_behavioural.two_requests",
+              "family_key": "prioritising",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time two people needed your help on the same day. How did you decide what came first?"
+            },
+            {
+              "id": "ba_behavioural.easier_process",
+              "family_key": "simplifying",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a time you made a process easier for the people who had to follow it."
+            },
+            {
+              "id": "ba_behavioural.showed_difference",
+              "family_key": "impact",
+              "competency_key": "behavioural_examples",
+              "fallback": "Tell me about a piece of work where you could show the difference it made. How did you measure it?"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

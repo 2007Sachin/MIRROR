@@ -95,15 +95,49 @@ test("synthetic research reaches its mapped round priority and prompt metadata w
 
 test("creating a target records the body and a second target for the same role is a 409", () => {
   const { mock, get } = setup();
-  const body = { role_profile_id: TARGET_IDS.newRole, company: "Amazon", level: "sde_ii", geography: "in", geography_label: "India" };
+  const body = { role_profile_id: TARGET_IDS.newRole, company: "Amazon", role_family: "software_development_engineering", level: "sde_ii", geography: "in", geography_label: "India" };
   const created = mock.handle("POST", "/api/v1/targets", { body });
   assert.equal(created.status, 201);
   assert.equal(created.body.target.company_key, "amazon");
   assert.equal(created.body.target.level_key, "sde_ii");
   assert.equal(mock.handle("POST", "/api/v1/targets", { body }).status, 409);
   assert.equal(mock.handle("POST", "/api/v1/targets", { body: { ...body, geography: "global" } }).status, 422);
+  assert.equal(mock.handle("POST", "/api/v1/targets", { body: { ...body, role_family: undefined } }).status, 422, "role family is required");
+  assert.equal(mock.handle("POST", "/api/v1/targets", { body: { ...body, level: "consultant" } }).status, 422, "a level of another family is refused");
   assert.deepEqual(mock.state.targetCreates[0], body);
   assert.equal(get("/api/v1/targets").body.targets.length, 2);
+});
+
+test("business-roles slice: same routes and shapes, its own rounds, and no engineering round", () => {
+  const { mock, sessions, get } = setup();
+  mock.setScenario({ slice: "business_roles" });
+  const target = get("/api/v1/targets").body.targets[0];
+  assert.equal(target.role_family_key, "business_analysis");
+  assert.equal(target.company_label, "QA Consulting Co (synthetic)");
+  const engineering = fixture("blueprint_researched.json");
+  const view = get(`/api/v1/targets/${TARGET_IDS.target}/blueprint`).body;
+  assert.deepEqual(Object.keys(view).sort(), Object.keys(engineering).sort());
+  assert.deepEqual(view.rounds.map((r) => r.key), ["business_problem_solving", "requirements_and_stakeholders", "behavioural"]);
+  assert.equal(view.rounds[1].presence, "CONDITIONAL");
+  assert.equal(get(`/api/v1/targets/${TARGET_IDS.target}/rounds/coding_reasoning`).status, 404);
+  const plan = get("/api/v1/plan", new URL(`http://x/api/v1/plan?role_profile_id=${ROLE}`)).body;
+  assert.equal(plan.role.target_role, "QA Business Analyst (test role)");
+  assert.equal(plan.areas[0].theme, "Requirements gathering");
+  assert.equal(plan.recommended_area_key, "qa_area_requirements");
+  const map = get(`/api/v1/roles/${ROLE}/interview-map`).body;
+  assert.equal(map.target_role, "QA Business Analyst (test role)");
+  assert.deepEqual(map.preparation_areas.map((area) => area.title), ["Clarifying business requirements", "Working through a business problem"]);
+  assert.ok(map.preparation_areas.every((area) => !/coding|system design/i.test(area.title)));
+  const detail = get(`/api/v1/targets/${TARGET_IDS.target}/rounds/business_problem_solving`).body;
+  assert.ok(detail.pack.prompts.every((p) => p.question_family === "case_discussion" && !("text" in p)));
+  const started = mock.handle("POST", `/api/v1/targets/${TARGET_IDS.target}/rounds/business_problem_solving/practice`, {
+    body: { mode: "FOCUSED_PRACTICE", idempotency_key: "qa-ba-1" },
+  });
+  assert.equal(started.status, 201);
+  assert.equal(sessions[0].practice_theme, "Working through a business problem");
+  assert.equal(sessions[0].qa_prompt_set, "qa_business_case");
+  mock.setScenario({ slice: "engineering" });
+  assert.equal(get("/api/v1/targets").body.targets[0].role_family_key, "software_development_engineering");
 });
 
 test("round practice creates one session per idempotency key, links it, and history counts it", () => {
@@ -154,6 +188,8 @@ test("the critical path runs the Loop 2 journeys before sign-out, and every allo
   assert.ok(steps.length >= 18, `journey steps: ${steps.length}`);
   assert.ok(steps.includes("t16-onboarding-continues-with-general-plan-without-target"));
   assert.ok(steps.includes("t09b-researched-round-to-review"));
+  assert.ok(steps.includes("t17-business-roles-plan"), "Loop 3 journey B runs on the same product system");
+  assert.ok(steps.includes("t19-business-roles-practice-to-review"));
   assert.equal(new Set(steps).size, steps.length, "step names are unique");
   const { ALLOW } = await import("../lib/collector.mjs");
   for (const rule of ALLOW.filter((r) => r.steps?.some((s) => s.startsWith("t")))) {

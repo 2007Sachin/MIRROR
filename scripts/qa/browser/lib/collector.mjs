@@ -32,6 +32,16 @@ export const ALLOW = [
     steps: ["t06-plan-section-unavailable", "t07-plan-section-error-and-retry", "t11-round-unknown-key"],
     reason: "Chrome logs the deliberate answers above as console errors",
   },
+  // Loop 3 journey B: a business-roles target has no engineering rounds; asking for one is a deliberate 404.
+  {
+    kind: "response", url: /\/api\/v1\/targets\/[^/]+\/rounds\/coding_reasoning$/, status: 404, steps: ["t18-business-roles-round-detail"],
+    reason: "an engineering round key on a business-roles target renders the not-found message",
+  },
+  {
+    kind: "console", text: /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/,
+    steps: ["t18-business-roles-round-detail"],
+    reason: "Chrome logs the deliberate T18 404 as a console error",
+  },
   {
     kind: "response", url: /\/api\/v1\/targets$/, status: 503,
     steps: ["t16-onboarding-continues-with-general-plan-without-target"],

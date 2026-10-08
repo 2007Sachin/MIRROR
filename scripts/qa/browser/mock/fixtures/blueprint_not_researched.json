@@ -19,7 +19,7 @@
     "catalog_version": 1,
     "catalog_sha256": "f372169ac707911df4e72bb167dcf66c34cc75283edc5fbe16b5fbec4da4f991",
     "match_state": "NOT_RESEARCHED",
-    "rules_version": "blueprint-1",
+    "rules_version": "blueprint-2-taxonomy-1",
     "created_at": "2026-10-04T00:00:00Z",
     "latest_version": 1,
     "refresh_available": false
@@ -46,7 +46,9 @@
         "algorithmic_problem_solving",
         "coding_quality",
         "technical_communication"
-      ]
+      ],
+      "question_family": "coding_walkthrough",
+      "presence": null
     },
     {
       "key": "system_design",
@@ -56,7 +58,9 @@
       "competency_keys": [
         "system_design",
         "technical_communication"
-      ]
+      ],
+      "question_family": "design_discussion",
+      "presence": null
     },
     {
       "key": "behavioural",
@@ -65,7 +69,9 @@
       "basis": "MIRROR_SUGGESTED",
       "competency_keys": [
         "behavioural_examples"
-      ]
+      ],
+      "question_family": "past_example",
+      "presence": null
     }
   ]
 }

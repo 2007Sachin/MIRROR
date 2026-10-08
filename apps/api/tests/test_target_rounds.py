@@ -8,13 +8,22 @@ from app.prompt_originality import GuardContext, RecentPrompt, check_prompt, exc
 from app.research_catalog import load_catalog
 from app.target_rounds import (
     PACK_MIN,
-    ROUNDS,
     CandidateMaterial,
     build_round_pack,
-    get_round,
+    find_round,
 )
+from app.target_taxonomy import load_taxonomy
 
 TODAY = date(2026, 10, 4)
+SDE = "software_development_engineering"
+BA = "business_analysis"
+TAXONOMY = load_taxonomy()
+ROUNDS = TAXONOMY.rounds(SDE)  # practice rounds are role-family data now, not code
+ALL_ROUNDS = tuple(r for family in TAXONOMY.document.role_families for r in TAXONOMY.rounds(family))
+
+
+def get_round(key: str, family: str = SDE):
+    return find_round(TAXONOMY.rounds(family), key)
 
 
 def context(recent=(), excerpts=None):
@@ -28,7 +37,8 @@ def context(recent=(), excerpts=None):
 
 def test_three_rounds_with_distinct_keys_and_enough_templates() -> None:
     assert [r.key for r in ROUNDS] == ["coding_reasoning", "system_design", "behavioural"]
-    for round_ in ROUNDS:
+    assert [r.key for r in TAXONOMY.rounds(BA)] == ["business_problem_solving", "requirements_and_stakeholders", "behavioural"]
+    for round_ in ALL_ROUNDS:
         assert len(round_.templates) >= PACK_MIN + 2
         assert len({t.id for t in round_.templates}) == len(round_.templates)
         assert set(t.competency_key for t in round_.templates) <= set(round_.competency_keys)
@@ -38,11 +48,12 @@ def test_every_round_has_twelve_templates_for_three_focused_packs() -> None:
     assert {r.key: len(r.templates) for r in ROUNDS} == {
         "coding_reasoning": 12, "system_design": 14, "behavioural": 12,
     }
+    assert all(len(r.templates) >= 12 for r in ALL_ROUNDS)
 
 
 def test_every_template_and_fallback_passes_the_originality_guard_with_real_excerpts() -> None:
     ctx = context()
-    for round_ in ROUNDS:
+    for round_ in ALL_ROUNDS:
         for template in round_.templates:
             texts = [template.fallback]
             if template.slot:
@@ -83,7 +94,7 @@ def test_a_story_title_that_names_the_company_is_not_used() -> None:
 
 
 def test_not_researched_never_cites_published_guidance() -> None:
-    for round_ in ROUNDS:
+    for round_ in ALL_ROUNDS:
         pack = build_round_pack(round_, CandidateMaterial(), context(), researched=False)
         assert {p.rationale_code for p in pack.prompts} <= {"MIRROR_SUGGESTED", "YOUR_STORY"}
     pack = build_round_pack(get_round("system_design"), CandidateMaterial(), context(), researched=True)
@@ -116,3 +127,6 @@ def test_pack_is_deterministic() -> None:
 def test_unknown_round_raises_key_error() -> None:
     with pytest.raises(KeyError):
         get_round("bar_raiser")
+    with pytest.raises(KeyError):  # a round of another role family is not this family's round
+        get_round("coding_reasoning", BA)
+    assert TAXONOMY.rounds("unknown_family") == ()

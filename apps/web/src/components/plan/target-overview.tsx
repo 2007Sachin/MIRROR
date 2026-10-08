@@ -189,6 +189,7 @@ function Ready({ target, view, roleProfileId, roleName }: { target: TargetView; 
                 </Link>
                 <p id={`round-${round.key}-covers`}>{roundCovers(round.label_key)}</p>
                 <p id={`round-${round.key}-basis`} className="pl-source">{targetCopy.basis[round.basis] ?? targetCopy.basis.MIRROR_SUGGESTED}</p>
+                {round.presence === "CONDITIONAL" ? <p className="pl-quiet">{targetCopy.round.conditional}</p> : null}
               </li>
             ))}
           </ol>

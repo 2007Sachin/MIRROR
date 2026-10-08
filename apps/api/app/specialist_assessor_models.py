@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -45,8 +46,11 @@ class DomainAssessment(SpecialistModel):
 
     @model_validator(mode="after")
     def evidence_matches_status(self) -> DomainAssessment:
-        if self.status == SpecialistStatus.NOT_ENOUGH_SIGNAL and self.signal_strength != SignalStrength.NONE:
-            raise ValueError("not-enough-signal assessments must have no signal strength")
+        if self.status == SpecialistStatus.NOT_ENOUGH_SIGNAL:
+            if self.signal_strength != SignalStrength.NONE:
+                raise ValueError("not-enough-signal assessments must have no signal strength")
+            if self.evidence_turn_ids or self.evidence_quotes:
+                raise ValueError("not-enough-signal assessments cannot cite evidence")
         if self.status == SpecialistStatus.COMPLETE and not self.evidence_turn_ids:
             raise ValueError("completed assessments require evidence turns")
         if not {item.turn_id for item in self.evidence_quotes} <= set(self.evidence_turn_ids):
@@ -86,9 +90,47 @@ class AssessmentTranscriptTurn(SpecialistModel):
     phase: str
 
 
+class AssessmentQuestionContext(SpecialistModel):
+    position: int = Field(ge=1)
+    template_id: str
+    family_key: str
+    competency_key: str
+    question_family: str
+    text: str = Field(min_length=1, max_length=400)
+    provenance_class: Literal["MIRROR_GENERATED"] = "MIRROR_GENERATED"
+
+
+class AssessmentScope(SpecialistModel):
+    target_id: UUID = Field(exclude=True)
+    role_profile_id: UUID = Field(exclude=True)
+    role_family_key: str
+    round_key: str
+    round_label: str = Field(min_length=3, max_length=120)
+    question_family: str
+    taxonomy_version: int = Field(ge=1)
+    catalog_version: int = Field(ge=1)
+    rubric_key: str
+    rubric_version: str
+    competency_keys: tuple[str, ...] = Field(min_length=1)
+    assessor_types: tuple[AssessorType, ...] = Field(min_length=1)
+    provenance_class: Literal["MIRROR_GENERATED"]
+    dimensions: tuple[dict[str, str], ...] = Field(min_length=1)
+    questions: tuple[AssessmentQuestionContext, ...] = Field(min_length=1, max_length=20)
+
+
+class TargetAssessmentScopeReader(Protocol):
+    async def load_scope(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        session_role_profile_id: UUID | None,
+    ) -> AssessmentScope | None: ...
+
+
 class SpecialistAssessmentContext(SpecialistModel):
     session_id: UUID
     assessor_type: AssessorType
+    assessment_scope: AssessmentScope | None = None
     role_competencies: list[dict[str, str | float]] = Field(default_factory=list)
     transcript_turns: list[AssessmentTranscriptTurn] = Field(default_factory=list, max_length=100)
     claims: list[dict[str, str | float | None]] = Field(default_factory=list, max_length=100)
@@ -113,6 +155,7 @@ class StoredSpecialistAssessment(SpecialistModel):
 
 class SpecialistAssessmentBundle(SpecialistModel):
     session_id: UUID
+    assessment_scope: AssessmentScope | None = None
     technical: StoredSpecialistAssessment | None = None
     behaviour: StoredSpecialistAssessment | None = None
     claims: StoredSpecialistAssessment | None = None

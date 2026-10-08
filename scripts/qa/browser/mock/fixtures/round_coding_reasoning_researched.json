@@ -23,7 +23,9 @@
       "algorithmic_problem_solving",
       "coding_quality",
       "technical_communication"
-    ]
+    ],
+    "question_family": "coding_walkthrough",
+    "presence": "CORE"
   },
   "match_state": "RESEARCHED",
   "research_label_key": "research.researched",
@@ -43,6 +45,7 @@
       "competency_key": "algorithmic_problem_solving",
       "reason_codes": [
         "IN_ONE_ROUND",
+        "NOT_LINKED_TO_YOUR_PLAN",
         "NOT_PRACTISED_YET"
       ],
       "suggested_mode": "FOCUSED_PRACTICE"
@@ -51,6 +54,7 @@
       "rank": 2,
       "competency_key": "coding_quality",
       "reason_codes": [
+        "IN_ONE_ROUND",
         "NOT_LINKED_TO_YOUR_PLAN",
         "NOT_PRACTISED_YET"
       ],
@@ -60,13 +64,14 @@
       "rank": 3,
       "competency_key": "technical_communication",
       "reason_codes": [
+        "IN_ONE_ROUND",
         "NOT_LINKED_TO_YOUR_PLAN",
         "NOT_PRACTISED_YET"
       ],
       "suggested_mode": "FOCUSED_PRACTICE"
     }
   ],
-  "priority_rules_version": "priority-1",
+  "priority_rules_version": "priority-2",
   "pack": {
     "state": "FULL",
     "minimum": 4,
@@ -75,73 +80,85 @@
       {
         "position": 1,
         "competency_key": "algorithmic_problem_solving",
+        "question_family": "coding_walkthrough",
         "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 2,
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 3,
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 4,
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 5,
         "competency_key": "coding_quality",
+        "question_family": "coding_walkthrough",
         "rationale_code": "YOUR_STORY",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 6,
         "competency_key": "technical_communication",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 7,
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 8,
         "competency_key": "coding_quality",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 9,
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 10,
         "competency_key": "algorithmic_problem_solving",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 11,
         "competency_key": "coding_quality",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 12,
         "competency_key": "technical_communication",
-        "rationale_code": "MIRROR_SUGGESTED",
+        "question_family": "coding_walkthrough",
+        "rationale_code": "PUBLISHED_GUIDANCE_AREA",
         "provenance_class": "MIRROR_GENERATED"
       }
     ]

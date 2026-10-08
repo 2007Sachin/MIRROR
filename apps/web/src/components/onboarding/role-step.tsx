@@ -4,7 +4,7 @@ import { ArrowRight, Check, FileText, UploadSimple } from "@phosphor-icons/react
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 
 import { StepHeading, type Report } from "@/components/onboarding/shared";
-import { TargetFields, looksLikeSde, targetBody, type TargetChoice } from "@/components/onboarding/target-fields";
+import { TargetFields, suggestedFamily, targetBody, type TargetChoice } from "@/components/onboarding/target-fields";
 import { mirrorApi, uploadRoleBriefDocument, type MirrorDocument, type RoleAnalysis } from "@/lib/api";
 import { createTarget, getBlueprint, listTargets, targetsAvailable } from "@/lib/api-targets";
 import { onboardingCopy } from "@/lib/copy-onboarding";
@@ -49,18 +49,18 @@ export function RoleStep({
   const [busy, setBusy] = useState(false);
 
   const locked = busy || progress !== null;
-  // Optional interview target (company, SDE family, level, country): only offered when targets are available.
+  // Optional interview target (company, role family, level, country): only offered when targets are available.
   const [targetsOn, setTargetsOn] = useState(false);
   const [targetOpen, setTargetOpen] = useState(false);
   const [familyTouched, setFamilyTouched] = useState(false);
-  const [target, setTarget] = useState<Omit<TargetChoice, "company">>({ family: false, level: "not_sure", country: "not_sure" });
+  const [target, setTarget] = useState<Omit<TargetChoice, "company">>({ family: null, level: "not_sure", country: "not_sure" });
   const [pending, setPending] = useState<{ role: RoleAnalysis; brief: MirrorDocument | null; skipped: boolean; body: NonNullable<ReturnType<typeof targetBody>> } | null>(null);
   const [targetFailure, setTargetFailure] = useState(false);
   const [targetBusy, setTargetBusy] = useState(false);
   const [targetReady, setTargetReady] = useState(false);
   const controlsLocked = locked || targetBusy || Boolean(pending);
-  const sde = looksLikeSde(role);
-  const family = familyTouched ? target.family : sde;
+  const hinted = suggestedFamily(role);
+  const family = familyTouched ? target.family : hinted;
 
   useEffect(() => {
     let active = true;
@@ -69,8 +69,8 @@ export function RoleStep({
   }, []);
 
   useEffect(() => {
-    if (targetsOn && sde) setTargetOpen(true);
-  }, [targetsOn, sde]);
+    if (targetsOn && hinted) setTargetOpen(true);
+  }, [targetsOn, hinted]);
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];

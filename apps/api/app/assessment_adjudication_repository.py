@@ -19,8 +19,22 @@ class SupabaseAssessmentAdjudicationRepository(SupabaseSkepticRepository):
         owned = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": "id", "limit": "1"})
         if not owned:
             return None
-        evidence = await self._get("claim_evidence", {"user_id": f"eq.{user_id}", "validated": "eq.true", "select": "id,claim_id,turn_id,quote_text,evidence_direction,strength", "limit": "200"})
-        claims = await self._get("claims", {"user_id": f"eq.{user_id}", "or": f"(session_id.eq.{session_id},session_id.is.null)", "select": "id,claim_text,status,confidence", "limit": "100"})
+        if bundle.assessment_scope is None:
+            evidence = await self._get("claim_evidence", {"user_id": f"eq.{user_id}", "validated": "eq.true", "select": "id,claim_id,turn_id,quote_text,evidence_direction,strength", "limit": "200"})
+            claims = await self._get("claims", {"user_id": f"eq.{user_id}", "or": f"(session_id.eq.{session_id},session_id.is.null)", "select": "id,claim_text,status,confidence", "limit": "100"})
+        else:
+            claims = await self._get("claims", {"user_id": f"eq.{user_id}", "session_id": f"eq.{session_id}", "select": "id,claim_text,status,confidence", "limit": "100"})
+            claim_ids = [str(row["id"]) for row in claims if row.get("id")]
+            evidence = (
+                await self._get("claim_evidence", {
+                    "user_id": f"eq.{user_id}",
+                    "validated": "eq.true",
+                    "claim_id": f"in.({','.join(claim_ids)})",
+                    "select": "id,claim_id,turn_id,quote_text,evidence_direction,strength",
+                    "limit": "200",
+                })
+                if claim_ids else []
+            )
         return AdjudicationContext(session_id=session_id, disagreement=disagreement, specialist_bundle=bundle, validated_evidence=evidence, claims_state=claims)
 
     async def store(self, context: AdjudicationContext, decision: AdjudicationDecision, model: str, prompt_version: str) -> StoredAdjudication:

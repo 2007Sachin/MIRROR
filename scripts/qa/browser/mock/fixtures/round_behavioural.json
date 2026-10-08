@@ -21,7 +21,9 @@
     "basis": "MIRROR_SUGGESTED",
     "competency_keys": [
       "behavioural_examples"
-    ]
+    ],
+    "question_family": "past_example",
+    "presence": null
   },
   "match_state": "NOT_RESEARCHED",
   "research_label_key": "research.not_yet_researched",
@@ -46,7 +48,7 @@
       "suggested_mode": "FOCUSED_PRACTICE"
     }
   ],
-  "priority_rules_version": "priority-1",
+  "priority_rules_version": "priority-2",
   "pack": {
     "state": "FULL",
     "minimum": 4,
@@ -55,72 +57,84 @@
       {
         "position": 1,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 2,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 3,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 4,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "YOUR_STORY",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 5,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 6,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 7,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 8,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 9,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 10,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 11,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       },
       {
         "position": 12,
         "competency_key": "behavioural_examples",
+        "question_family": "past_example",
         "rationale_code": "MIRROR_SUGGESTED",
         "provenance_class": "MIRROR_GENERATED"
       }

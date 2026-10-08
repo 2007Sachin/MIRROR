@@ -24,7 +24,7 @@ async function recoverExisting(body: TargetCreate, api: RecoveryApi): Promise<Re
     const target = list.targets.find((item) => item.status === "ACTIVE"
       && item.role_profile_id === body.role_profile_id
       && item.company_label.trim().toLocaleLowerCase() === body.company.trim().toLocaleLowerCase()
-      && item.role_family_key === "software_development_engineering"
+      && item.role_family_key === body.role_family
       && item.level_key === body.level
       && (item.geography_key ?? null) === (body.geography ?? null));
     if (!target) return { kind: "FAILED" };

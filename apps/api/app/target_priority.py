@@ -14,7 +14,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-PRIORITY_RULES_VERSION = "priority-1"
+PRIORITY_RULES_VERSION = "priority-2"  # priority-2: rounds only some processes include count less
 
 Band = Literal["LOW", "MEDIUM", "HIGH"]
 Coverage = Literal["STRONG", "GOOD", "BUILD"]  # app.plan_service.PlanStatus values
@@ -22,6 +22,7 @@ Mode = Literal["QUICK_DRILL", "FOCUSED_PRACTICE"]
 
 # Internal rules (never serialised).
 _ROUNDS_MANY, _ROUNDS_ONE = 30, 15
+_CONDITIONAL_ONLY = 8  # researched only in rounds that some processes include
 _BAND = {"HIGH": 10, "MEDIUM": 5, "LOW": 0, None: 0}
 _COVERAGE = {"BUILD": 30, "GOOD": 15, "STRONG": 0, None: 10}
 _COVERAGE_CODE = {"BUILD": "NO_CONFIRMED_EXAMPLE", "GOOD": "SOME_EXAMPLES", "STRONG": None, None: "NOT_LINKED_TO_YOUR_PLAN"}
@@ -36,7 +37,8 @@ class _Frozen(BaseModel):
 
 class CompetencyInProcess(_Frozen):
     key: str = Field(min_length=1, max_length=80)
-    round_count: int = Field(ge=0)  # non-container rounds of the pinned process that cover it
+    round_count: int = Field(ge=0)  # researched rounds of the pinned process that cover it
+    conditional_round_count: int = Field(default=0, ge=0)  # researched rounds only some processes include
     first_round_ordinal: int | None = Field(default=None, ge=1)
     band: Band | None = None  # band of its supporting research claims
 
@@ -68,6 +70,9 @@ def _score(
     elif competency.round_count == 1:
         points += _ROUNDS_ONE
         codes.append("IN_ONE_ROUND")
+    elif competency.conditional_round_count >= 1:
+        points += _CONDITIONAL_ONLY
+        codes.append("IN_CONDITIONAL_ROUND")
     points += _BAND[competency.band]
     points += _COVERAGE[coverage]
     if _COVERAGE_CODE[coverage]:

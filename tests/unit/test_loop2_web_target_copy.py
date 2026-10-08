@@ -14,7 +14,11 @@ from pathlib import Path
 
 from app.copy_guard import find_banned
 from app.research_catalog import load_catalog
-from app.target_rounds import ROUNDS, Rationale
+from app.target_rounds import Rationale
+from app.target_taxonomy import load_taxonomy
+
+TAXONOMY = load_taxonomy()
+ROUNDS = tuple(r for family in TAXONOMY.document.role_families for r in TAXONOMY.rounds(family))
 
 ROOT = Path(__file__).resolve().parents[2]
 COPY = (ROOT / "apps/web/src/lib/copy-targets.ts").read_text(encoding="utf-8")

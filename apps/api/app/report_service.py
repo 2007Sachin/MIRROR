@@ -4,11 +4,13 @@ import logging
 from typing import Any, Protocol
 from uuid import UUID
 
-from .config import get_settings
+
+from .config import Settings, get_settings
 from .claims_models import ClaimRead, ClaimStatus, EvidenceDirection
 from .copy_guard import clean_or_fallback
 from .claims_repository import CLAIM_COLUMNS, ClaimsGraphUnavailable, SupabaseClaimsGraphRepository, _claim
 from .report_models import (
+    ReportAssessmentScope,
     ReportClaim,
     ReportClaimsAudit,
     ReportEvidence,
@@ -23,7 +25,8 @@ from .report_models import (
 from .schemas import SessionEventRead, SessionRead, SessionStatus
 from .repository import SESSION_READ_COLUMNS
 from .evidence_validator import assessment_evidence_is_verifiable, candidate_turns_from_rows, quote_is_verifiable
-from .specialist_assessor_models import SpecialistAssessmentOutput
+from .specialist_assessor_models import AssessmentScope, SpecialistAssessmentOutput, SpecialistStatus, TargetAssessmentScopeReader
+
 from .verdict_models import VerdictCode
 from .verdict_service import SAFE_CONFIDENCE_NOTE, SAFE_SUMMARY
 
@@ -73,6 +76,9 @@ class ReportUnavailable(Exception):
 
 class ReportRepository(Protocol):
     async def get_session(self, session_id: UUID, user_id: UUID) -> SessionRead | None: ...
+    async def get_target_assessment_scope(
+        self, session_id: UUID, user_id: UUID, session_role_profile_id: UUID | None,
+    ) -> AssessmentScope | None: ...
     async def get_result(self, session_id: UUID, user_id: UUID) -> dict[str, Any] | None: ...
     async def list_claims(self, session_id: UUID, user_id: UUID) -> list[ClaimRead]: ...
     async def list_evidence(self, claim_ids: list[UUID], user_id: UUID) -> list[dict[str, Any]]: ...
@@ -82,6 +88,18 @@ class ReportRepository(Protocol):
 
 class SupabaseReportRepository(SupabaseClaimsGraphRepository):
     """Read-only report aggregate. Each collection is fetched in one query."""
+
+    def __init__(self, settings: Settings, scope_reader: TargetAssessmentScopeReader | None = None) -> None:
+        super().__init__(settings)
+        self._scope_reader = scope_reader
+
+    async def get_target_assessment_scope(
+        self, session_id: UUID, user_id: UUID, session_role_profile_id: UUID | None,
+    ) -> AssessmentScope | None:
+        if self._scope_reader is None:
+            raise ValueError("target assessment scope reader is not configured")
+        return await self._scope_reader.load_scope(session_id, user_id, session_role_profile_id)
+
 
     async def get_session(self, session_id: UUID, user_id: UUID) -> SessionRead | None:
         rows = await self._get("sessions", {"id": f"eq.{session_id}", "user_id": f"eq.{user_id}", "select": SESSION_READ_COLUMNS, "limit": "1"})
@@ -141,7 +159,7 @@ class SupabaseReportRepository(SupabaseClaimsGraphRepository):
             return []
         return await self._get("specialist_assessments", {
             "session_id": f"eq.{session_id}",
-            "select": "assessor_type,status,result_json,created_at",
+            "select": "assessor_type,status,result_json,rubric_version,created_at",
             "order": "created_at.desc",
             "limit": "30",
         })
@@ -178,13 +196,21 @@ class ReportService:
     async def get_report(self, session_id: UUID, user_id: UUID) -> ReportResponse:
         try:
             session = await self._repository.get_session(session_id, user_id)
-        except ClaimsGraphUnavailable as exc:
+        except (ClaimsGraphUnavailable, ValueError) as exc:
             raise ReportUnavailable from exc
         if session is None:
             raise ReportNotFound
         if session.status != SessionStatus.COMPLETED:
             raise ReportAssessmentIncomplete
         try:
+            assessment_scope = None
+            round_signal_available = False
+            try:
+                assessment_scope = await self._repository.get_target_assessment_scope(
+                    session_id, user_id, session.role_profile_id,
+                )
+            except AttributeError as exc:
+                raise ReportUnavailable("report repository cannot resolve target assessment scope") from exc
             result = await self._repository.get_result(session_id, user_id)
             if not result:
                 raise ReportAssessmentIncomplete
@@ -192,9 +218,16 @@ class ReportService:
             evidence_rows = await self._repository.list_evidence([claim.id for claim in claims], user_id)
             specialists = await self._repository.list_specialists(session_id, user_id)
             events = await self._repository.list_events(session_id, user_id)
+            if assessment_scope is not None:
+                if session.role_profile_id != assessment_scope.role_profile_id:
+                    raise ReportUnavailable("target role profile does not match the session")
+                if result.get("rubric_version") != assessment_scope.rubric_version:
+                    raise ReportUnavailable("persisted assessment rubric does not match the target contract")
+                specialists = self._scope_specialists(specialists, assessment_scope)
+                round_signal_available = self._scope_has_signal(specialists, assessment_scope)
         except ReportAssessmentIncomplete:
             raise
-        except ClaimsGraphUnavailable as exc:
+        except (ClaimsGraphUnavailable, ValueError) as exc:
             raise ReportUnavailable from exc
         # B5: report evidence is trusted only if it resolves to candidate-authored
         # turns of this session. Unknown provenance => unavailable, never a score.
@@ -230,6 +263,19 @@ class ReportService:
             duration_seconds=self._duration(session),
             assessment_confidence=confidence,
         )
+        if assessment_scope is not None:
+            result = {
+                **result,
+                "verdict_code": VerdictCode.PRACTICE_ONLY.value,
+                "root_cause_code": "NOT_APPLICABLE",
+                "availability_status": "ROUND_SCOPED",
+                "round_signal_available": round_signal_available,
+                "role_readiness_low": None,
+                "role_readiness_high": None,
+                "interview_readiness_low": None,
+                "interview_readiness_high": None,
+                "summary": result.get("summary") or "This reflection covers this practice round only.",
+            }
         if not provenance_ok:
             logger.warning("report result unavailable", extra={"session_id": str(session_id), "reason": UNVERIFIABLE_LEGACY_PROVENANCE})
             result = {**result, "summary": "", "confidence_note": "", "root_cause_code": "UNAVAILABLE", "root_cause": "UNAVAILABLE",
@@ -247,21 +293,68 @@ class ReportService:
                 str(result.get("summary") or ""), SAFE_SUMMARY, field="report.summary",
             ),
         )
-        audit = self._audit(claims, evidence_by_claim)
+        audit = ReportClaimsAudit() if assessment_scope is not None else self._audit(claims, evidence_by_claim)
         return ReportResponse(
             session=session_view,
+            assessment_scope=self._report_scope(assessment_scope) if assessment_scope is not None else None,
             verdict=verdict,
             role_readiness=role,
             interview_readiness=interview,
             claims_audit=audit,
             skill_assessments=self._skill_assessments(specialists, evidence_by_claim),
-            session_moments=self._moments(events, evidence_rows),
+            session_moments=[] if assessment_scope is not None else self._moments(events, evidence_rows),
             root_cause=str(result.get("root_cause_code") or result.get("root_cause") or "ROLE_SKILL_GAP"),
             trust_and_limitations=TrustAndLimitations(
                 outcome_validation_status="NOT_VALIDATED",
             ),
             prescription=None,
             shorter_conversation=shorter,
+        )
+
+    @staticmethod
+    def _scope_specialists(rows: list[dict[str, Any]], scope: AssessmentScope) -> list[dict[str, Any]]:
+        required = {kind.value for kind in scope.assessor_types}
+        latest: dict[str, dict[str, Any]] = {}
+        for row in sorted(rows, key=lambda item: str(item.get("created_at") or ""), reverse=True):
+            kind = str(row.get("assessor_type", "")).upper()
+            if kind in required:
+                latest.setdefault(kind, row)
+        if set(latest) != required:
+            raise ReportUnavailable("target report is missing a selected specialist assessment")
+        for kind in scope.assessor_types:
+            if latest[kind.value].get("rubric_version") != scope.rubric_version:
+                raise ReportUnavailable("target report specialist rubric does not match its pinned scope")
+            try:
+                parsed = SpecialistAssessmentOutput.model_validate(latest[kind.value].get("result_json") or {})
+            except (TypeError, ValueError) as exc:
+                raise ReportUnavailable("target report specialist output is invalid") from exc
+            if parsed.dimensions:
+                raise ReportUnavailable("target report contains unscoped specialist dimensions")
+            observed = tuple(item.domain for item in parsed.competency_or_domain_assessments)
+            if parsed.assessor_type != kind or observed != scope.competency_keys:
+                raise ReportUnavailable("target report specialist output does not match its competency contract")
+        return list(latest.values())
+
+    @staticmethod
+    def _scope_has_signal(rows: list[dict[str, Any]], scope: AssessmentScope) -> bool:
+        required = {kind.value for kind in scope.assessor_types}
+        return any(
+            dimension.status == SpecialistStatus.COMPLETE
+            for row in rows
+            if str(row.get("assessor_type", "")).upper() in required
+            for dimension in SpecialistAssessmentOutput.model_validate(row.get("result_json") or {}).competency_or_domain_assessments
+        )
+
+    @staticmethod
+    def _report_scope(scope: AssessmentScope) -> ReportAssessmentScope:
+        competency_keys = tuple(str(item.get("competency_key", "")) for item in scope.dimensions)
+        titles = [str(item.get("title", "")).strip() for item in scope.dimensions]
+        if competency_keys != scope.competency_keys or len(titles) != len(scope.competency_keys) or any(not title for title in titles):
+            raise ReportUnavailable("target report rubric metadata is incomplete")
+        return ReportAssessmentScope(
+            round_label=scope.round_label,
+            competency_titles=titles,
+            provenance_class=scope.provenance_class,
         )
 
     @staticmethod
@@ -320,6 +413,19 @@ class ReportService:
 
     @staticmethod
     def _readiness(result: dict[str, Any], prefix: str, confidence: float) -> ReportReadiness:
+        if result.get("availability_status") == "ROUND_SCOPED":
+            signal_available = bool(result.get("round_signal_available"))
+            return ReportReadiness(
+                low=None,
+                high=None,
+                label="This practice only" if signal_available else "Not enough to say yet",
+                signal_strength=_signal_label(confidence) if signal_available else "NONE",
+                confidence_note=(
+                    "Only this practice round is reflected; this is not an overall role-readiness result."
+                    if signal_available
+                    else "There is not enough information to assess this practice round yet; this is not an overall role-readiness result."
+                ),
+            )
         low = _int_or_none(result.get(f"{prefix}_readiness_low"))
         high = _int_or_none(result.get(f"{prefix}_readiness_high"))
         if low is None or high is None:
@@ -448,7 +554,7 @@ def _signal_label(confidence: float) -> str:
 
 
 def _verdict_label(code: VerdictCode) -> str:
-    return {VerdictCode.NOT_READY_YET: "Still growing", VerdictCode.DEVELOPING: "Developing", VerdictCode.NEAR_READY: "Nearly there", VerdictCode.READY: "Ready", VerdictCode.STRONG: "Strong"}[code]
+    return {VerdictCode.NOT_READY_YET: "Still growing", VerdictCode.DEVELOPING: "Developing", VerdictCode.NEAR_READY: "Nearly there", VerdictCode.READY: "Ready", VerdictCode.STRONG: "Strong", VerdictCode.PRACTICE_ONLY: "Practice only"}[code]
 
 
 def _claim_explanation(status: ClaimStatus) -> str:

@@ -11,6 +11,9 @@ class FinalAssessmentAggregator:
         self._high_width = high_signal_half_width
 
     def aggregate(self, bundle) -> AggregatedAssessment:
+        scope = getattr(bundle, "assessment_scope", None)
+        if scope is not None:
+            return self._aggregate_round_scoped(bundle)
         # A missing row (never produced, rejected by B5 evidence validation, or
         # otherwise unverifiable) is UNKNOWN: it is excluded from the weighted
         # score instead of being scored as weakness, and lowers confidence only.
@@ -29,6 +32,48 @@ class FinalAssessmentAggregator:
             overall_signal_confidence=confidence,
             availability_status="AVAILABLE" if confidence >= 2/3 else "LIMITED_SIGNAL",
             verdict_code=verdict, root_cause_code=root,
+            rubric_version="v1",
+        )
+
+    # Scoped practice feedback is intentionally not a global readiness aggregate.
+    def _aggregate_round_scoped(self, bundle) -> AggregatedAssessment:
+        scope = bundle.assessment_scope
+        rows = {
+            AssessorType.TECHNICAL: bundle.technical,
+            AssessorType.BEHAVIOUR: bundle.behaviour,
+            AssessorType.CLAIMS: bundle.claims,
+        }
+        selected_rows = [rows[kind] for kind in scope.assessor_types]
+        if not selected_rows or any(row is None for row in selected_rows):
+            raise ValueError("round-scoped assessment is missing a required specialist result")
+        dimensions = {}
+        for row in selected_rows:
+            for dimension in row.result_json.competency_or_domain_assessments:
+                if dimension.domain not in scope.competency_keys or dimension.domain in dimensions:
+                    raise ValueError("round-scoped aggregate contains an unapproved or duplicate competency")
+                dimensions[dimension.domain] = dimension
+        if tuple(dimensions) != scope.competency_keys:
+            raise ValueError("round-scoped aggregate does not contain the exact selected competencies")
+        available_dimensions = [
+            dimension for dimension in dimensions.values()
+            if dimension.status == SpecialistStatus.COMPLETE
+        ]
+        confidence = (
+            sum(dimension.confidence for dimension in available_dimensions) / len(available_dimensions)
+            if available_dimensions else 0.0
+        )
+        return AggregatedAssessment(
+            role_readiness_internal=None,
+            interview_readiness_internal=None,
+            role_readiness_low=None,
+            role_readiness_high=None,
+            interview_readiness_low=None,
+            interview_readiness_high=None,
+            overall_signal_confidence=confidence,
+            availability_status="ROUND_SCOPED",
+            verdict_code=VerdictCode.PRACTICE_ONLY,
+            root_cause_code=RootCauseCode.NOT_APPLICABLE,
+            rubric_version=scope.rubric_version,
         )
 
     @staticmethod
