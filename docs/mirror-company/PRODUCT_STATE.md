@@ -1,10 +1,16 @@
 # Current MIRROR product state
 
-## Loop 2 bounded status — 2026-10-06
+## Current status — 2026-10-08
 
-The local Loop 2 architecture/product slice is accepted at implementation HEAD `635209c43fe884c92ed62b0c03b449247354afc3`. **PROVEN locally:** optional company/role/seniority/geography target matching; scoped versioned research and round mapping; research-derived blueprint, round priority and practice basis; generated question origin remains separately `MIRROR_GENERATED`; immutable owner-scoped prompt manifest/recovery; isolated synthetic desktop/mobile journey.
+Loop 1 and Loop 2 remain accepted within their bounded scopes. Loop 3's local BA/case assessment-generalization slice is accepted (Gatekeeper A PASS/B PASS; final AI Evaluation and Security/Data re-reviews PASS) and repository-merged as `a806aae69103db16c7543914fa62af05fad0739e`. See `RECEIPTS/LR-0003-deloitte-ba-assessment.md`.
 
-**NOT PROVEN:** Amazon India SDE I/SDE II research validity or release; hosted migration/PostgREST integration; production readiness. The browser uses fictional/synthetic fixtures and fake Auth/API; local SQL used disposable PostgreSQL. Gatekeeper disposition: A PASS, B HELD, C NOT VERIFIED. No Loop 3, hosted work, deployment or production release. See `RECEIPTS/LR-0002-amazon-swe-india-local-slice.md`.
+Research remains HELD; hosted migration/integration is NOT VERIFIED; production release/deployment is NOT APPROVED. The implementation and CI use synthetic/deterministic checks only; no live-model, official Deloitte, hiring-validity, or hosted claim is made. No Loop 4 is authorized.
+
+## Historical Loop 2 bounded status — 2026-10-06
+
+The local Loop 2 architecture/product slice was accepted at implementation HEAD `635209c43fe884c92ed62b0c03b449247354afc3`. **PROVEN locally:** optional company/role/seniority/geography target matching; scoped versioned research and round mapping; research-derived blueprint, round priority and practice basis; generated question origin remains separately `MIRROR_GENERATED`; immutable owner-scoped prompt manifest/recovery; isolated synthetic desktop/mobile journey.
+
+**NOT PROVEN at that Loop 2 checkpoint:** Amazon India SDE I/SDE II research validity or release; hosted migration/PostgREST integration; production readiness. The browser used fictional/synthetic fixtures and fake Auth/API; local SQL used disposable PostgreSQL. Gatekeeper disposition then: A PASS, B HELD, C NOT VERIFIED. See `RECEIPTS/LR-0002-amazon-swe-india-local-slice.md`.
 
 > The detailed journey/capability inventory below is the pre-Loop2 snapshot at `8e3193f`; its absence claims are historical, not current. `docs/architecture/IMPLEMENTATION_STATUS.md` is the current feature ledger.
 

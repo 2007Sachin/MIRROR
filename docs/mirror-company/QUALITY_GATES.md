@@ -6,18 +6,31 @@
 - **STATIC-ONLY** — conclusion from reading code/docs. Never call this "verified".
 - **NOT DONE** — stated explicitly, with the reason.
 
-## Current Loop 2 disposition — local slice accepted (2026-10-06)
+## Current Loop 3 disposition — local assessment slice accepted; repository merged (2026-10-08)
+
+| Gate | Status | Evidence scope |
+|---|---|---|
+| G0 records/scope | **PASS** | Loop 3 receipt, current sprint, roadmap and release status distinguish local acceptance from research/hosted/release holds. |
+| G1 code/CI | **PASS at exact implementation SHA** | PR CI run `37708487534` passed all 3 required jobs at `ae5ecf7cf013d0d86f80894c2192d0834085d47e`; post-merge main CI run `37708775297` passed all 3 jobs at merge SHA `a806aae69103db16c7543914fa62af05fad0739e`. |
+| G2 data/security | **PASS for local scope only** | Scoped adjudication isolation is tested; no migration or hosted integration was performed. Hosted readiness remains **NOT VERIFIED**. |
+| G3 candidate experience | **PASS for scoped UI copy / isolated CI only** | Web copy/helper Node tests passed; GitHub's isolated synthetic browser critical path passed. No live/hosted candidate flow claimed. |
+| G4 AI behavior | **PASS deterministic local scope** | Full Python suite 1,508 passed, 3 skipped; deterministic AI-eval tests included. No live model, official Deloitte rubric, or hiring-validity evidence. |
+| G5 independent decision | **PASS for Loop 3 local slice** | Gatekeeper A PASS/B PASS; final AI Evaluation and Security/Data re-reviews PASS. Research remains HELD. |
+
+**Loop 3 local assessment slice accepted and repository-merged.** Research: **HELD**. Hosted migration/integration: **NOT VERIFIED**. Production release/deployment: **NOT APPROVED / NOT PERFORMED**. This does not authorize Loop 4.
+
+## Historical Loop 2 disposition — local slice accepted (2026-10-06)
 
 | Gate | Status | Evidence scope |
 |---|---|---|
 | G0 records/scope | **PASS** | Current sprint, research, product, roadmap, known-issues, release and receipt records reconcile the bounded local-only decision. |
-| G1 code/CI | **PASS at reviewed implementation HEAD** | GitHub run `37509014604` is exact SHA `635209c43fe884c92ed62b0c03b449247354afc3`, all 3 required jobs succeeded. This run does not certify later closure-document commits; every new HEAD requires its own CI before merge. |
+| G1 code/CI | **PASS at reviewed implementation HEAD** | GitHub run `37509014604` is exact SHA `635209c43fe884c92ed62b0c03b449247354afc3`, all 3 required jobs succeeded. |
 | G2 data/security | **PASS local-only** | Disposable PostgreSQL 16 forward/backfill/invariant/rollback run: 32/32. Hosted migration/PostgREST and current hosted applied-state are **NOT VERIFIED**. |
 | G3 candidate experience | **PASS isolated synthetic browser scope** | Real Chrome in isolated CI: 36 desktop + 36 mobile steps; T09b and T16 pass both viewports; no page/console errors, failed/bad/denied requests, unmocked API calls or mobile overflow. Runner acceptance uses `okWithAcknowledgedKnownIssues=true`; strict result is false only for KI-020, which remains debt. Fake Auth/API; no Python assessment UI or real backend. |
 | G4 research/AI behavior | **PASS deterministic synthetic scope** | Scope/provenance regressions and AI-eval tests pass with fictional fixtures/fake providers. No live model or Amazon India validation. |
 | G5 release decision | **PASS for local slice only** | Independent final reviewers PASS; Release Gatekeeper: A PASS, B HELD, C NOT VERIFIED. No production release approval. |
 
-**A — LOCAL ARCHITECTURE/PRODUCT: PASS. B — AMAZON INDIA RESEARCH: HELD. C — HOSTED RELEASE READINESS: NOT VERIFIED.** `LOOP 2 LOCAL SLICE ACCEPTED` authorizes only the scoped local result and repository integration under the owner's separate instruction. No hosted write, deployment, production release, or Loop 3.
+**A — LOCAL ARCHITECTURE/PRODUCT: PASS. B — AMAZON INDIA RESEARCH: HELD. C — HOSTED RELEASE READINESS: NOT VERIFIED.** `LOOP 2 LOCAL SLICE ACCEPTED` authorizes only its scoped local result. No hosted write, deployment, or production release.
 
 ## Historical Loop 1 status — LOOP 1 ACCEPTED (2026-10-04)
 

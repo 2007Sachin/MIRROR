@@ -1,8 +1,8 @@
 # Roadmap and backlog
 
-## Current disposition — 2026-10-06
+## Current disposition — 2026-10-08
 
-Loop 1 is accepted. Loop 2's bounded local architecture/product slice is accepted by Gatekeeper (A PASS; B India HELD; C hosted readiness NOT VERIFIED). Its local hypothesis is proven only with synthetic research/QA data and disposable local PostgreSQL. Amazon SDE I/SDE II India remain HELD; hosted migration, hosted PostgREST integration, deployment, and production release are NOT approved/verified. Loop 3 has not started. No active implementation objective is authorized by this status. See `RECEIPTS/LR-0002-amazon-swe-india-local-slice.md` and `RELEASES.md`.
+Loop 1 and Loop 2 remain accepted within their bounded scopes. Loop 3's local assessment-generalization slice is accepted (Gatekeeper A PASS/B PASS; final AI Evaluation PASS) and repository-merged; see `RECEIPTS/LR-0003-deloitte-ba-assessment.md`. Research remains HELD; hosted migration/integration is NOT VERIFIED; production release/deployment is NOT APPROVED. No active implementation objective is authorized by this status. Do not start Loop 4 without a separate owner decision.
 
 > The roadmap below is the pre-Loop2 planning snapshot. Its milestone/backlog statuses are historical and do not supersede the current disposition above.
 
