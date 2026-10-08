@@ -5,7 +5,10 @@ from ..specialist_assessor_models import (
 
 
 def create_specialist_assessor(
-    assessor_type: AssessorType, model: str
+    assessor_type: AssessorType,
+    model: str,
+    *,
+    prompt_version: str = "v1",
 ) -> BaseAgent[SpecialistAssessmentContext, SpecialistAssessmentOutput]:
     return BaseAgent(
         name=f"assessor_{assessor_type.value.lower()}",
@@ -13,6 +16,6 @@ def create_specialist_assessor(
         model=model, temperature=0.0,
         input_schema=SpecialistAssessmentContext,
         output_schema=SpecialistAssessmentOutput,
-        prompt_version="v1", allowed_tools=(), timeout_seconds=35, max_retries=2,
+        prompt_version=prompt_version, allowed_tools=(), timeout_seconds=35, max_retries=2,
     )
 

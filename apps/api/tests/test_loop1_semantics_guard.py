@@ -1,11 +1,11 @@
-"""Loop 1 semantics stay untouched by Loop 2 targets (import graph + behaviour).
+"""Loop 1 assessment/report/progress semantics stay target-agnostic.
 
 (a) No Loop 1 assessment/report/progress/planning module can reach a Loop 2 module through
-    imports (module-level or inside functions). The only bridge is the planner's injected
-    prompt loader, wired in ``dependencies``.
+    imports (module-level or inside functions). The only bridges are the planner's injected
+    prompt loader and the narrowly injected target-assessment scope reader.
 (b) Behaviour: role-level progress still counts target-linked sessions like any other practice
-    of the role, and plans without stored prompts are unchanged (test_target_seams.py); the
-    report/assessment path cannot see targets at all, by (a).
+    of the role, and plans without stored prompts are unchanged (test_target_seams.py); target
+    assessment metadata reaches assessment/report only through that injected scope reader.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1] / "app"
 LOOP2 = {
     "target_rounds", "target_repository", "target_capability", "target_service", "routes_targets", "research_catalog",
-    "prompt_originality", "target_priority", "target_taxonomy",  # target_taxonomy: Loop 3 role-family data loader
+    "prompt_originality", "target_priority", "target_taxonomy", "target_assessment_contract",  # target_taxonomy: Loop 3 role-family data loader
 }
 GUARDED_PREFIXES = ("assessment_", "verdict_", "skeptic_", "specialist_", "report_", "claim_resolution_")
 GUARDED = {
@@ -100,13 +100,13 @@ def test_no_loop1_module_reaches_a_loop2_module() -> None:
     assert {name: hit for name, hit in offenders.items() if hit} == {}
 
 
-def test_the_only_bridge_is_the_injected_planner_loader_in_dependencies() -> None:
+def test_only_composition_root_modules_import_loop2_modules() -> None:
     graph = _graph()
     importers = sorted(name for name, deps in graph.items() if deps & LOOP2 and name not in LOOP2)
     assert importers == ["dependencies", "main"]
 
 
-def test_dependencies_reaches_loop2_only_inside_the_planner_loader() -> None:
+def test_dependencies_reaches_loop2_only_inside_injected_bridges() -> None:
     tree = ast.parse((APP / "dependencies.py").read_text(encoding="utf-8"))
     for node in tree.body:  # module level: no Loop 2 import at all
         if isinstance(node, ast.ImportFrom):
@@ -115,7 +115,7 @@ def test_dependencies_reaches_loop2_only_inside_the_planner_loader() -> None:
         fn.name for fn in ast.walk(tree) if isinstance(fn, ast.AsyncFunctionDef | ast.FunctionDef)
         for inner in ast.walk(fn) if isinstance(inner, ast.ImportFrom) and (inner.module or "") in LOOP2
     )
-    assert holders == ["_target_prompt_texts", "_target_prompt_texts"]
+    assert holders == ["_target_assessment_scope_reader", "_target_prompt_texts", "_target_prompt_texts"]
 
 
 def test_graph_check_is_red_capable() -> None:

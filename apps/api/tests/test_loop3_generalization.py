@@ -19,6 +19,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.target_assessment_contract import AssessmentContractUnavailable, parse_blueprint_rules_version
 from app.interview_engine import InterviewStateMachine
 from app.repository import MemorySessionRepository
 from app.research_catalog import CatalogDocument, RepoResearchCatalog, content_sha256, load_catalog
@@ -554,6 +555,26 @@ def test_injected_taxonomy_cannot_satisfy_a_different_blueprint_pin():
     service = world().service  # injected synthetic taxonomy is version 1
     with pytest.raises(CatalogUnavailable):
         service._taxonomy_for_rules("blueprint-2-taxonomy-2")
+
+
+def test_assessment_blueprint_rules_keep_the_pinned_taxonomy_version():
+    service = world().service
+    taxonomy = service._taxonomy_for_rules("blueprint-3-taxonomy-1-assessment-1")
+    assert taxonomy.document.version == 1
+
+
+def test_blueprint_rule_pin_carries_both_taxonomy_and_assessment_catalog_versions():
+    pin = parse_blueprint_rules_version("blueprint-3-taxonomy-1-assessment-1")
+    assert pin.blueprint_version == 3
+    assert pin.taxonomy_version == 1
+    assert pin.assessment_catalog_version == 1
+
+    legacy_target_pin = parse_blueprint_rules_version("blueprint-2-taxonomy-1")
+    assert legacy_target_pin.taxonomy_version == 1
+    assert legacy_target_pin.assessment_catalog_version is None
+
+    with pytest.raises(AssessmentContractUnavailable):
+        parse_blueprint_rules_version("blueprint-3-taxonomy-1")
 
 
 def test_every_template_is_original_and_uses_mirror_words():

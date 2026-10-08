@@ -396,9 +396,16 @@ export type ReportReadiness = {
   confidence_note: string;
 };
 
+export type ReportAssessmentScope = {
+  round_label: string;
+  competency_titles: string[];
+  provenance_class: "MIRROR_GENERATED";
+};
+
 export type ReportResponse = {
   session: { target_role: string; completed_at: string; duration_seconds: number; assessment_confidence: number };
-  verdict: { code: "NOT_READY_YET" | "DEVELOPING" | "NEAR_READY" | "READY" | "STRONG"; label: string; summary: string };
+  assessment_scope: ReportAssessmentScope | null;
+  verdict: { code: "NOT_READY_YET" | "DEVELOPING" | "NEAR_READY" | "READY" | "STRONG" | "PRACTICE_ONLY"; label: string; summary: string };
   role_readiness: ReportReadiness;
   interview_readiness: ReportReadiness;
   claims_audit: { held: ReportClaim[]; partially_held: ReportClaim[]; walked_back: ReportClaim[]; contradicted: ReportClaim[]; insufficient_evidence: ReportClaim[]; unverified: ReportClaim[] };

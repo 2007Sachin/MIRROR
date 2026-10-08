@@ -195,6 +195,18 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
         <time dateTime={report.session.completed_at}>{formatDay(report.session.completed_at)}</time>
       </p>
       {review.shorter_conversation ? <p className="dh-action-meta">{reportCopy.shorterNote}</p> : null}
+      {report.assessment_scope ? (
+        <aside className="dh-trust" data-testid="report-assessment-scope" aria-labelledby="review-scope-title">
+          <Info size={20} aria-hidden="true" />
+          <div>
+            <p className="dh-section-label">{reportCopy.scope.eyebrow}</p>
+            <h2 id="review-scope-title">{report.assessment_scope.round_label}</h2>
+            <p>{reportCopy.scope.body}</p>
+            <p>{reportCopy.scope.competencies(report.assessment_scope.competency_titles)}</p>
+            <p>{reportCopy.scope.provenance}</p>
+          </div>
+        </aside>
+      ) : null}
 
       <div className="dh-home-sections">
         <Section id="review-landed" title={r.landedTitle}>

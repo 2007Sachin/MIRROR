@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -12,6 +12,7 @@ from app.report_service import (
 )
 from app.schemas import Phase, SessionRead, SessionStatus
 from app.specialist_assessor_models import (
+    AssessmentScope,
     AssessorType,
     DomainAssessment,
     SignalStrength,
@@ -70,6 +71,11 @@ class FakeReportRepository:
 
     async def get_session(self, session_id, user_id):
         return self.current if self.current and self.current.id == session_id and self.current.user_id == user_id else None
+
+    async def get_target_assessment_scope(
+        self, session_id: UUID, user_id: UUID, session_role_profile_id: UUID | None,
+    ) -> AssessmentScope | None:
+        return None
 
     async def get_result(self, session_id, user_id):
         return self.result
@@ -145,7 +151,30 @@ async def test_skill_assessment_and_schema_are_candidate_safe():
     )
     report = await ReportService(FakeReportRepository(result=RESULT, specialists=[{"assessor_type": "TECHNICAL", "result_json": output.model_dump(mode="json")}])).get_report(SESSION, USER)
     assert report.skill_assessments[0].skill == "SQL"
-    assert set(report.model_dump()) == {"session", "verdict", "role_readiness", "interview_readiness", "claims_audit", "skill_assessments", "session_moments", "root_cause", "trust_and_limitations", "prescription", "shorter_conversation"}
+    assert set(report.model_dump()) == {"session", "assessment_scope", "verdict", "role_readiness", "interview_readiness", "claims_audit", "skill_assessments", "session_moments", "root_cause", "trust_and_limitations", "prescription", "shorter_conversation"}
+
+
+@pytest.mark.asyncio
+async def test_specialist_report_query_selects_persisted_rubric_version():
+    class RecordingRepository(SupabaseReportRepository):
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def _get(self, resource, params):
+            self.calls.append((resource, params))
+            if resource == "sessions":
+                return [{"id": str(SESSION)}]
+            if resource == "specialist_assessments":
+                return [{"rubric_version": "pinned-rubric"}]
+            return []
+
+    repository = RecordingRepository()
+
+    rows = await repository.list_specialists(SESSION, USER)
+
+    assert rows == [{"rubric_version": "pinned-rubric"}]
+    query = next(params for resource, params in repository.calls if resource == "specialist_assessments")
+    assert "rubric_version" in query["select"].split(",")
 
 
 @pytest.mark.asyncio

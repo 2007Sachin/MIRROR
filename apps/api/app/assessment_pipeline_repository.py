@@ -140,7 +140,7 @@ class SupabaseAssessmentPipelineRepository(SupabaseSkepticRepository):
             "root_cause_explanation": language.root_cause_explanation, "confidence_note": language.confidence_note,
             "assessment_confidence": aggregate.overall_signal_confidence,
             "replay_markers": [], "model_provider": "sarvam", "model_name": model, "model_version": model,
-            "prompt_version": prompt_version, "rubric_version": "v1",
+            "prompt_version": prompt_version, "rubric_version": aggregate.rubric_version,
         }, prefer="resolution=merge-duplicates,return=minimal")
 
     @staticmethod

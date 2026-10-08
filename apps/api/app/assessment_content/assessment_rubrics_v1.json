@@ -1,0 +1,72 @@
+{
+  "schema": "mirror.assessment_rubric_catalog/1",
+  "version": 1,
+  "rubrics": [
+    {
+      "rubric_key": "business_case_v1",
+      "role_family_key": "business_analysis",
+      "round_key": "business_problem_solving",
+      "question_family": "case_discussion",
+      "competency_keys": [
+        "structured_problem_solving",
+        "quantitative_reasoning",
+        "business_judgement"
+      ],
+      "assessor_types": ["TECHNICAL"],
+      "provenance_class": "MIRROR_GENERATED",
+      "dimensions": [
+        {
+          "competency_key": "structured_problem_solving",
+          "title": "Structured problem solving",
+          "criteria": "Frames the business question, breaks it into relevant parts, and follows a coherent line of reasoning before recommending action.",
+          "insufficient_signal": "If the response does not show how the problem was framed or worked through, mark this dimension NOT_ENOUGH_SIGNAL rather than inferring skill from keywords."
+        },
+        {
+          "competency_key": "quantitative_reasoning",
+          "title": "Quantitative reasoning",
+          "criteria": "Makes quantitative assumptions explicit, shows calculations or quantitative logic, and checks the interpretation for reasonableness.",
+          "insufficient_signal": "If the response supplies no interpretable quantitative reasoning, mark this dimension NOT_ENOUGH_SIGNAL rather than assigning a low rating."
+        },
+        {
+          "competency_key": "business_judgement",
+          "title": "Business judgment",
+          "criteria": "Makes a recommendation proportionate to the available information and explains prioritization, relevant trade-offs, risks, or uncertainty.",
+          "insufficient_signal": "If no decision or prioritization signal is present, mark this dimension NOT_ENOUGH_SIGNAL rather than inferring judgment from a conclusion alone."
+        }
+      ]
+    },
+    {
+      "rubric_key": "software_coding_walkthrough_v1",
+      "role_family_key": "software_development_engineering",
+      "round_key": "coding_reasoning",
+      "question_family": "coding_walkthrough",
+      "competency_keys": [
+        "algorithmic_problem_solving",
+        "coding_quality",
+        "technical_communication"
+      ],
+      "assessor_types": ["TECHNICAL"],
+      "provenance_class": "MIRROR_GENERATED",
+      "dimensions": [
+        {
+          "competency_key": "algorithmic_problem_solving",
+          "title": "Algorithmic problem solving",
+          "criteria": "Explains a suitable algorithmic approach, its correctness reasoning, and relevant complexity or edge cases.",
+          "insufficient_signal": "If the response does not expose an algorithmic approach, mark this dimension NOT_ENOUGH_SIGNAL."
+        },
+        {
+          "competency_key": "coding_quality",
+          "title": "Coding quality",
+          "criteria": "Reasons about correctness, boundary cases, tests, and maintainability of the proposed code or implementation.",
+          "insufficient_signal": "If the response contains no code or implementation-quality signal, mark this dimension NOT_ENOUGH_SIGNAL."
+        },
+        {
+          "competency_key": "technical_communication",
+          "title": "Technical communication",
+          "criteria": "Explains technical choices, constraints, and trade-offs clearly enough to follow the solution.",
+          "insufficient_signal": "If the response gives no interpretable explanation of technical choices, mark this dimension NOT_ENOUGH_SIGNAL."
+        }
+      ]
+    }
+  ]
+}

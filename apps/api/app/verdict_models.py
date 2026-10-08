@@ -18,6 +18,7 @@ class VerdictCode(StrEnum):
     NEAR_READY = "NEAR_READY"
     READY = "READY"
     STRONG = "STRONG"
+    PRACTICE_ONLY = "PRACTICE_ONLY"
 
 
 class RootCauseCode(StrEnum):
@@ -27,19 +28,21 @@ class RootCauseCode(StrEnum):
     OUTCOME_EVIDENCE = "OUTCOME_EVIDENCE"
     COMPOSURE_UNDER_PROBE = "COMPOSURE_UNDER_PROBE"
     ROLE_SKILL_GAP = "ROLE_SKILL_GAP"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 class AggregatedAssessment(VerdictModel):
-    role_readiness_internal: float = Field(ge=0, le=100)
-    interview_readiness_internal: float = Field(ge=0, le=100)
-    role_readiness_low: int = Field(ge=0, le=100)
-    role_readiness_high: int = Field(ge=0, le=100)
-    interview_readiness_low: int = Field(ge=0, le=100)
-    interview_readiness_high: int = Field(ge=0, le=100)
+    role_readiness_internal: float | None = Field(default=None, ge=0, le=100)
+    interview_readiness_internal: float | None = Field(default=None, ge=0, le=100)
+    role_readiness_low: int | None = Field(default=None, ge=0, le=100)
+    role_readiness_high: int | None = Field(default=None, ge=0, le=100)
+    interview_readiness_low: int | None = Field(default=None, ge=0, le=100)
+    interview_readiness_high: int | None = Field(default=None, ge=0, le=100)
     overall_signal_confidence: float = Field(ge=0, le=1)
     availability_status: str
     verdict_code: VerdictCode
     root_cause_code: RootCauseCode
+    rubric_version: str = "v1"
 
 
 class VerdictLanguageInput(VerdictModel):

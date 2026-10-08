@@ -9,9 +9,10 @@ from pydantic import BaseModel, ConfigDict
 from .assessment_adjudication_service import AssessmentAdjudicator
 from .assessment_orchestrator import AssessmentOrchestrator
 from .assessment_pipeline_repository import AssessmentPipelineRepository
+from .claim_resolution_models import ClaimsAudit
 from .claim_resolution_service import ClaimsAuditService
 from .final_assessment_aggregator import FinalAssessmentAggregator
-from .verdict_models import VerdictLanguageInput
+from .verdict_models import VerdictLanguageInput, VerdictLanguageOutput
 from .verdict_service import VerdictLanguageService
 
 
@@ -53,11 +54,44 @@ class AssessmentWorker:
             if self._adjudicator.requires_adjudication(bundle) and not adjudications:
                 raise RuntimeError("adjudication_failed")
             aggregate = self._aggregator.aggregate(bundle)
-            audit = await self._claims_audit.audit(job.user_id)
-            language = await self._verdict.write(VerdictLanguageInput(aggregate=aggregate, specialist_summaries={kind: row.result_json.reason_summary for kind, row in {"technical": bundle.technical, "behaviour": bundle.behaviour, "claims": bundle.claims}.items() if row}, claims_audit=audit), session_id=job.session_id, user_id=job.user_id)
+            if bundle.assessment_scope is not None:
+                audit = ClaimsAudit()
+                language = VerdictLanguageOutput(
+                    verdict_summary="This reflection covers this practice round only.",
+                    root_cause_explanation="Use the notes by dimension to choose one next practice step; this is not an overall role-readiness result.",
+                    confidence_note="Only answers from this round are reflected here. This is Mirror-generated practice, not an employer's official rubric.",
+                )
+                prompt_version = next((
+                    row.prompt_version
+                    for row in (bundle.technical, bundle.behaviour, bundle.claims)
+                    if row is not None
+                ), "v2")
+            else:
+                audit = await self._claims_audit.audit(job.user_id)
+                language = await self._verdict.write(
+                    VerdictLanguageInput(
+                        aggregate=aggregate,
+                        specialist_summaries={
+                            kind: row.result_json.reason_summary
+                            for kind, row in {
+                                "technical": bundle.technical,
+                                "behaviour": bundle.behaviour,
+                                "claims": bundle.claims,
+                            }.items()
+                            if row
+                        },
+                        claims_audit=audit,
+                    ),
+                    session_id=job.session_id,
+                    user_id=job.user_id,
+                )
+                prompt_version = "v1"
             if language is None:
                 raise RuntimeError("verdict_generation_failed")
-            await self._repository.persist_result(job.session_id, job.user_id, aggregate, language, model="assessment_pipeline", prompt_version="v1")
+            await self._repository.persist_result(
+                job.session_id, job.user_id, aggregate, language,
+                model="assessment_pipeline", prompt_version=prompt_version,
+            )
             await self._repository.complete(job.id)
             logger.info(
                 "assessment job completed",

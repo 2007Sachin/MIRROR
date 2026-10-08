@@ -14,6 +14,7 @@ Rules kept here (each has a route test):
 from __future__ import annotations
 
 import logging
+import re
 import json
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
@@ -23,6 +24,12 @@ from typing import Any, Literal, Protocol, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from .target_assessment_contract import (
+    ASSESSMENT_RUBRIC_CATALOG_VERSION,
+    AssessmentContractUnavailable,
+    parse_blueprint_rules_version,
+)
 
 from .practice_modes import MODE_SHAPE, PracticeFocus, PracticeMode
 from .prompt_originality import ORIGINALITY_RULES_VERSION, REPEAT_WINDOW_DAYS, GuardContext, RecentPrompt
@@ -64,7 +71,7 @@ from .target_taxonomy import NOT_SURE, TAXONOMY_VERSION, Taxonomy, TaxonomyError
 
 logger = logging.getLogger("mirror.targets")
 
-BLUEPRINT_RULES_VERSION = f"blueprint-2-taxonomy-{TAXONOMY_VERSION}"
+BLUEPRINT_RULES_VERSION = f"blueprint-3-taxonomy-{TAXONOMY_VERSION}-assessment-{ASSESSMENT_RUBRIC_CATALOG_VERSION}"
 ContentState = Literal["SERVED", "PIN_MISMATCH", "CATALOG_UNAVAILABLE"]
 # Role families, their levels and practice rounds, and company aliases are taxonomy data
 # (app.target_taxonomy); this module never names a company or role family.
@@ -659,20 +666,16 @@ class TargetService:
         return self._taxonomy_for_version(TAXONOMY_VERSION)
 
     def _taxonomy_for_rules(self, rules_version: str) -> Taxonomy:
-        """Resolve the immutable taxonomy version recorded in this blueprint pin.
+        """Resolve immutable taxonomy and assessment versions recorded in the blueprint pin.
 
-        Loop 2 pins used ``blueprint-1`` before taxonomy data existed; preserve them against
-        taxonomy v1 (the SWE rounds were moved verbatim). New pins carry an explicit taxonomy
-        version, e.g. ``blueprint-2-taxonomy-1``. Unknown formats fail closed.
+        Loop 2 ``blueprint-1`` pins remain on taxonomy v1. Later pins carry the taxonomy version;
+        current pins also carry an explicit assessment-catalog version. Unknown formats fail closed.
         """
-        if rules_version == "blueprint-1":
-            version = 1
-        else:
-            prefix, separator, version_text = rules_version.partition("-taxonomy-")
-            if not separator or not prefix.startswith("blueprint-") or not prefix[len("blueprint-"):].isdigit() or not version_text.isdigit():
-                raise CatalogUnavailable
-            version = int(version_text)
-        return self._taxonomy_for_version(version)
+        try:
+            pin = parse_blueprint_rules_version(rules_version)
+        except AssessmentContractUnavailable as exc:
+            raise CatalogUnavailable from exc
+        return self._taxonomy_for_version(pin.taxonomy_version)
 
     def _rounds(self, target: CandidateTarget, rules_version: str | None = None) -> tuple[PracticeRound, ...]:
         taxonomy = self._taxonomy() if rules_version is None else self._taxonomy_for_rules(rules_version)

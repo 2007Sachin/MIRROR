@@ -161,6 +161,14 @@ export const report = {
   summary: { eyebrow: "Your summary", levelToday: "Your level today" },
   shorterNote:
     "From a shorter conversation, so a few areas say “not enough to say yet.”",
+  scope: {
+    eyebrow: "This practice round",
+    body: "This feedback covers this round only; it is not an overall role-readiness result.",
+    provenance: "Mirror-generated practice rubric—not an official employer rubric.",
+    competencies: (titles: string[]) => titles.length
+      ? `This round looks at ${titles.join(" · ")}.`
+      : "This round's focus is not available yet.",
+  },
   readiness: {
     eyebrow: "Readiness",
     title: "Two signals, kept separate.",

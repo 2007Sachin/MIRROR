@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,6 +20,12 @@ class ReportSession(ReportModel):
     completed_at: datetime
     duration_seconds: int = Field(ge=0)
     assessment_confidence: float = Field(ge=0, le=1)
+
+
+class ReportAssessmentScope(ReportModel):
+    round_label: str
+    competency_titles: list[str]
+    provenance_class: Literal["MIRROR_GENERATED"]
 
 
 class ReportVerdict(ReportModel):
@@ -96,6 +103,7 @@ class TrustAndLimitations(ReportModel):
 
 class ReportResponse(ReportModel):
     session: ReportSession
+    assessment_scope: ReportAssessmentScope | None = None
     verdict: ReportVerdict
     role_readiness: ReportReadiness
     interview_readiness: ReportReadiness
