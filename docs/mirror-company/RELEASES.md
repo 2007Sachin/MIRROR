@@ -14,13 +14,19 @@ DECISION: APPROVED | REJECTED   BY: Release Gatekeeper
 
 ## History
 
+### Loop 4 — rejected / blocked (2026-10-08; no product release)
+
+**DECISION: REJECTED. LOOP 4: BLOCKED.** Gatekeeper decisions `deleg_28547ba5` and confirmatory review `deleg_5328d144` at reviewed HEAD `e76176c59cb6b742e6269457c6f92b9c26986d2f`. A — PASS, STATIC-ONLY (no catalog additions; validator not rerun) · B — FAIL / NOT DONE · C — HELD (0 approved targets; all five requested company/role groups—six level-specific target slices—HELD) · D — NOT VERIFIED. G0 — PASS, STATIC-ONLY (both decisions recorded; docs reconciled) · G1 — NOT RUN (no Loop 4 suite or exact-head CI) · G2 — NOT RUN / N.A.; hosted state NOT VERIFIED · G3 — NOT DONE (no browser journey) · G4 — NOT RUN (design-only reviews are not execution evidence) · G5 — REJECTED.
+
+Amazon SDE II candidate sources remain UNVERIFIED; Accenture guidance is general only and not India-specific. No product code or hosted operation occurred. This is a documentation-only disposition, not a product release. KNOWN ISSUES SHIPPED: none. WAIVERS: none. The receipt records product tests/browser/CI as NOT RUN; any documentation-only CI/merge evidence is distinct from product acceptance.
+
 ### Loop 3 local assessment slice — repository merged (2026-10-08; not a production release)
 
 **DECISION: LOOP 3 LOCAL SLICE ACCEPTED.** Gatekeeper A PASS/B PASS; final AI Evaluation and Security/Data re-reviews PASS. Implementation commit `ae5ecf7cf013d0d86f80894c2192d0834085d47e`; PR #3 squash-merged into `main` as `a806aae69103db16c7543914fa62af05fad0739e`.
 
 GATES: G0 closure records updated in this receipt commit · G1 PR CI `37708487534` passed all three required jobs at the exact implementation SHA; post-merge `main` CI `37708775297` passed all three jobs at the merge SHA · G2 scoped local tests only; hosted migration/integration NOT VERIFIED · G3 isolated synthetic browser CI and local copy tests only · G4 deterministic tests only (1,508 passed, 3 skipped; no live model) · G5 Gatekeeper A/B PASS.
 
-HOSTED DB: no hosted access, migration, integration, or hosted writes were performed. Research remains HELD. Production release/deployment NOT APPROVED; no deployment occurred. No Loop 4 authorized. Details: `RECEIPTS/LR-0003-deloitte-ba-assessment.md`.
+HOSTED DB: no hosted access, migration, integration, or hosted writes were performed. Research remains HELD. Production release/deployment NOT APPROVED; no deployment occurred. Loop 4 was separately authorized by a later owner instruction and is recorded as BLOCKED in `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md`; this Loop 3 entry grants no release approval for it.
 
 ### Loop 2 local-slice disposition — 2026-10-06 (not a production release)
 

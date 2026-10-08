@@ -2,7 +2,7 @@
 
 ## Current disposition — 2026-10-08
 
-Loop 1 and Loop 2 remain accepted within their bounded scopes. Loop 3's local assessment-generalization slice is accepted (Gatekeeper A PASS/B PASS; final AI Evaluation PASS) and repository-merged; see `RECEIPTS/LR-0003-deloitte-ba-assessment.md`. Research remains HELD; hosted migration/integration is NOT VERIFIED; production release/deployment is NOT APPROVED. No active implementation objective is authorized by this status. Do not start Loop 4 without a separate owner decision.
+Loop 1–3 remain accepted only within their recorded scopes. Loop 4 was separately authorized and is **BLOCKED**: no India-scoped research claim passed publication review, no product behavior changed, and the target company/role slices remain HELD. Hosted migration/integration is NOT VERIFIED; production release/deployment is NOT APPROVED. Do not start Loop 5. Reopen research only with eligible sources that establish the exact requested India scope; see `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md`.
 
 > The roadmap below is the pre-Loop2 planning snapshot. Its milestone/backlog statuses are historical and do not supersede the current disposition above.
 

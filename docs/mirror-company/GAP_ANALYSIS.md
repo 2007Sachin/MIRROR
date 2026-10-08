@@ -3,9 +3,9 @@
 
 ## Current status — 2026-10-08
 
-Loop 1 and Loop 2 remain accepted within their bounded scopes. Loop 3's local BA/case assessment-generalization slice is accepted (Gatekeeper A PASS/B PASS; final AI Evaluation PASS) and repository-merged as `a806aae69103db16c7543914fa62af05fad0739e`; see `RECEIPTS/LR-0003-deloitte-ba-assessment.md`. Research is HELD, hosted migration/integration is NOT VERIFIED, and production release/deployment is NOT APPROVED. No Loop 4 is authorized.
+Loop 1–3 remain accepted only within their bounded scopes; Loop 3 is repository-merged at `a806aae69103db16c7543914fa62af05fad0739e`. Loop 4 was separately authorized and is **BLOCKED** because no target group has an approved India-scoped claim. The six India target slices (Amazon SDE I/SDE II, Deloitte BA/Consultant, Microsoft SWE, Google SWE, Accenture BA/Technology Consulting) remain HELD. No product/catalog change was made; hosted migration/integration is NOT VERIFIED and production release/deployment is NOT APPROVED. Loop 5 is not authorized. See `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md`.
 
-The matrix below is a pre-Loop 2 gap snapshot and remains historical; it is not the current feature ledger and does not incorporate every later local change. The bounded Loop 2 target/research/round-practice slice and Loop 3 scoped BA assessment slice are described in their respective receipts. Their acceptance does not prove Amazon India research validity, hosted integration, or production readiness.
+The matrix below is a pre-Loop 2 gap snapshot and remains historical; it is not the current feature ledger and does not incorporate every later local change. The bounded Loop 2 target/research/round-practice slice and Loop 3 scoped BA assessment slice are described in their respective receipts. Their acceptance does not prove India-specific research, hosted integration, or production readiness.
 
 Target chain from the bootstrap directive: Candidate → Target Company → Target Role → Seniority → Geography → Resume → Interview Intelligence → Expected Process → Customized Plan → Multiple Rounds → Adaptive Interview → Assessment → Diagnosis → Practice → Progress → Reassessment.
 

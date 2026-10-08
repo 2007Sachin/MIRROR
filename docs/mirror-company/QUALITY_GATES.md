@@ -6,7 +6,24 @@
 - **STATIC-ONLY** — conclusion from reading code/docs. Never call this "verified".
 - **NOT DONE** — stated explicitly, with the reason.
 
-## Current Loop 3 disposition — local assessment slice accepted; repository merged (2026-10-08)
+## Current Loop 4 disposition — BLOCKED (2026-10-08; no product release)
+
+| Gate | Status | Evidence scope |
+|---|---|---|
+| A — Research/catalog integrity | **PASS (no additions; STATIC-ONLY)** | No claim or catalog file changed; the existing v1 catalog and lock remain untouched. The catalog validator was not rerun because no catalog content changed. |
+| B — Research-to-product behavior | **NOT MET** | No eligible India-scoped claim was approved, so no candidate-facing integration or model change was made. |
+| C — Real research coverage | **HELD** | 0 fully approved India target groups; the required two approved targets (engineering and non-engineering) were not achieved. |
+| D — Hosted release readiness | **NOT VERIFIED** | No hosted inspection, migration, integration, or deployment was authorized or performed. |
+| G0 — Closure records | **PASS, STATIC-ONLY** | LR-0004, current sprint, research state, roadmap, product state, quality gates, and releases record both Gatekeeper decisions and the same blocked disposition/evidence limits. |
+| G1 — Code/CI | **NOT RUN / NOT APPLICABLE** | No product code changed; no Loop 4 exact-head CI or full local product suite was run. |
+| G2 — Data/security | **NOT RUN / NOT APPLICABLE** | No database, migration, or hosted action occurred. Hosted readiness remains NOT VERIFIED. |
+| G3 — Candidate experience | **NOT DONE** | No candidate-facing content changed; no browser journey was run. |
+| G4 — AI behavior | **NOT RUN / NOT APPLICABLE** | No prompt, question, rubric, or model behavior changed. AI Evaluation reviewed the hypothetical design only. |
+| G5 — Independent decision | **REJECTED (release)** | Gatekeeper `deleg_28547ba5` and confirmatory review `deleg_5328d144` rejected release and confirmed Loop 4 remains BLOCKED; this is not product acceptance. |
+
+Loop 4 is **BLOCKED**, not accepted or released. The Loop 4 receipt is `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md`. Hosted readiness and production approval remain separate holds.
+
+## Historical Loop 3 disposition — local assessment slice accepted; repository merged (2026-10-08)
 
 | Gate | Status | Evidence scope |
 |---|---|---|
@@ -17,7 +34,7 @@
 | G4 AI behavior | **PASS deterministic local scope** | Full Python suite 1,508 passed, 3 skipped; deterministic AI-eval tests included. No live model, official Deloitte rubric, or hiring-validity evidence. |
 | G5 independent decision | **PASS for Loop 3 local slice** | Gatekeeper A PASS/B PASS; final AI Evaluation and Security/Data re-reviews PASS. Research remains HELD. |
 
-**Loop 3 local assessment slice accepted and repository-merged.** Research: **HELD**. Hosted migration/integration: **NOT VERIFIED**. Production release/deployment: **NOT APPROVED / NOT PERFORMED**. This does not authorize Loop 4.
+**Loop 3 local assessment slice accepted and repository-merged.** Research: **HELD**. Hosted migration/integration: **NOT VERIFIED**. Production release/deployment: **NOT APPROVED / NOT PERFORMED**. Loop 4 was later separately authorized and is blocked under the current disposition above.
 
 ## Historical Loop 2 disposition — local slice accepted (2026-10-06)
 

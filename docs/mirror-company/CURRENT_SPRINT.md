@@ -1,12 +1,20 @@
 # Current MIRROR sprint
 
-## Current disposition — Loop 3 local slice and repository closure (2026-10-08)
+## Current disposition — Loop 4 research expansion BLOCKED (2026-10-08)
+
+- **LR-0004 Loop 4: BLOCKED.** Research and independent challenge are complete; no requested India target passed the research publication gate. Amazon SDE I/II, Deloitte BA/Consultant, Microsoft SWE, Google SWE, and Accenture BA/Technology Consulting remain **HELD** for India. The Accenture careers-page guidance is general and is not assigned to India.
+- The Amazon SDE II candidate-report pattern is **UNVERIFIED**; no `SUPPORTED_PATTERN` claim is approved. No research claim, catalog entry, mapping, process version, API/UI behavior, or prompt change was added. Existing catalog v1 and Loop 2–3 contracts remain unchanged.
+- **Independent Release Gatekeeper decisions: REJECTED for release; Loop 4 remains BLOCKED.** Initial decision `deleg_28547ba5` and confirmatory review `deleg_5328d144` both reject release. A — PASS (no catalog additions; STATIC-ONLY); B — NOT MET; C — HELD (0 of 2 required approved India targets); D — NOT VERIFIED. G0 — PASS, STATIC-ONLY after both decisions and current records were reconciled; G1 — NOT RUN; G2 — NOT RUN / N.A. for this loop, hosted state NOT VERIFIED; G3 — NOT DONE; G4 — NOT RUN (design-only review); G5 — REJECTED.
+- No Loop 4 product tests, build/typecheck, copy lint, browser journey, or exact-head product CI were run because no product behavior changed. No hosted operation, migration, deployment, product commit, product PR, or product merge occurred. Branch `loop4/verified-interview-intelligence-expansion` remains at implementation baseline `e76176c59cb6b742e6269457c6f92b9c26986d2f`; the blocked closure is maintained in a separate documentation-only record and does not constitute product acceptance. See `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md`.
+- **Do not start Loop 5.** Reopen Loop 4 only with new eligible, independently verifiable India-scoped evidence and a separate authorization if scope changes.
+
+## Historical disposition — Loop 3 local slice and repository closure (2026-10-08)
 
 - **LR-0003 Loop 3 local slice: ACCEPTED.** Gatekeeper A — PASS; B — PASS. Final AI Evaluation and Security/Data re-reviews: PASS. These decisions accept only the local assessment-generalization slice.
 - Implementation commit `ae5ecf7cf013d0d86f80894c2192d0834085d47e` on `loop3/deloitte-ba-consulting-generalization`; PR #3 was squash-merged to `main` as `a806aae69103db16c7543914fa62af05fad0739e`. Exact-head PR CI run `37708487534` and post-merge main CI run `37708775297` passed all three required jobs. See `RECEIPTS/LR-0003-deloitte-ba-assessment.md`.
 - **VERIFIED-EXECUTED locally:** full Python suite 1,508 passed, 3 skipped; Node verification harness 70 passed; copy lint 178 files, 0 banned-word hits, 3 soft-avoid warnings; frontend typecheck passed. GitHub CI also exercised production build and isolated synthetic browser critical path at the exact implementation SHA.
 - **Research: HELD. Hosted migration/integration: NOT VERIFIED. Production release/deployment: NOT APPROVED and not performed.** Amazon SDE I/SDE II India remain HELD. No hosted operation occurred.
-- Loop 3 is closed for this bounded local slice only. Do not start Loop 4 automatically; it requires a separate owner decision.
+- Loop 3 was closed for that bounded local slice. The later owner instruction separately authorized Loop 4; it is now blocked as recorded above.
 
 ## Historical Loop 1/bootstrap checkpoints (retained for audit; not current status)
 
@@ -26,9 +34,11 @@ Architecture approves the scoped verification-infrastructure corrections; Securi
 
 ## Objective in flight
 
-Establish a trustworthy engineering and verification baseline. Implementation infrastructure exists; browser execution, independent review verdicts and the final release gate are outstanding. Broad Interview Intelligence implementation remains deferred.
+No product implementation objective is in flight. Loop 4 is blocked because verified, India-scoped evidence did not clear publication gates. The blocked disposition is recorded and independently rejected for release; no Loop 5 starts from this status.
 
-## Awaiting human decisions
+## Historical bootstrap owner-decision table
+
+The rows below are retained from the original Loop 1/bootstrap checkpoint. Their pending labels are not the current Loop 4 task list; later owner instructions and receipts supersede them where applicable.
 
 | # | Decision | Blocks |
 |---|---|---|
@@ -41,6 +51,6 @@ Establish a trustworthy engineering and verification baseline. Implementation in
 | H7 | Decide whether `.env`/`.env.bak-*` should stay inside the OneDrive-synced folder (KI-010) | — |
 | H8 | Commit/push the `docs/mirror-company/` addition? (currently uncommitted) | — |
 
-## Baseline to beat at the next loop start
+## Historical bootstrap baseline (not a current gate)
 
 pytest 862 passed / 13 skipped / 0 failed; typecheck 0 source errors (generated `.next` file fails — KI-001); head `8e3193f`.

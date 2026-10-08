@@ -2,9 +2,9 @@
 
 ## Current status — 2026-10-08
 
-Loop 1 and Loop 2 remain accepted within their bounded scopes. Loop 3's local BA/case assessment-generalization slice is accepted (Gatekeeper A PASS/B PASS; final AI Evaluation and Security/Data re-reviews PASS) and repository-merged as `a806aae69103db16c7543914fa62af05fad0739e`. See `RECEIPTS/LR-0003-deloitte-ba-assessment.md`.
+Loop 1–3 remain accepted only within their recorded bounded scopes. Loop 4 was separately authorized and is now **BLOCKED**: no candidate-facing India-scoped research claim passed the publication gate. Amazon SDE I/II, Deloitte BA/Consultant, Microsoft SWE, Google SWE, and Accenture BA/Technology Consulting remain HELD. The Accenture careers page supports general role-dependent guidance, but India applicability was not established, so it is not used for the India target. Amazon SDE II candidate sources are UNVERIFIED.
 
-Research remains HELD; hosted migration/integration is NOT VERIFIED; production release/deployment is NOT APPROVED. The implementation and CI use synthetic/deterministic checks only; no live-model, official Deloitte, hiring-validity, or hosted claim is made. No Loop 4 is authorized.
+No product code, catalog v1, mappings, prompt/question contract, or candidate UI changed. There is no Loop 4 process version. Hosted migration/integration is NOT VERIFIED; production release/deployment is NOT APPROVED. No Loop 5 is authorized. See `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md` for evidence limits and gate dispositions.
 
 ## Historical Loop 2 bounded status — 2026-10-06
 
