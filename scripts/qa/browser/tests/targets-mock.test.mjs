@@ -25,6 +25,126 @@ function setup() {
   return { mock, sessions, get: (path, url) => mock.handle("GET", path, { url: url ?? new URL(`http://x${path}`) }) };
 }
 
+test("blueprint exposes an independently initialized candidate stage plan", () => {
+  const { mock, get } = setup();
+  const view = get(`/api/v1/targets/${TARGET_IDS.target}/blueprint`).body;
+  assert.deepEqual(view.candidate_stage_plan, {
+    candidate_stage_state: "NOT_ASKED",
+    candidate_stage_order_known: false,
+    candidate_stages: [],
+    candidate_stage_mapping_version: 0,
+    candidate_stage_notes_revision: 0,
+    notes: {},
+  });
+  assert.equal(view.blueprint.latest_version, view.blueprint.version);
+  const newTarget = mock.handle("POST", "/api/v1/targets", { body: {
+    role_profile_id: TARGET_IDS.newRole, company: "Amazon", role_family: "software_development_engineering", level: "sde_ii",
+  } });
+  assert.equal(newTarget.status, 201);
+  const createdView = get(`/api/v1/targets/${newTarget.body.target.id}/blueprint`).body;
+  assert.equal(createdView.candidate_stage_plan.candidate_stage_state, "NOT_ASKED");
+  assert.notEqual(createdView.target.id, view.target.id);
+});
+
+test("stage save uses immutable blueprint versions, CAS, idempotency, and current-only notes", () => {
+  const { mock, get } = setup();
+  const path = `/api/v1/targets/${TARGET_IDS.target}/blueprint`;
+  const stageId = "10000000-0000-4000-8000-000000000001";
+  const desired = { expected_blueprint_version: 1, state: "KNOWN", order_known: true,
+    stages: [{ stage_id: stageId, kind: "OTHER", custom_label: " Take-home ", certainty: "SURE", sequence: 1 }], notes: { [stageId]: " Prep notes " } };
+  const saved = mock.handle("PUT", `${path}/stages`, { body: desired });
+  assert.equal(saved.body.blueprint.version, 2);
+  assert.equal(saved.body.blueprint.latest_version, 2);
+  assert.equal(saved.body.candidate_stage_plan.candidate_stages[0].custom_label, "Take-home");
+  assert.deepEqual(saved.body.candidate_stage_plan.notes, { [stageId]: "Prep notes" });
+  assert.equal(mock.handle("PUT", `${path}/stages`, { body: desired }).body.blueprint.version, 2, "identical stale write is idempotent");
+  const changed = { ...desired, expected_blueprint_version: 1, notes: { [stageId]: "Different" } };
+  assert.deepEqual(mock.handle("PUT", `${path}/stages`, { body: changed }).body.detail, { code: "STAGE_PLAN_STALE" });
+  assert.equal(mock.handle("GET", `/api/v1/targets/${TARGET_IDS.target}/rounds/coding_reasoning`).body.candidate_stage_plan, undefined);
+  const cleared = mock.handle("PUT", `${path}/stages`, { body: { expected_blueprint_version: 2, state: "NOT_YET", order_known: false, stages: [], notes: {} } });
+  assert.equal(cleared.body.blueprint.version, 3);
+  assert.deepEqual(cleared.body.candidate_stage_plan.notes, {});
+  assert.equal(mock.handle("PUT", `${path}/stages`, { body: { ...desired, expected_blueprint_version: 3, stages: [], notes: {} } }).status, 422);
+  const tooMany = Array.from({ length: 13 }, (_, i) => ({ ...desired.stages[0], stage_id: `20000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`, custom_label: "Stage", sequence: i + 1 }));
+  assert.equal(mock.handle("PUT", `${path}/stages`, { body: { ...desired, expected_blueprint_version: 3, stages: tooMany, notes: {} } }).status, 422);
+  mock.reset();
+  assert.equal(get(path).body.blueprint.version, 1);
+  assert.deepEqual(get(path).body.candidate_stage_plan.notes, {});
+});
+
+test("a concurrent stage update returns a stale conflict without overwriting the other draft", () => {
+  const { mock, get } = setup();
+  const path = `/api/v1/targets/${TARGET_IDS.target}/blueprint`;
+  const stageId = "10000000-0000-4000-8000-000000000004";
+  const original = { expected_blueprint_version: 1, state: "KNOWN", order_known: false,
+    stages: [{ stage_id: stageId, kind: "TECHNICAL_INTERVIEW", custom_label: null, certainty: "UNCERTAIN", sequence: null }],
+    notes: { [stageId]: "Original note" } };
+  assert.equal(mock.handle("PUT", `${path}/stages`, { body: original }).body.blueprint.version, 2);
+  mock.setScenario({ stageSave: "stale_once" });
+  const localDraft = { ...original, expected_blueprint_version: 2, notes: { [stageId]: "Local unsaved draft" } };
+  const result = mock.handle("PUT", `${path}/stages`, { body: localDraft });
+  assert.equal(result.status, 409);
+  assert.deepEqual(result.body.detail, { code: "STAGE_PLAN_STALE" });
+  const latest = get(path).body;
+  assert.equal(latest.blueprint.version, 3);
+  assert.deepEqual(latest.candidate_stage_plan.notes, { [stageId]: "QA-SYNTHETIC-REMOTE-NOTE" });
+  assert.equal(latest.candidate_stage_plan.candidate_stages[0].stage_id, stageId);
+});
+
+test("a target-practice session stays pinned to the stage-plan version current at start", () => {
+  const { mock } = setup();
+  const planPath = `/api/v1/targets/${TARGET_IDS.target}/blueprint`;
+  const stageId = "10000000-0000-4000-8000-000000000003";
+  const saved = mock.handle("PUT", `${planPath}/stages`, { body: {
+    expected_blueprint_version: 1, state: "KNOWN", order_known: false,
+    stages: [{ stage_id: stageId, kind: "CODING_EXERCISE", custom_label: null, certainty: "SURE", sequence: null }],
+    notes: {},
+  } });
+  assert.equal(saved.body.blueprint.version, 2);
+  const pinned = mock.handle("POST", `/api/v1/targets/${TARGET_IDS.target}/rounds/coding_reasoning/practice`, {
+    body: { mode: "FOCUSED_PRACTICE", idempotency_key: "qa-stage-session-v2" },
+  });
+  assert.equal(pinned.status, 201);
+  const pinnedBlueprintId = pinned.body.link.blueprint_id;
+  assert.equal(pinnedBlueprintId, mock.state.stagePlans.get(TARGET_IDS.target).blueprint_id);
+  const cleared = mock.handle("PUT", `${planPath}/stages`, { body: {
+    expected_blueprint_version: 2, state: "NOT_YET", order_known: false, stages: [], notes: {},
+  } });
+  assert.equal(cleared.body.blueprint.version, 3);
+  assert.notEqual(mock.state.stagePlans.get(TARGET_IDS.target).blueprint_id, pinnedBlueprintId);
+  assert.equal(mock.state.links.at(-1).blueprint_id, pinnedBlueprintId, "later edits do not rewrite the session's blueprint pin");
+});
+
+test("stage state is cleared when the mock target fixture is removed and recreated", () => {
+  const { mock, get } = setup();
+  const path = `/api/v1/targets/${TARGET_IDS.target}/blueprint`;
+  const stageId = "10000000-0000-4000-8000-000000000002";
+  const saved = mock.handle("PUT", `${path}/stages`, { body: {
+    expected_blueprint_version: 1, state: "KNOWN", order_known: false,
+    stages: [{ stage_id: stageId, kind: "CODING_EXERCISE", custom_label: null, certainty: "SURE", sequence: null }],
+    notes: { [stageId]: "private note" },
+  } });
+  assert.equal(saved.body.blueprint.version, 2);
+  mock.setScenario({ targets: "none" });
+  mock.setScenario({ targets: "available" });
+  const fresh = get(path).body;
+  assert.equal(fresh.candidate_stage_plan.candidate_stage_state, "NOT_ASKED");
+  assert.deepEqual(fresh.candidate_stage_plan.notes, {});
+  assert.equal(fresh.blueprint.version, 1);
+});
+
+test("stage reads and writes follow the disabled target-service state", () => {
+  const { mock, get } = setup();
+  mock.setScenario({ targets: "disabled" });
+  const path = `/api/v1/targets/${TARGET_IDS.target}/blueprint`;
+  assert.equal(get(path).body.availability, "DISABLED");
+  assert.equal(get(path).body.candidate_stage_plan, null);
+  const result = mock.handle("PUT", `${path}/stages`, { body: {
+    expected_blueprint_version: 1, state: "NOT_YET", order_known: false, stages: [], notes: {},
+  } });
+  assert.equal(result.status, 503);
+});
+
 test("default is the real India behaviour: one target, not yet researched, no claims", () => {
   const { get } = setup();
   const list = get("/api/v1/targets").body;
@@ -93,19 +213,22 @@ test("synthetic research reaches its mapped round priority and prompt metadata w
   assert.ok(started.body.prompts.every((prompt) => !("text" in prompt)));
 });
 
-test("creating a target records the body and a second target for the same role is a 409", () => {
+test("target uniqueness is scoped to the exact company, role family, level and place", () => {
   const { mock, get } = setup();
   const body = { role_profile_id: TARGET_IDS.newRole, company: "Amazon", role_family: "software_development_engineering", level: "sde_ii", geography: "in", geography_label: "India" };
   const created = mock.handle("POST", "/api/v1/targets", { body });
   assert.equal(created.status, 201);
   assert.equal(created.body.target.company_key, "amazon");
   assert.equal(created.body.target.level_key, "sde_ii");
-  assert.equal(mock.handle("POST", "/api/v1/targets", { body }).status, 409);
+  const otherCompany = mock.handle("POST", "/api/v1/targets", { body: { ...body, company: "Acme" } });
+  assert.equal(otherCompany.status, 201, "one role may have multiple company targets");
+  assert.notEqual(otherCompany.body.target.id, created.body.target.id);
+  assert.equal(mock.handle("POST", "/api/v1/targets", { body }).status, 409, "the exact same target scope is unique");
   assert.equal(mock.handle("POST", "/api/v1/targets", { body: { ...body, geography: "global" } }).status, 422);
   assert.equal(mock.handle("POST", "/api/v1/targets", { body: { ...body, role_family: undefined } }).status, 422, "role family is required");
   assert.equal(mock.handle("POST", "/api/v1/targets", { body: { ...body, level: "consultant" } }).status, 422, "a level of another family is refused");
   assert.deepEqual(mock.state.targetCreates[0], body);
-  assert.equal(get("/api/v1/targets").body.targets.length, 2);
+  assert.equal(get("/api/v1/targets").body.targets.length, 3);
 });
 
 test("business-roles slice: same routes and shapes, its own rounds, and no engineering round", () => {
@@ -116,7 +239,7 @@ test("business-roles slice: same routes and shapes, its own rounds, and no engin
   assert.equal(target.company_label, "QA Consulting Co (synthetic)");
   const engineering = fixture("blueprint_researched.json");
   const view = get(`/api/v1/targets/${TARGET_IDS.target}/blueprint`).body;
-  assert.deepEqual(Object.keys(view).sort(), Object.keys(engineering).sort());
+  assert.deepEqual(Object.keys(view).sort(), [...Object.keys(engineering), "candidate_stage_plan"].sort());
   assert.deepEqual(view.rounds.map((r) => r.key), ["business_problem_solving", "requirements_and_stakeholders", "behavioural"]);
   assert.equal(view.rounds[1].presence, "CONDITIONAL");
   assert.equal(get(`/api/v1/targets/${TARGET_IDS.target}/rounds/coding_reasoning`).status, 404);

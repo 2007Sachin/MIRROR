@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PageAlert, PageHeader, PageLoading, PageShell } from "@/components/workspace/page-shell";
 import { ApiError } from "@/lib/api";
-import { getRound, targetForRole, type RoundDetail, type TargetView } from "@/lib/api-targets";
+import { getRound, getTarget, targetForRole, type RoundDetail, type TargetView } from "@/lib/api-targets";
 import {
   cannotDo,
   claimCopy,
@@ -40,14 +40,30 @@ type RoundState =
   | { kind: "error" }
   | { kind: "ready"; target: TargetView; detail: RoundDetail };
 
-async function loadRound(roleProfileId: string, roundKey: string): Promise<RoundState> {
-  const found = await targetForRole(roleProfileId).catch(() => ({ kind: "UNAVAILABLE" as const }));
-  if (found.kind === "UNAVAILABLE") return { kind: "unavailable" };
-  if (found.kind === "NONE") return { kind: "no-target" };
+async function loadRound(roleProfileId: string, roundKey: string, targetId?: string): Promise<RoundState> {
+  let target: TargetView | null = null;
+  if (targetId) {
+    try {
+      const found = await getTarget(targetId);
+      if (found.availability !== "AVAILABLE") return { kind: "unavailable" };
+      if (!found.target || found.target.role_profile_id !== roleProfileId || found.target.status !== "ACTIVE") return { kind: "no-target" };
+      target = found.target;
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 404) return { kind: "no-target" };
+      if (reason instanceof ApiError && failureKind(reason.status) === "UNAVAILABLE") return { kind: "unavailable" };
+      return { kind: "error" };
+    }
+  } else {
+    const found = await targetForRole(roleProfileId).catch(() => ({ kind: "UNAVAILABLE" as const }));
+    if (found.kind === "UNAVAILABLE") return { kind: "unavailable" };
+    if (found.kind === "NONE") return { kind: "no-target" };
+    target = found.target;
+  }
+  if (!target) return { kind: "no-target" };
   try {
-    const detail = await getRound(found.target.id, roundKey);
+    const detail = await getRound(target.id, roundKey);
     if (detail.availability !== "AVAILABLE" || !detail.round) return { kind: "unavailable" };
-    return { kind: "ready", target: found.target, detail };
+    return { kind: "ready", target, detail };
   } catch (reason) {
     if (reason instanceof ApiError && reason.status === 404) return { kind: "not-found" };
     if (reason instanceof ApiError && failureKind(reason.status) === "UNAVAILABLE") return { kind: "unavailable" };
@@ -56,16 +72,16 @@ async function loadRound(roleProfileId: string, roundKey: string): Promise<Round
 }
 
 /** One practice round for one role's interview target: what it covers, what Mirror can do, practice. */
-export function RoundPage({ roleProfileId, roundKey }: { roleProfileId: string; roundKey: string }) {
+export function RoundPage({ roleProfileId, roundKey, targetId }: { roleProfileId: string; roundKey: string; targetId?: string }) {
   const [state, setState] = useState<RoundState>({ kind: "loading" });
   const heading = useRef<HTMLHeadingElement>(null);
 
   const load = useCallback(async (isCurrent: () => boolean = () => true) => {
     setState({ kind: "loading" });
-    const loaded = await loadRound(roleProfileId, roundKey);
+    const loaded = await loadRound(roleProfileId, roundKey, targetId);
     if (!isCurrent()) return;
     setState(loaded);
-  }, [roleProfileId, roundKey]);
+  }, [roleProfileId, roundKey, targetId]);
 
   useEffect(() => {
     let active = true;
@@ -78,7 +94,7 @@ export function RoundPage({ roleProfileId, roundKey }: { roleProfileId: string; 
     if (state.kind === "ready") heading.current?.focus();
   }, [state.kind]);
 
-  const back = { href: planHref(roleProfileId), label: t.back };
+  const back = { href: planHref(roleProfileId, targetId), label: t.back };
   const title = roundLabel(roundKey) ?? t.notFoundTitle;
 
   return (

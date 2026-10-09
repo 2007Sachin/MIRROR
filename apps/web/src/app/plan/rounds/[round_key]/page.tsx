@@ -12,14 +12,15 @@ export default async function PlanRound({
   searchParams,
 }: {
   params: Promise<{ round_key: string }>;
-  searchParams: Promise<{ role?: string | string[] }>;
+  searchParams: Promise<{ role?: string | string[]; target?: string | string[] }>;
 }) {
   const result = await getServerOnboarding();
   if (result.status === "unauthenticated") redirect("/login?reason=session_expired");
   if (result.status === "unavailable") return <WorkspaceUnavailable />;
   if (!result.onboarding.onboarding_completed) redirect("/onboarding");
-  const [{ round_key }, { role }] = await Promise.all([params, searchParams]);
+  const [{ round_key }, { role, target }] = await Promise.all([params, searchParams]);
   // Without a role there is no target to read; My plan resolves the current role and pins it.
   if (typeof role !== "string" || !role) redirect("/plan");
-  return <RoundPage key={role} roleProfileId={role} roundKey={round_key} />;
+  const targetId = typeof target === "string" && target ? target : undefined;
+  return <RoundPage key={`${role}:${targetId ?? ""}`} roleProfileId={role} roundKey={round_key} targetId={targetId} />;
 }

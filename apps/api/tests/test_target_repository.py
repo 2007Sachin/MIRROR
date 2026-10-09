@@ -12,11 +12,14 @@ from app.config import Settings
 from app.target_capability import TargetAvailability, TargetCapability
 from app.target_repository import (
     BlueprintPin,
+    BlueprintPinConflict,
+    CandidateStagePlanInput,
     GeneratedQuestion,
     LinkAlreadyExists,
     MemoryTargetRepository,
     QuestionCreate,
     SupabaseTargetRepository,
+    StaleStagePlan,
     TargetConflict,
     TargetsUnavailable,
     TargetValues,
@@ -98,6 +101,79 @@ def test_targets_are_owner_scoped() -> None:
     assert run(repo.get_target(target.id, USER_A)).status == "ACTIVE"
 
 
+def test_memory_stage_plan_save_is_versioned_and_historical_read_omits_notes() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    run(repo.create_blueprint(USER_A, target.id, BlueprintPin(
+        catalog_version=1, catalog_sha256="a" * 64, match_state="NOT_RESEARCHED", rules_version="r",
+    )))
+    stage_id = str(uuid4())
+    plan = CandidateStagePlanInput.model_validate({
+        "state": "KNOWN", "order_known": False,
+        "stages": [{
+            "stage_id": stage_id, "kind": "TECHNICAL_INTERVIEW", "custom_label": None,
+            "certainty": "UNCERTAIN", "sequence": None,
+        }],
+        "notes": {stage_id: "Reported by candidate"},
+    })
+
+    assert run(repo.save_candidate_stage_plan(target.id, USER_A, 1, plan)) == 2
+    current = run(repo.read_candidate_stage_plan(target.id, USER_A))
+    historical = run(repo.read_candidate_stage_plan(target.id, USER_A, version=1))
+
+    assert current is not None and current.version == 2 and current.latest_version == 2
+    assert current.candidate_stage_state == "KNOWN"
+    assert current.notes == {stage_id: "Reported by candidate"}
+    assert historical is not None and historical.version == 1 and historical.latest_version == 2
+    assert historical.candidate_stage_state == "NOT_ASKED" and historical.notes == {}
+    assert [row.version for row in repo.blueprint_rows] == [1, 2]
+
+
+def test_memory_append_preserves_legacy_stage_mapping_version_zero() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    first = run(repo.create_blueprint(USER_A, target.id, BlueprintPin(
+        catalog_version=1, catalog_sha256="a" * 64, match_state="NOT_RESEARCHED", rules_version="r",
+    )))
+    repo.stage_snapshots.pop(first.id)
+
+    refreshed = run(repo.create_blueprint(USER_A, target.id, BlueprintPin(
+        catalog_version=2, catalog_sha256="b" * 64, match_state="NOT_RESEARCHED", rules_version="r",
+    ), expected_version=1))
+    plan = run(repo.read_candidate_stage_plan(target.id, USER_A))
+
+    assert refreshed.version == 2
+    assert plan is not None and plan.candidate_stage_mapping_version == 0
+    assert plan.candidate_stage_state == "NOT_ASKED" and plan.candidate_stages == ()
+
+
+def test_stage_plan_save_never_repoints_an_existing_session_link() -> None:
+    repo = MemoryTargetRepository()
+    target = run(repo.create_target(USER_A, values()))
+    blueprint = run(repo.create_blueprint(USER_A, target.id, BlueprintPin(
+        catalog_version=1, catalog_sha256="a" * 64, match_state="NOT_RESEARCHED", rules_version="r",
+    )))
+    session_id = uuid4()
+    run(repo.create_link(USER_A, TargetSessionLinkCreate(
+        session_id=session_id, candidate_target_id=target.id, blueprint_id=blueprint.id,
+        round_key="behavioural",
+    )))
+    stage_id = str(uuid4())
+    plan = CandidateStagePlanInput.model_validate({
+        "state": "KNOWN", "order_known": False,
+        "stages": [{
+            "stage_id": stage_id, "kind": "BEHAVIORAL_INTERVIEW", "custom_label": None,
+            "certainty": "SURE", "sequence": None,
+        }],
+        "notes": {},
+    })
+
+    assert run(repo.save_candidate_stage_plan(target.id, USER_A, 1, plan)) == 2
+    link = run(repo.link_for_session(session_id, USER_A))
+    assert link is not None and link.blueprint_id == blueprint.id
+    assert [row.version for row in run(repo.blueprints(target.id, USER_A))] == [1, 2]
+
+
 def test_one_active_target_per_scope_and_archive_frees_it() -> None:
     repo = MemoryTargetRepository()
     first = run(repo.create_target(USER_A, values()))
@@ -115,7 +191,7 @@ def test_blueprints_are_appended_versions_never_rewritten() -> None:
     target = run(repo.create_target(USER_A, values()))
     pin = BlueprintPin(catalog_version=1, catalog_sha256="a" * 64, match_state="NOT_RESEARCHED", rules_version="r")
     one = run(repo.create_blueprint(USER_A, target.id, pin))
-    two = run(repo.create_blueprint(USER_A, target.id, pin.model_copy(update={"catalog_version": 2})))
+    two = run(repo.create_blueprint(USER_A, target.id, pin.model_copy(update={"catalog_version": 2}), expected_version=one.version))
     assert (one.version, two.version) == (1, 2)
     assert [b.catalog_version for b in run(repo.blueprints(target.id, USER_A))] == [1, 2]
     assert run(repo.blueprints(target.id, USER_B)) == []
@@ -327,6 +403,127 @@ def test_supabase_reads_always_filter_by_owner() -> None:
     run(repo.links_for_target(uuid4(), USER_A))
     run(repo.questions_for_set(uuid4(), USER_A))
     assert params and all(p.get("user_id") == f"eq.{USER_A}" for p in params)
+
+
+def test_supabase_blueprint_pin_uses_append_rpc_and_fetches_exact_version() -> None:
+    target_id, blueprint_id = uuid4(), uuid4()
+    pin = BlueprintPin(catalog_version=2, catalog_sha256="b" * 64, match_state="GENERAL_ONLY", rules_version="rules-2")
+    requested = []
+    blueprint_row = {
+        "id": str(blueprint_id), "user_id": str(USER_A), "candidate_target_id": str(target_id), "version": 2,
+        **pin.model_dump(mode="json"), "created_at": "2026-10-08T00:00:00Z",
+    }
+
+    def handler(request):
+        requested.append((request.method, request.url.path, dict(request.url.params)))
+        if request.url.path.endswith("/rpc/append_target_blueprint_pin"):
+            assert request.method == "POST"
+            assert json.loads(request.content) == {
+                "p_user_id": str(USER_A), "p_target_id": str(target_id), "p_expected_version": 1,
+                "p_catalog_version": 2,
+                "p_catalog_sha256": "b" * 64, "p_match_state": "GENERAL_ONLY", "p_rules_version": "rules-2",
+            }
+            return httpx.Response(200, json=2)
+        if request.url.path.endswith("/interview_blueprints") and request.method == "GET":
+            assert request.url.params["candidate_target_id"] == f"eq.{target_id}"
+            assert request.url.params["user_id"] == f"eq.{USER_A}"
+            assert request.url.params["version"] == "eq.2"
+            assert request.url.params["select"] == "id,user_id,candidate_target_id,version,catalog_version,catalog_sha256,match_state,rules_version,created_at"
+            return httpx.Response(200, json=[blueprint_row])
+        pytest.fail(f"unexpected blueprint write/read path: {request.method} {request.url}")
+
+    blueprint = run(supabase(handler).create_blueprint(USER_A, target_id, pin, expected_version=1))
+    assert blueprint.id == blueprint_id and blueprint.version == 2
+    assert [path for _, path, _ in requested].count("/rest/v1/rpc/append_target_blueprint_pin") == 1
+    assert not any(method == "POST" and path.endswith("/interview_blueprints") for method, path, _ in requested)
+
+
+def test_supabase_stage_plan_read_and_save_use_rpc_contract() -> None:
+    target_id, blueprint_id = uuid4(), uuid4()
+    stage_id = str(uuid4())
+    stage = {"stage_id": stage_id, "kind": "TECHNICAL_INTERVIEW", "custom_label": None, "certainty": "UNCERTAIN", "sequence": None}
+    plan = CandidateStagePlanInput.model_validate({
+        "state": "KNOWN", "order_known": False, "stages": [stage], "notes": {stage_id: "Candidate report"},
+    })
+    read_payload = {
+        "blueprint_id": str(blueprint_id), "version": 2, "latest_version": 2,
+        "candidate_stage_state": "KNOWN", "candidate_stage_order_known": False,
+        "candidate_stages": [stage], "candidate_stage_mapping_version": 1,
+        "candidate_stage_notes_revision": 1, "notes": {stage_id: "Candidate report"},
+        "blueprint": {
+            "id": str(blueprint_id), "user_id": str(USER_A), "candidate_target_id": str(target_id), "version": 2,
+            "catalog_version": 1, "catalog_sha256": "a" * 64, "match_state": "NOT_RESEARCHED",
+            "rules_version": "r", "created_at": "2026-10-08T00:00:00Z",
+            "candidate_stage_state": "KNOWN", "candidate_stage_order_known": False,
+            "candidate_stages": [stage], "candidate_stage_mapping_version": 1,
+            "candidate_stage_notes_revision": 1,
+        },
+    }
+    requested = []
+    historical_id = uuid4()
+    historical_payload = {
+        "blueprint_id": str(historical_id), "version": 1, "latest_version": 2,
+        "candidate_stage_state": "NOT_ASKED", "candidate_stage_order_known": False,
+        "candidate_stages": [], "candidate_stage_mapping_version": 0,
+        "candidate_stage_notes_revision": 0, "notes": {},
+        "blueprint": {
+            "id": str(historical_id), "user_id": str(USER_A), "candidate_target_id": str(target_id), "version": 1,
+            "catalog_version": 1, "catalog_sha256": "a" * 64, "match_state": "NOT_RESEARCHED",
+            "rules_version": "r", "created_at": "2026-10-08T00:00:00Z",
+            "candidate_stage_state": "NOT_ASKED", "candidate_stage_order_known": False,
+            "candidate_stages": [], "candidate_stage_mapping_version": 0,
+            "candidate_stage_notes_revision": 0,
+        },
+    }
+
+    def handler(request):
+        requested.append((request.method, request.url.path))
+        body = json.loads(request.content)
+        if request.url.path.endswith("/rpc/read_candidate_stage_plan"):
+            assert body["p_user_id"] == str(USER_A) and body["p_target_id"] == str(target_id)
+            return httpx.Response(200, json=historical_payload if body["p_version"] == 1 else read_payload)
+        if request.url.path.endswith("/rpc/save_candidate_stage_plan"):
+            assert body == {
+                "p_user_id": str(USER_A), "p_target_id": str(target_id), "p_expected_version": 1,
+                "p_state": "KNOWN", "p_order_known": False, "p_stages": [stage],
+                "p_notes": {stage_id: "Candidate report"},
+            }
+            return httpx.Response(200, json=2)
+        pytest.fail(f"unexpected stage plan request: {request.method} {request.url}")
+
+    repo = supabase(handler)
+    current = run(repo.read_candidate_stage_plan(target_id, USER_A))
+    assert current is not None and current.blueprint.id == blueprint_id and current.latest_version == 2
+    assert current.candidate_stage_state == "KNOWN" and current.notes == {stage_id: "Candidate report"}
+    historical = run(repo.read_candidate_stage_plan(target_id, USER_A, version=1))
+    assert historical is not None and historical.version == 1 and historical.latest_version == 2
+    assert historical.candidate_stage_state == "NOT_ASKED" and historical.notes == {}
+    assert run(repo.save_candidate_stage_plan(target_id, USER_A, 1, plan)) == 2
+    assert [path for _, path in requested] == [
+        "/rest/v1/rpc/read_candidate_stage_plan", "/rest/v1/rpc/read_candidate_stage_plan",
+        "/rest/v1/rpc/save_candidate_stage_plan",
+    ]
+
+
+def test_supabase_rpc_maps_append_and_stage_cas_conflicts() -> None:
+    target_id = uuid4()
+    pin = BlueprintPin(catalog_version=2, catalog_sha256="b" * 64, match_state="GENERAL_ONLY", rules_version="rules-2")
+    append_repo = supabase(lambda _request: httpx.Response(400, json={"message": "stale blueprint pin"}))
+    with pytest.raises(BlueprintPinConflict):
+        run(append_repo.create_blueprint(USER_A, target_id, pin, expected_version=1))
+
+    stage_id = str(uuid4())
+    plan = CandidateStagePlanInput.model_validate({
+        "state": "KNOWN", "order_known": False,
+        "stages": [{
+            "stage_id": stage_id, "kind": "TECHNICAL_INTERVIEW", "custom_label": None,
+            "certainty": "SURE", "sequence": None,
+        }],
+        "notes": {},
+    })
+    save_repo = supabase(lambda _request: httpx.Response(400, json={"message": "stale candidate stage plan"}))
+    with pytest.raises(StaleStagePlan):
+        run(save_repo.save_candidate_stage_plan(target_id, USER_A, 1, plan))
 
 
 def test_supabase_link_insert_is_plain_insert_and_conflict_is_write_once() -> None:

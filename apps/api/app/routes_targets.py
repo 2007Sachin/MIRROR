@@ -39,8 +39,11 @@ from .role_service import RoleProfileNotFoundForUser
 from .story_repository import StoriesUnavailable
 from .target_capability import TargetAvailability, TargetCapability
 from .target_repository import (
+    CandidateStagePlanInput,
+    BlueprintPinConflict,
     MemoryTargetRepository,
     SupabaseTargetRepository,
+    StaleStagePlan,
     TargetConflict,
     TargetRepository,
     TargetsUnavailable,
@@ -48,6 +51,7 @@ from .target_repository import (
 from .target_service import (
     BlueprintNotFound,
     BlueprintView,
+    CandidateStagePlanSaveRequest,
     CatalogProvider,
     CatalogUnavailable,
     LinkConflict,
@@ -179,6 +183,8 @@ async def create_target(
         raise HTTPException(status_code=422, detail={"code": "UNSUPPORTED_TARGET", "field": exc.field}) from exc
     except RoleProfileNotFoundForUser as exc:
         raise HTTPException(status_code=404, detail="We couldn't find that role.") from exc
+    except TargetArchived as exc:
+        raise HTTPException(status_code=409, detail={"code": "TARGET_ARCHIVED"}) from exc
     except TargetConflict as exc:
         raise HTTPException(
             status_code=409,
@@ -241,6 +247,36 @@ async def read_blueprint(
         return await service.blueprint(target_id, user.id, version)
     except (TargetNotFound, BlueprintNotFound) as exc:
         raise HTTPException(status_code=404, detail=NOT_FOUND) from exc
+    except TargetArchived as exc:
+        raise HTTPException(status_code=409, detail={"code": "TARGET_ARCHIVED"}) from exc
+    except STORAGE_ERRORS as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.put(
+    "/api/v1/targets/{target_id}/blueprint/stages",
+    response_model=BlueprintView,
+    dependencies=[Depends(require_available)],
+)
+async def save_candidate_stage_plan(
+    target_id: UUID,
+    payload: CandidateStagePlanSaveRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: TargetService = Depends(get_target_service),
+) -> BlueprintView:
+    plan = CandidateStagePlanInput.model_validate(payload.model_dump(exclude={"expected_blueprint_version"}))
+    try:
+        return await service.save_candidate_stage_plan(
+            target_id, user.id, payload.expected_blueprint_version, plan,
+        )
+    except (TargetNotFound, BlueprintNotFound) as exc:
+        raise HTTPException(status_code=404, detail=NOT_FOUND) from exc
+    except TargetArchived as exc:
+        raise HTTPException(status_code=409, detail={"code": "TARGET_ARCHIVED"}) from exc
+    except StaleStagePlan as exc:
+        raise HTTPException(status_code=409, detail={"code": "STAGE_PLAN_STALE"}) from exc
+    except TargetConflict as exc:
+        raise HTTPException(status_code=409, detail={"code": "TARGET_CONFLICT"}) from exc
     except STORAGE_ERRORS as exc:
         raise _unavailable(exc) from exc
 
@@ -263,6 +299,8 @@ async def refresh_blueprint(
         raise HTTPException(status_code=404, detail=NOT_FOUND) from exc
     except TargetArchived as exc:
         raise HTTPException(status_code=409, detail={"code": "TARGET_ARCHIVED"}) from exc
+    except BlueprintPinConflict as exc:
+        raise HTTPException(status_code=409, detail={"code": "BLUEPRINT_PIN_STALE"}) from exc
     except STORAGE_ERRORS as exc:
         raise _unavailable(exc) from exc
     if not created:
@@ -289,6 +327,8 @@ async def read_round(
         raise HTTPException(status_code=404, detail=NOT_FOUND) from exc
     except RoundNotFound as exc:
         raise HTTPException(status_code=404, detail=NOT_FOUND_ROUND) from exc
+    except TargetArchived as exc:
+        raise HTTPException(status_code=409, detail={"code": "TARGET_ARCHIVED"}) from exc
     except STORAGE_ERRORS as exc:
         raise _unavailable(exc) from exc
 

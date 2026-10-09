@@ -7,7 +7,7 @@
  * copy-lint-clean words here (tests/unit/test_loop2_web_target_copy.py keeps this complete).
  * This module has no runtime imports so it can be checked directly with `node --test`.
  */
-import type { BlueprintView, ClaimView, TargetView } from "@/lib/api-targets";
+import type { BlueprintView, CandidateStage, ClaimView, TargetView } from "@/lib/api-targets";
 
 const OA = "online coding round";
 
@@ -27,6 +27,58 @@ export const ROLE_FAMILIES: { key: string; hint: RegExp; levels: string[] }[] = 
     levels: ["analyst", "consultant", "senior_consultant", "manager", "not_sure"],
   },
 ];
+
+const CANDIDATE_STAGE_ROUNDS: Record<string, Record<string, string[]>> = {
+  software_development_engineering: {
+    RECRUITER_SCREENING: [],
+    TECHNICAL_INTERVIEW: ["coding_reasoning", "system_design"],
+    CODING_EXERCISE: ["coding_reasoning"],
+    CASE_INTERVIEW: [],
+    BEHAVIORAL_INTERVIEW: ["behavioural"],
+    HIRING_MANAGER_DISCUSSION: ["behavioural"],
+    PORTFOLIO_PROJECT_DISCUSSION: ["system_design", "behavioural"],
+    OTHER: [],
+  },
+  business_analysis: {
+    RECRUITER_SCREENING: [],
+    TECHNICAL_INTERVIEW: ["requirements_and_stakeholders"],
+    CODING_EXERCISE: [],
+    CASE_INTERVIEW: ["business_problem_solving"],
+    BEHAVIORAL_INTERVIEW: ["behavioural"],
+    HIRING_MANAGER_DISCUSSION: ["requirements_and_stakeholders", "behavioural"],
+    PORTFOLIO_PROJECT_DISCUSSION: ["requirements_and_stakeholders", "behavioural"],
+    OTHER: [],
+  },
+};
+
+/** Candidate-reported stages map only to existing role-family rounds; unknown keys stay general. */
+export function candidateStageRoundKeys(roleFamilyKey: string | null | undefined, stageKind: string): string[] {
+  return CANDIDATE_STAGE_ROUNDS[roleFamilyKey ?? ""]?.[stageKind] ?? [];
+}
+
+export type CandidateStageRoundGroup = { roundKey: string; stages: CandidateStage[] };
+
+/** Keep only complete mappings present in the exact blueprint taxonomy; group shared rounds once. */
+export function candidateStageRoundGroups(
+  roleFamilyKey: string | null | undefined,
+  stages: CandidateStage[],
+  availableRoundKeys: string[],
+): CandidateStageRoundGroup[] {
+  const available = new Set(availableRoundKeys);
+  const groups = new Map<string, CandidateStage[]>();
+  for (const stage of stages) {
+    const roundKeys = candidateStageRoundKeys(roleFamilyKey, stage.kind);
+    if (!roundKeys.length || roundKeys.some((key) => !available.has(key))) continue;
+    for (const key of roundKeys) {
+      const matched = groups.get(key) ?? [];
+      if (!matched.some((item) => item.stage_id === stage.stage_id)) matched.push(stage);
+      groups.set(key, matched);
+    }
+  }
+  return availableRoundKeys
+    .filter((key, index) => availableRoundKeys.indexOf(key) === index && groups.has(key))
+    .map((roundKey) => ({ roundKey, stages: groups.get(roundKey)! }));
+}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -63,6 +115,61 @@ export const targetCopy = {
     roundsIntroLinked: "Mirror practice coverage is linked to published guidance where a reviewed mapping exists.",
     practiseFirst: (round: string) => `Practise the ${round.toLocaleLowerCase()}`,
     nothingYet: "Not enough to say yet.",
+    candidateStages: {
+      promptTitle: "Tell us about your interview stages",
+      overviewTitle: "Stages you shared",
+      editorIntro: "Add what a recruiter or invitation has told you. These are your notes, not published company guidance.",
+      privacy: "Only you can see these notes. They are not included in published guidance.",
+      selectTarget: "Choose a company and role",
+      selectTargetHelp: "Select the target you want to prepare for.",
+      unavailable: "Your stage notes can't load right now. Your general role plan still works.",
+      error: "This part didn't load. Your role plan still works.",
+      retry: "Try again",
+      stateLabel: "What do you know so far?",
+      notAsked: "I haven't asked yet",
+      notYet: "Not yet",
+      known: "I know one or more stages",
+      orderKnown: "I know the order",
+      addStage: "Add a stage",
+      stageLabel: "Stage",
+      kindLabel: "Type of stage",
+      customLabel: "Name this stage",
+      certaintyLabel: "How sure are you?",
+      certain: "I'm fairly sure",
+      uncertain: "Not sure yet",
+      noteLabel: "Private note for this stage",
+      noteHelp: "Only you can see this note. It is not included in published guidance.",
+      remove: "Remove stage",
+      moveUp: "Move stage up",
+      moveDown: "Move stage down",
+      save: "Save stages",
+      saving: "Saving…",
+      saved: "Your stages are saved.",
+      saveError: "Couldn't save your changes. They're still here; try again.",
+      stale: "This plan changed elsewhere. Your edits are still here. Load the latest plan to review it before saving again.",
+      reloadLatest: "Load latest plan (replace these edits)",
+      reloadConfirm: "Load the latest saved plan and replace your unsaved edits?",
+      switchConfirm: "Switching company targets will discard unsaved stage changes. Continue?",
+      leaveConfirm: "Leave this page and discard unsaved stage changes?",
+      archived: "This company target was archived, so its stages can't be changed.",
+      invalid: "Add at least one stage, and give a name to any stage labelled Other.",
+      atLimit: "You can add up to 12 stages.",
+      stageKinds: {
+        RECRUITER_SCREENING: "Recruiter conversation",
+        TECHNICAL_INTERVIEW: "Technical conversation",
+        CODING_EXERCISE: "Coding exercise",
+        CASE_INTERVIEW: "Case conversation",
+        BEHAVIORAL_INTERVIEW: "Behavioural conversation",
+        HIRING_MANAGER_DISCUSSION: "Hiring manager conversation",
+        PORTFOLIO_PROJECT_DISCUSSION: "Project discussion",
+        OTHER: "Other",
+      } as Record<string, string>,
+      mappingTitle: "Role practice that may fit these stages",
+      mappingIntro: "These suggestions use your role and the stages you shared. They don't describe the company's interview process.",
+      noMapping: "No Mirror practice round is mapped to these stages. Your general role preparation is still available.",
+      noStages: "No stages shared yet; your general role preparation is still available.",
+      practice: (stageList: string) => `Practice that may fit: ${stageList}`,
+    },
   },
   level: {
     sde_i: "SDE I",
@@ -376,12 +483,14 @@ export function sourceLabel(
   return parts.join(" · ");
 }
 
-export function planHref(roleProfileId: string) {
-  return `/plan?role=${encodeURIComponent(roleProfileId)}`;
+export function planHref(roleProfileId: string, targetId?: string) {
+  const target = targetId ? `&target=${encodeURIComponent(targetId)}` : "";
+  return `/plan?role=${encodeURIComponent(roleProfileId)}${target}`;
 }
 
-export function roundHref(roleProfileId: string, roundKey: string) {
-  return `/plan/rounds/${encodeURIComponent(roundKey)}?role=${encodeURIComponent(roleProfileId)}`;
+export function roundHref(roleProfileId: string, roundKey: string, targetId?: string) {
+  const target = targetId ? `&target=${encodeURIComponent(targetId)}` : "";
+  return `/plan/rounds/${encodeURIComponent(roundKey)}?role=${encodeURIComponent(roleProfileId)}${target}`;
 }
 
 /** Into the existing practice start, with the role, target and round pinned in the URL. */

@@ -1,10 +1,10 @@
 # Current MIRROR product state
 
-## Current status — 2026-10-08
+## Current status — 2026-10-09
 
 Loop 1–3 remain accepted only within their recorded bounded scopes. Loop 4 was separately authorized and is now **BLOCKED**: no candidate-facing India-scoped research claim passed the publication gate. Amazon SDE I/II, Deloitte BA/Consultant, Microsoft SWE, Google SWE, and Accenture BA/Technology Consulting remain HELD. The Accenture careers page supports general role-dependent guidance, but India applicability was not established, so it is not used for the India target. Amazon SDE II candidate sources are UNVERIFIED.
 
-No product code, catalog v1, mappings, prompt/question contract, or candidate UI changed. There is no Loop 4 process version. Hosted migration/integration is NOT VERIFIED; production release/deployment is NOT APPROVED. No Loop 5 is authorized. See `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md` for evidence limits and gate dispositions.
+No product code, catalog v1, mappings, prompt/question contract, or candidate UI changed for Loop 4. There is no Loop 4 process version. Hosted migration/integration is NOT VERIFIED; production release/deployment is NOT APPROVED. The owner separately authorized Loop 5A on 2026-10-08; it does not change Loop 4/4B dispositions or research holds, and it does not authorize Loop 5B. The additive local data-contract migration passed 10/10 static tests and the disposable PostgreSQL 16.2 verifier passed 90/90; focused target repository/atomicity/routes/stage-plan API tests passed 118/118. The full candidate-owned stage workflow is now implemented in an uncommitted local worktree. The first independent review cycle returned CPO REQUEST_CHANGES and other scoped approvals with limits; the candidate-target and draft-navigation findings have since been addressed, so all prior verdicts are stale and fresh reviews are pending. Desktop/mobile browser journeys are authored but NOT RUN; the approved isolated CI run remains outstanding. No hosted migration, deployment, commit/push, new research, or Loop 5B occurred. See `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md` and `DECISIONS/DR-0007-candidate-driven-interview-planning.md`.
 
 ## Historical Loop 2 bounded status — 2026-10-06
 

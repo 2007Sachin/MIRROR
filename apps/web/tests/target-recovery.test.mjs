@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const { recoverTarget } = await import(new URL("../src/lib/target-recovery.ts", import.meta.url).href);
+const { recoverTarget, activeTargetsForRole, selectTargetForRole } = await import(new URL("../src/lib/target-recovery.ts", import.meta.url).href);
 const wanted = { role_profile_id: "r1", company: "Amazon", role_family: "software_development_engineering", level: "sde_ii", geography: "in", geography_label: "India" };
 const view = (over = {}) => ({ id: "t1", role_profile_id: "r1", company_label: "Amazon", company_key: "amazon", role_family_key: "software_development_engineering", level_key: "sde_ii", geography_key: "in", geography_label: "India", status: "ACTIVE", ...over });
 
@@ -76,4 +76,43 @@ test("continuing without a target explains the general plan and missing company 
   assert.match(message, /won't (be included|appear|include)|unavailable/i);
   assert.doesNotMatch(message, /add it later from this step/i);
   assert.match(onboardingCopy.role.continueWithoutTarget, /general role plan/i);
+});
+
+test("role target choices retain all active matches and exclude archived or other-role targets", () => {
+  const first = view({ id: "t1" });
+  const second = view({ id: "t2", company_label: "Acme" });
+  const archived = view({ id: "t3", status: "ARCHIVED" });
+  const otherRole = view({ id: "t4", role_profile_id: "r2" });
+  assert.deepEqual(activeTargetsForRole([first, second, archived, otherRole], "r1"), [first, second]);
+});
+
+test("a requested target must be an active target for the exact role", () => {
+  const first = view({ id: "t1" });
+  const archived = view({ id: "t3", status: "ARCHIVED" });
+  const otherRole = view({ id: "t4", role_profile_id: "r2" });
+  assert.equal(selectTargetForRole([first, archived, otherRole], "r1", "t1"), first);
+  assert.equal(selectTargetForRole([first, archived, otherRole], "r1", "t3"), null);
+  assert.equal(selectTargetForRole([first, archived, otherRole], "r1", "t4"), null);
+  assert.equal(selectTargetForRole([first], "r1", "stale-id"), null);
+});
+
+test("an invalid target query does not silently choose another company", () => {
+  const first = view({ id: "t1" });
+  const second = view({ id: "t2", company_label: "Acme" });
+  assert.equal(selectTargetForRole([first], "r1"), first);
+  assert.equal(selectTargetForRole([first, second], "r1"), null);
+  assert.equal(selectTargetForRole([first, second], "r1", "old-target"), null);
+});
+
+test("PlanReady hides the optional stage prompt when no active target exists", async () => {
+  const source = await readFile(new URL("../src/components/onboarding/plan-ready-step.tsx", import.meta.url), "utf8");
+  assert.match(source, /if \(listState === "none"\) return null;/);
+  assert.doesNotMatch(source, /stageCopy\.noTarget/);
+});
+
+test("dirty stage drafts intercept browser back/forward and restore the current history entry on cancel", async () => {
+  const source = await readFile(new URL("../src/components/plan/candidate-stage-plan-editor.tsx", import.meta.url), "utf8");
+  assert.match(source, /addEventListener\("popstate"/);
+  assert.match(source, /stopImmediatePropagation\(\)/);
+  assert.match(source, /history\.forward\(\)/);
 });

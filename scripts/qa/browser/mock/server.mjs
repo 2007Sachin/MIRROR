@@ -508,6 +508,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
         creates: targets.state.targetCreates,
         roundPractice: targets.state.roundPracticeBodies,
         roundPracticeResponses: targets.state.roundPracticeResponses,
+        candidateStagePlanPins: [...targets.state.stagePlans.entries()].map(([target_id, plan]) => ({ target_id, version: plan.version, blueprint_id: plan.blueprint_id })),
         analyze: targets.state.analyzeBodies,
         activeRolePuts: targets.state.activeRolePuts,
         links: targets.state.links,

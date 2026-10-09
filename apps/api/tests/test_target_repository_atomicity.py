@@ -301,13 +301,14 @@ def test_racing_target_creates_cannot_both_pass_the_active_scope_check(monkeypat
     assert sum(isinstance(outcome, TargetConflict) for outcome in outcomes) == 1
 
 
-def test_racing_blueprint_creates_allocate_distinct_versions():
+def test_racing_blueprint_appends_use_expected_version_cas():
     repo, user, link, _rows = _world()
-    repo.blueprint_rows = _BarrierAppend(repo.blueprint_rows)
     pin = BlueprintPin(catalog_version=2, catalog_sha256="1" * 64, match_state="NOT_RESEARCHED", rules_version="blueprint-1")
-    outcomes = _race(repo, lambda: repo.create_blueprint(user, link.candidate_target_id, pin))
-    assert all(not isinstance(outcome, Exception) for outcome in outcomes), outcomes
-    assert [row.version for row in sorted(repo.blueprint_rows, key=lambda row: row.version)] == [1, 2, 3]
+    outcomes = _race(repo, lambda: repo.create_blueprint(user, link.candidate_target_id, pin, expected_version=1))
+    assert sum(not isinstance(outcome, Exception) for outcome in outcomes) == 1, outcomes
+    assert sum(isinstance(outcome, TargetConflict) for outcome in outcomes) == 1, outcomes
+    assert [row.version for row in repo.blueprint_rows] == [1, 2]
+    assert [row.version for row in sorted(repo.blueprint_rows, key=lambda row: row.version)] == [1, 2]
 
 
 class _CountingDict(dict):

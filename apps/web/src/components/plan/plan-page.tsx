@@ -34,7 +34,7 @@ function hrefsFor(plan: Plan, area: PlanArea): PlanHrefs {
 }
 
 /** My plan for one role (`role` from the URL), else for the active role. */
-export function PlanPage({ roleProfileId }: { roleProfileId: string | null }) {
+export function PlanPage({ roleProfileId, initialTargetId }: { roleProfileId: string | null; initialTargetId?: string | null }) {
   const { state, data: plan, error, reload, setData } = usePageData(() => getPlan(roleProfileId), t.errors.load, [roleProfileId]);
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -43,8 +43,8 @@ export function PlanPage({ roleProfileId }: { roleProfileId: string | null }) {
   // Plan pages always carry the role: a bare /plan pins the role it resolved, so links and reloads stay on it.
   const resolvedRole = plan?.role?.role_profile_id ?? null;
   useEffect(() => {
-    if (!roleProfileId && resolvedRole) router.replace(planHref(resolvedRole));
-  }, [roleProfileId, resolvedRole, router]);
+    if (!roleProfileId && resolvedRole) router.replace(planHref(resolvedRole, initialTargetId ?? undefined));
+  }, [roleProfileId, resolvedRole, router, initialTargetId]);
 
   async function choose(area: PlanArea, link: PlanLink, confirmed: boolean) {
     if (!plan?.role) return;
@@ -68,7 +68,7 @@ export function PlanPage({ roleProfileId }: { roleProfileId: string | null }) {
       />
       {state === "loading" ? <PageLoading /> : null}
       {state === "error" ? <PageAlert message={error} onRetry={reload} /> : null}
-      {state === "ready" && plan ? <PlanBody plan={plan} busy={busy} onChoose={choose} reload={reload} /> : null}
+      {state === "ready" && plan ? <PlanBody plan={plan} busy={busy} onChoose={choose} reload={reload} initialTargetId={initialTargetId ?? null} /> : null}
       {saveError ? <PageAlert message={saveError} /> : null}
     </PageShell>
   );
@@ -79,11 +79,13 @@ function PlanBody({
   busy,
   onChoose,
   reload,
+  initialTargetId,
 }: {
   plan: Plan;
   busy: boolean;
   onChoose: (area: PlanArea, link: PlanLink, confirmed: boolean) => void;
   reload: () => void;
+  initialTargetId: string | null;
 }) {
   // Section A (interview target) owns the page's one filled action when it shows rounds.
   const [targetPrimary, setTargetPrimary] = useState(false);
@@ -117,7 +119,7 @@ function PlanBody({
   }
   return (
     <>
-      <TargetOverview key={plan.role.role_profile_id} roleProfileId={plan.role.role_profile_id} roleName={plan.role.target_role} onPrimary={setTargetPrimary} />
+      <TargetOverview key={plan.role.role_profile_id} roleProfileId={plan.role.role_profile_id} roleName={plan.role.target_role} initialTargetId={initialTargetId ?? undefined} onPrimary={setTargetPrimary} />
       <section className="pl-areas-section" aria-labelledby="pl-areas-title">
         <h2 id="pl-areas-title" className="pl-run-title">{t.areasTitle}</h2>
         <div className="pl-areas">

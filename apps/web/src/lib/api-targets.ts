@@ -6,6 +6,7 @@
  */
 import { ApiError, request } from "@/lib/api";
 import { failureKind } from "@/lib/copy-targets";
+import { activeTargetsForRole } from "@/lib/target-recovery";
 
 export type TargetAvailability = "AVAILABLE" | "UNAVAILABLE" | "DISABLED";
 /** Level keys are role-family data (backend taxonomy); the web only offers the reviewed options in copy. */
@@ -24,6 +25,39 @@ export type TargetView = {
   status: string;
   archived_at: string | null;
   created_at: string;
+};
+
+export type CandidateStageKind =
+  | "RECRUITER_SCREENING"
+  | "TECHNICAL_INTERVIEW"
+  | "CODING_EXERCISE"
+  | "CASE_INTERVIEW"
+  | "BEHAVIORAL_INTERVIEW"
+  | "HIRING_MANAGER_DISCUSSION"
+  | "PORTFOLIO_PROJECT_DISCUSSION"
+  | "OTHER";
+export type CandidateStageState = "NOT_ASKED" | "NOT_YET" | "KNOWN";
+export type CandidateStage = {
+  stage_id: string;
+  kind: CandidateStageKind;
+  custom_label: string | null;
+  certainty: "SURE" | "UNCERTAIN";
+  sequence: number | null;
+};
+export type CandidateStagePlan = {
+  candidate_stage_state: CandidateStageState;
+  candidate_stage_order_known: boolean;
+  candidate_stages: CandidateStage[];
+  candidate_stage_mapping_version: number;
+  candidate_stage_notes_revision: number;
+  notes: Record<string, string>;
+};
+export type CandidateStagePlanSave = {
+  expected_blueprint_version: number;
+  state: CandidateStageState;
+  order_known: boolean;
+  stages: CandidateStage[];
+  notes: Record<string, string>;
 };
 
 export type SourceRef = { publisher: string; url: string; retrieved_at: string; published_at: string | null };
@@ -69,6 +103,7 @@ export type BlueprintView = {
   conflicts: ConflictView[];
   unknowns: UnknownView[];
   rounds: RoundSummary[];
+  candidate_stage_plan: CandidateStagePlan | null;
 };
 
 /** Prompt wording is never sent before practice starts; only its metadata is. */
@@ -118,8 +153,17 @@ export function createTarget(body: TargetCreate) {
   return request<{ target: TargetView }>("/api/v1/targets", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
 }
 
-export function getBlueprint(targetId: string) {
-  return request<BlueprintView>(`/api/v1/targets/${encodeURIComponent(targetId)}/blueprint`);
+export function getBlueprint(targetId: string, version?: number) {
+  const query = version === undefined ? "" : `?version=${encodeURIComponent(String(version))}`;
+  return request<BlueprintView>(`/api/v1/targets/${encodeURIComponent(targetId)}/blueprint${query}`);
+}
+
+export function saveCandidateStagePlan(targetId: string, body: CandidateStagePlanSave) {
+  return request<BlueprintView>(`/api/v1/targets/${encodeURIComponent(targetId)}/blueprint/stages`, {
+    method: "PUT",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
 }
 
 export function getRound(targetId: string, roundKey: string) {
@@ -143,7 +187,7 @@ export async function targetForRole(roleProfileId: string): Promise<RoleTarget> 
   try {
     const list = await listTargets();
     if (list.availability !== "AVAILABLE") return { kind: "UNAVAILABLE" };
-    const target = list.targets.find((item) => item.role_profile_id === roleProfileId && item.status === "ACTIVE");
+    const target = activeTargetsForRole(list.targets, roleProfileId)[0];
     return target ? { kind: "TARGET", target } : { kind: "NONE" };
   } catch (reason) {
     if (reason instanceof ApiError && failureKind(reason.status) === "UNAVAILABLE") return { kind: "UNAVAILABLE" };
@@ -151,7 +195,24 @@ export async function targetForRole(roleProfileId: string): Promise<RoleTarget> 
   }
 }
 
-/** Target availability for forms: anything but a clear AVAILABLE hides the optional target fields. */
+/** All active company targets for a role; multiple matches require an explicit candidate choice. */
+export type RoleTargets =
+  | { kind: "UNAVAILABLE" }
+  | { kind: "NONE" }
+  | { kind: "TARGETS"; targets: TargetView[] };
+
+export async function targetsForRole(roleProfileId: string): Promise<RoleTargets> {
+  try {
+    const list = await listTargets();
+    if (list.availability !== "AVAILABLE") return { kind: "UNAVAILABLE" };
+    const targets = activeTargetsForRole(list.targets, roleProfileId);
+    return targets.length ? { kind: "TARGETS", targets } : { kind: "NONE" };
+  } catch (reason) {
+    if (reason instanceof ApiError && failureKind(reason.status) === "UNAVAILABLE") return { kind: "UNAVAILABLE" };
+    throw reason;
+  }
+}
+
 export async function targetsAvailable(): Promise<boolean> {
   try {
     return (await listTargets()).availability === "AVAILABLE";
