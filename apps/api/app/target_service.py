@@ -778,6 +778,22 @@ class TargetService:
         )
         try:
             return await self._repo.create_blueprint(user_id, target.id, pin, expected_version=expected_version)
+        except BlueprintPinConflict as exc:
+            current = await self._repo.get_target(target.id, user_id)
+            if current is not None and current.status == "ARCHIVED":
+                raise TargetArchived from exc
+            if expected_version == 0:
+                rows = await self._repo.blueprints(target.id, user_id)
+                if rows:
+                    winner = rows[-1]
+                    if (
+                        winner.catalog_version == pin.catalog_version
+                        and winner.catalog_sha256 == pin.catalog_sha256
+                        and winner.match_state == pin.match_state
+                        and winner.rules_version == pin.rules_version
+                    ):
+                        return winner
+            raise
         except TargetConflict as exc:
             current = await self._repo.get_target(target.id, user_id)
             if current is not None and current.status == "ARCHIVED":

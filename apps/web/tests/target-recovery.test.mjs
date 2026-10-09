@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const { recoverTarget, activeTargetsForRole, selectTargetForRole } = await import(new URL("../src/lib/target-recovery.ts", import.meta.url).href);
+const { recoverTarget, activeTargetsForRole, selectTargetForRole, createRequestSequence } = await import(new URL("../src/lib/target-recovery.ts", import.meta.url).href);
 const wanted = { role_profile_id: "r1", company: "Amazon", role_family: "software_development_engineering", level: "sde_ii", geography: "in", geography_label: "India" };
 const view = (over = {}) => ({ id: "t1", role_profile_id: "r1", company_label: "Amazon", company_key: "amazon", role_family_key: "software_development_engineering", level_key: "sde_ii", geography_key: "in", geography_label: "India", status: "ACTIVE", ...over });
 
@@ -104,15 +104,32 @@ test("an invalid target query does not silently choose another company", () => {
   assert.equal(selectTargetForRole([first, second], "r1", "old-target"), null);
 });
 
+test("a newer target load invalidates every older asynchronous response", () => {
+  const requests = createRequestSequence();
+  const targetB = requests.next();
+  const targetC = requests.next();
+  assert.equal(requests.isCurrent(targetB), false);
+  assert.equal(requests.isCurrent(targetC), true);
+});
+
+test("target overview applies the latest-request guard to list and blueprint responses", async () => {
+  const source = await readFile(new URL("../src/components/plan/target-overview.tsx", import.meta.url), "utf8");
+  assert.match(source, /const requestId = requestSequence\.current\.next\(\)/);
+  assert.match(source, /requestSequence\.current\.isCurrent\(requestId\) && isCurrent\(\)/);
+  assert.match(source, /await loadTarget\(target, current\)/);
+});
+
 test("PlanReady hides the optional stage prompt when no active target exists", async () => {
   const source = await readFile(new URL("../src/components/onboarding/plan-ready-step.tsx", import.meta.url), "utf8");
   assert.match(source, /if \(listState === "none"\) return null;/);
   assert.doesNotMatch(source, /stageCopy\.noTarget/);
 });
 
-test("dirty stage drafts intercept browser back/forward and restore the current history entry on cancel", async () => {
+test("dirty stage drafts cancel history traversals before they leave the current entry when Navigation API is available", async () => {
   const source = await readFile(new URL("../src/components/plan/candidate-stage-plan-editor.tsx", import.meta.url), "utf8");
+  assert.match(source, /if \(navigation\)/);
+  assert.match(source, /navigation\?\.addEventListener\("navigate"/);
+  assert.match(source, /navigationEvent\.navigationType === "traverse"/);
+  assert.match(source, /event\.preventDefault\(\)/);
   assert.match(source, /addEventListener\("popstate"/);
-  assert.match(source, /stopImmediatePropagation\(\)/);
-  assert.match(source, /history\.forward\(\)/);
 });

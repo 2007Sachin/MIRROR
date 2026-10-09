@@ -2,7 +2,7 @@
 
 import { ArrowRight } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PageAlert } from "@/components/workspace/page-shell";
 import { CandidateStagePlanEditor } from "@/components/plan/candidate-stage-plan-editor";
@@ -26,7 +26,7 @@ import {
   unknownCopy,
 } from "@/lib/copy-targets";
 import { ApiError } from "@/lib/api";
-import { activeTargetsForRole, selectTargetForRole } from "@/lib/target-recovery";
+import { activeTargetsForRole, createRequestSequence, selectTargetForRole } from "@/lib/target-recovery";
 
 const t = targetCopy.section;
 
@@ -60,6 +60,7 @@ export function TargetOverview({
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
   const [roleTargets, setRoleTargets] = useState<TargetView[]>([]);
   const [editorDirty, setEditorDirty] = useState(false);
+  const requestSequence = useRef(createRequestSequence());
 
   const loadTarget = useCallback(async (target: TargetView, isCurrent: () => boolean = () => true) => {
     setState({ kind: "loading", target });
@@ -75,9 +76,11 @@ export function TargetOverview({
   }, []);
 
   const load = useCallback(async (requestedTargetId?: string, isCurrent: () => boolean = () => true) => {
+    const requestId = requestSequence.current.next();
+    const current = () => requestSequence.current.isCurrent(requestId) && isCurrent();
     try {
       const found = await targetsForRole(roleProfileId);
-      if (!isCurrent()) return;
+      if (!current()) return;
       if (found.kind !== "TARGETS") {
         setSelectedTargetId(null);
         setRoleTargets([]);
@@ -93,9 +96,9 @@ export function TargetOverview({
           : setState({ kind: "hidden" });
       }
       setSelectedTargetId(target.id);
-      await loadTarget(target, isCurrent);
+      await loadTarget(target, current);
     } catch {
-      if (!isCurrent()) return;
+      if (!current()) return;
       return setState({ kind: "hidden" }); // the plan works without this section
     }
   }, [loadTarget, roleProfileId]);

@@ -371,6 +371,15 @@ def test_probe_reports_missing_tables_as_not_provisioned() -> None:
     assert run(supabase(handler).probe()) is False
 
 
+def test_probe_requires_loop5a_notes_table_before_reporting_available() -> None:
+    def handler(request):
+        if request.url.path.endswith("/candidate_stage_notes"):
+            return httpx.Response(404, json={"code": "PGRST205", "message": "Could not find the table"})
+        return httpx.Response(200, json=[])
+
+    assert run(supabase(handler).probe()) is False
+
+
 def test_probe_true_only_when_every_table_answers() -> None:
     seen = []
 
@@ -380,7 +389,7 @@ def test_probe_true_only_when_every_table_answers() -> None:
         return httpx.Response(200, json=[])
 
     assert run(supabase(handler).probe()) is True
-    assert sorted(seen) == ["candidate_targets", "generated_questions", "interview_blueprints", "target_session_links"]
+    assert sorted(seen) == ["candidate_stage_notes", "candidate_targets", "generated_questions", "interview_blueprints", "target_session_links"]
 
 
 def test_probe_transient_error_raises() -> None:

@@ -528,7 +528,20 @@ def test_refresh_retries_after_append_commit_response_conflict_without_duplicate
     assert [row.version for row in world.repo.blueprint_rows] == [1, 2]
 
 
-def test_candidate_stage_save_requires_strict_expected_blueprint_version(world) -> None:
+def test_create_target_accepts_an_identical_initial_pin_racing_lazy_blueprint_read(world) -> None:
+    world.repo = CommitThenConflictRepository()
+    world.repo.conflict_after_next_append = True
+    c = client(world)
+
+    response = create(c)
+
+    assert response.status_code == 201, response.text
+    target_id = UUID(response.json()["target"]["id"])
+    assert response.json()["blueprint"]["version"] == 1
+    assert [row.version for row in world.repo.blueprint_rows if row.candidate_target_id == target_id] == [1]
+
+
+def test_candidate_stage_plan_requires_strict_expected_blueprint_version(world) -> None:
     c = client(world)
     target = create(c).json()["target"]
     stage_id = str(uuid4())

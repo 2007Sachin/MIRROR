@@ -121,6 +121,8 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await leaveClick;
     assert.equal(page.url(), planReadyUrl, "cancel keeps the candidate on the editable plan-ready step");
     assert.equal(await page.getByLabel("Private note for this stage").inputValue(), "QA-SYNTHETIC-STAGE-NOTE");
+    assert.equal(await page.evaluate(() => typeof window.navigation?.addEventListener === "function"), true,
+      "isolated browser supports cancelable navigation traversal events");
     await page.evaluate(() => window.history.pushState(window.history.state, "", window.location.href));
     const backPrompt = page.waitForEvent("dialog", { timeout: 5_000 });
     const backNavigation = page.goBack({ waitUntil: "commit", timeout: 5_000 }).catch(() => null);

@@ -25,7 +25,7 @@ from .http_pool import pooled
 
 TargetStatus = Literal["ACTIVE", "ARCHIVED"]
 MatchState = Literal["RESEARCHED", "GENERAL_ONLY", "NOT_RESEARCHED"]
-TABLES = ("candidate_targets", "interview_blueprints", "generated_questions", "target_session_links")
+TABLES = ("candidate_targets", "interview_blueprints", "generated_questions", "target_session_links", "candidate_stage_notes")
 BLUEPRINT_COLUMNS = "id,user_id,candidate_target_id,version,catalog_version,catalog_sha256,match_state,rules_version,created_at"
 _MISSING_RELATION_CODES = {"PGRST205", "42P01", "PGRST106"}
 

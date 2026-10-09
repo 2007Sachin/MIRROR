@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { getBlueprint, saveCandidateStagePlan, type BlueprintView, type CandidateStageKind, type TargetView } from "@/lib/api-targets";
 import { targetCopy } from "@/lib/copy-targets";
@@ -17,7 +17,7 @@ export function CandidateStagePlanEditor({ target, view, onSaved, onDirtyChange,
   const [saved, setSaved] = useState(false);
   const [reloadBusy, setReloadBusy] = useState(false);
   const [baseline, setBaseline] = useState(JSON.stringify(initial));
-  const restoreHistoryOnPop = useRef(false);
+
   const dirty = JSON.stringify(draft) !== baseline;
   const validation = validateStageDraft(draft);
   const kinds = Object.keys(copy.stageKinds) as CandidateStageKind[];
@@ -25,15 +25,19 @@ export function CandidateStagePlanEditor({ target, view, onSaved, onDirtyChange,
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => { const handler = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } }; window.addEventListener("beforeunload", handler); return () => window.removeEventListener("beforeunload", handler); }, [dirty]);
   useEffect(() => {
+    const navigation = (window as unknown as { navigation?: EventTarget }).navigation;
+    if (navigation) {
+      const guard = (event: Event) => {
+        const navigationEvent = event as Event & { canIntercept?: boolean; navigationType?: string };
+        if (dirty && navigationEvent.navigationType === "traverse" && navigationEvent.canIntercept
+          && !window.confirm(copy.leaveConfirm)) event.preventDefault();
+      };
+      navigation?.addEventListener("navigate", guard, true);
+      return () => navigation?.removeEventListener("navigate", guard, true);
+    }
     const guard = (event: PopStateEvent) => {
-      if (restoreHistoryOnPop.current) {
-        restoreHistoryOnPop.current = false;
-        event.stopImmediatePropagation();
-        return;
-      }
       if (!dirty || window.confirm(copy.leaveConfirm)) return;
       event.stopImmediatePropagation();
-      restoreHistoryOnPop.current = true;
       window.history.forward();
     };
     window.addEventListener("popstate", guard, true);

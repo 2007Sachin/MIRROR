@@ -11,6 +11,14 @@ export function selectTargetForRole(targets: TargetView[], roleProfileId: string
   return active.length === 1 ? active[0] : null;
 }
 
+export function createRequestSequence() {
+  let latest = 0;
+  return {
+    next: () => ++latest,
+    isCurrent: (request: number) => request === latest,
+  };
+}
+
 export type RecoveryApi = {
   create: (body: TargetCreate) => Promise<{ target: TargetView }>;
   list: () => Promise<{ availability: string; targets: TargetView[] }>;
