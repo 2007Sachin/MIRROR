@@ -68,7 +68,9 @@ test('only the candidate stage stale-save conflict in T02b is expected', () => {
     collector.setStep(step);
     collector.attach(page);
     listeners.response({ status: () => status, url: () => requestUrl, request: () => ({ method: () => method }) });
-    listeners.console({ type: () => 'error', text: () => consoleText });
+    for (const text of (Array.isArray(consoleText) ? consoleText : [consoleText])) {
+      listeners.console({ type: () => 'error', text: () => text });
+    }
     return collector.findings();
   };
   const step = 't02b-stage-practice-review-and-stage-removal';
@@ -77,6 +79,9 @@ test('only the candidate stage stale-save conflict in T02b is expected', () => {
   const expected = observe(step, url, 409, 'PUT', message);
   assert.deepEqual(expected.badResponses, []);
   assert.deepEqual(expected.consoleErrors, []);
+  const extraConsole = observe(step, url, 409, 'PUT', [message, message]);
+  assert.deepEqual(extraConsole.badResponses, []);
+  assert.equal(extraConsole.consoleErrors.length, 1, 'one allowed response cannot suppress a second unrelated console error');
   assert.equal(observe(step, url, 409, 'GET', message).badResponses.length, 1, 'wrong method is not allowed');
   assert.equal(observe('t09-round-detail', url, 409, 'PUT', message).badResponses.length, 1, 'wrong step is not allowed');
   assert.equal(observe(step, url.replace('/blueprint/stages', '/blueprint'), 409, 'PUT', message).badResponses.length, 1, 'wrong path is not allowed');

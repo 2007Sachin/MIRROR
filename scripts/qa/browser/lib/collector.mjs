@@ -36,10 +36,7 @@ export const ALLOW = [
     kind: "response", method: "PUT", url: /\/api\/v1\/targets\/[^/]+\/blueprint\/stages$/, status: 409,
     steps: ["t02b-stage-practice-review-and-stage-removal"],
     reason: "the stale_once scenario returns STAGE_PLAN_STALE so candidate draft reconciliation is verified",
-  },
-  {
-    kind: "console", text: /status of 409 \(Conflict\)/, steps: ["t02b-stage-practice-review-and-stage-removal"],
-    reason: "Chrome logs the deliberate stale stage-plan conflict above as a console error",
+    consoleText: /status of 409 \(Conflict\)/,
   },
   // Loop 3 journey B: a business-roles target has no engineering rounds; asking for one is a deliberate 404.
   {
@@ -65,6 +62,8 @@ export const ALLOW = [
 
 export function createCollector() {
   const bag = { step: "start", pageErrors: [], consoleErrors: [], consoleWarnings: [], failed: [], responses: [], counts: { requests: 0 } };
+  const consoleTimes = new WeakMap();
+  const responseTimes = new WeakMap();
   return {
     bag,
     setStep(name) {
@@ -74,6 +73,7 @@ export function createCollector() {
       page.on("pageerror", (error) => bag.pageErrors.push({ step: bag.step, url: page.url(), text: String(error?.stack ?? error).slice(0, 400) }));
       page.on("console", (message) => {
         const entry = { step: bag.step, url: page.url(), text: message.text().slice(0, 300) };
+        consoleTimes.set(entry, Date.now());
         if (message.type() === "error") bag.consoleErrors.push(entry);
         else if (message.type() === "warning") bag.consoleWarnings.push(entry);
       });
@@ -85,23 +85,41 @@ export function createCollector() {
       page.on("response", (response) => {
         if (response.status() >= 400) {
           const request = response.request?.();
-          bag.responses.push({ step: bag.step, url: response.url(), status: response.status(), method: request?.method?.() });
+          const entry = { step: bag.step, url: response.url(), status: response.status(), method: request?.method?.() };
+          responseTimes.set(entry, Date.now());
+          bag.responses.push(entry);
         }
       });
     },
     /** Returns only what is NOT covered by the allow-list. */
     findings() {
-      const allowed = (kind, fields) => ALLOW.some((rule) =>
+      const matches = (rule, kind, fields) =>
         rule.kind === kind
         && (!rule.steps || rule.steps.includes(fields.step))
         && (!rule.url || rule.url.test(fields.url ?? ""))
         && (!rule.text || rule.text.test(fields.text ?? ""))
         && (!rule.status || rule.status === fields.status)
         && (!rule.method || rule.method === fields.method)
-        && (!rule.error || rule.error.test(fields.error ?? "")));
+        && (!rule.error || rule.error.test(fields.error ?? ""));
+      const allowed = (kind, fields) => ALLOW.some((rule) => matches(rule, kind, fields));
+      const pairedResponses = new Set();
+      const consoleMatchesAllowedResponse = (entry) => {
+        const at = consoleTimes.get(entry) ?? 0;
+        for (const rule of ALLOW) {
+          if (rule.kind !== "response" || !rule.consoleText?.test(entry.text)
+            || (rule.steps && !rule.steps.includes(entry.step))) continue;
+          const response = bag.responses.find((candidate) => {
+            const responseAt = responseTimes.get(candidate) ?? Number.NEGATIVE_INFINITY;
+            return !pairedResponses.has(candidate) && matches(rule, "response", candidate)
+              && Math.abs(at - responseAt) <= 2_000;
+          });
+          if (response) { pairedResponses.add(response); return true; }
+        }
+        return false;
+      };
       return {
         pageErrors: bag.pageErrors,
-        consoleErrors: bag.consoleErrors.filter((entry) => !allowed("console", entry)),
+        consoleErrors: bag.consoleErrors.filter((entry) => !allowed("console", entry) && !consoleMatchesAllowedResponse(entry)),
         failedRequests: bag.failed.filter((entry) => !allowed("failed", entry)),
         badResponses: bag.responses.filter((entry) => !allowed("response", entry)),
       };
