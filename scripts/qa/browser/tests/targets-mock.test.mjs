@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import { TARGET_IDS, createTargetsMock } from "../mock/targets.mjs";
+import * as mockServer from "../mock/server.mjs";
 
 const ROLE = "00000000-0000-4000-8000-000000000002";
 const FIXTURES = new URL("../mock/fixtures/", import.meta.url);
@@ -24,6 +25,20 @@ function setup() {
   });
   return { mock, sessions, get: (path, url) => mock.handle("GET", path, { url: url ?? new URL(`http://x${path}`) }) };
 }
+
+test("mock practice reports preserve the role from the created session", () => {
+  const buildReport = mockServer.reportForSession;
+  assert.equal(typeof buildReport, "function", "server exposes its pure report fixture adapter");
+  const session = { ...fixture("session.json"), target_role: "Software Development Engineer (test role)",
+    role_profile_id: TARGET_IDS.newRole, completed_at: "2026-01-02T10:00:00Z" };
+  const firstAnswer = { speaker: "CANDIDATE", id: "00000000-0000-4000-8000-000000000901" };
+  const base = fixture("report.json");
+  const report = buildReport(base, session, [firstAnswer]);
+  assert.equal(report.session.target_role, session.target_role);
+  assert.equal(report.session.completed_at, session.completed_at);
+  assert.equal(report.skill_assessments[0].evidence[0].turn_id, firstAnswer.id);
+  assert.equal(base.session.target_role, "QA Analyst (test role)", "fixture remains unchanged");
+});
 
 test("blueprint exposes an independently initialized candidate stage plan", () => {
   const { mock, get } = setup();

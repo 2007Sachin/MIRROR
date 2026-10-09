@@ -31,6 +31,14 @@ const KID = "qa-mock-key";
 const TOKEN_TTL_SECONDS = 3600;
 
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(FIXTURES, name), "utf8"));
+export function reportForSession(reportFixture, session, turns) {
+  const value = JSON.parse(JSON.stringify(reportFixture));
+  value.session.target_role = session.target_role;
+  value.session.completed_at = session.completed_at;
+  const firstAnswer = turns.find((turn) => turn.speaker === "CANDIDATE");
+  for (const quote of value.skill_assessments[0]?.evidence ?? []) quote.turn_id = firstAnswer?.id ?? null;
+  return value;
+}
 const turnId = (index) => `00000000-0000-4000-8000-${String(200 + index).padStart(12, "0")}`;
 const sha = (value) => crypto.createHash("sha256").update(String(value)).digest();
 
@@ -343,13 +351,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   };
 
   const review = () => ({ ...fixture("review.json"), session_id: state.session.id, completed_at: state.session.completed_at });
-  const report = () => {
-    const value = fixture("report.json");
-    value.session.completed_at = state.session.completed_at;
-    const firstAnswer = state.turns.find((turn) => turn.speaker === "CANDIDATE");
-    for (const quote of value.skill_assessments[0].evidence) quote.turn_id = firstAnswer?.id ?? null;
-    return value;
-  };
+  const report = () => reportForSession(fixture("report.json"), state.session, state.turns);
 
   // ----------------------------------------------------------------------------- api routes
   const err = (status, detail) => ({ status, body: { detail } });
