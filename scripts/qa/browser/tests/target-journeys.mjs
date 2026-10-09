@@ -131,6 +131,25 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await page.waitForFunction((url) => window.location.href === url, planReadyUrl);
     assert.equal(await page.getByLabel("Private note for this stage").inputValue(), "QA-SYNTHETIC-STAGE-NOTE",
       "canceling browser back preserves the unsaved note");
+    const forwardUrl = new URL(planReadyUrl);
+    forwardUrl.searchParams.set("history-test", "forward");
+    await page.evaluate((url) => window.history.pushState(window.history.state, "", url), forwardUrl.toString());
+    const acceptBackPrompt = page.waitForEvent("dialog", { timeout: 5_000 });
+    const backToEditor = page.goBack({ waitUntil: "commit", timeout: 5_000 }).catch(() => null);
+    const acceptBackDialog = await acceptBackPrompt;
+    assert.match(acceptBackDialog.message(), /stage changes/);
+    await acceptBackDialog.accept();
+    await backToEditor;
+    await page.waitForFunction((url) => window.location.href === url, planReadyUrl);
+    const cancelForwardPrompt = page.waitForEvent("dialog", { timeout: 5_000 });
+    const canceledForward = page.goForward({ waitUntil: "commit", timeout: 5_000 }).catch(() => null);
+    const forwardDialog = await cancelForwardPrompt;
+    assert.match(forwardDialog.message(), /stage changes/);
+    await forwardDialog.dismiss();
+    await canceledForward;
+    await page.waitForFunction((url) => window.location.href === url, planReadyUrl);
+    assert.equal(await page.getByLabel("Private note for this stage").inputValue(), "QA-SYNTHETIC-STAGE-NOTE",
+      "canceling browser forward preserves the editor URL and unsaved draft");
     await page.getByRole("button", { name: "Save stages" }).click();
     await page.getByText("Your stages are saved.", { exact: true }).waitFor();
     const stageSave = await getState();
