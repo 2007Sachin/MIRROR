@@ -521,9 +521,13 @@ def test_supabase_rpc_maps_append_and_stage_cas_conflicts() -> None:
         }],
         "notes": {},
     })
-    save_repo = supabase(lambda _request: httpx.Response(400, json={"message": "stale candidate stage plan"}))
+    save_repo = supabase(lambda _request: httpx.Response(409, json={"message": "stale candidate stage plan"}))
     with pytest.raises(StaleStagePlan):
         run(save_repo.save_candidate_stage_plan(target_id, USER_A, 1, plan))
+    generic_conflict_repo = supabase(lambda _request: httpx.Response(409, json={"message": "unclassified conflict"}))
+    with pytest.raises(TargetConflict) as conflict:
+        run(generic_conflict_repo.save_candidate_stage_plan(target_id, USER_A, 1, plan))
+    assert not isinstance(conflict.value, StaleStagePlan)
 
 
 def test_supabase_link_insert_is_plain_insert_and_conflict_is_write_once() -> None:

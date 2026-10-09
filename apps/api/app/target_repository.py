@@ -604,8 +604,6 @@ class SupabaseTargetRepository:
             raise TargetsUnavailable from exc
 
     def _raise_rpc_error(self, function: str, response: httpx.Response) -> None:
-        if response.status_code == 409:
-            raise TargetConflict()
         try:
             details = response.json()
         except ValueError:
@@ -623,6 +621,8 @@ class SupabaseTargetRepository:
             raise StaleStagePlan()
         if message in {"stale blueprint pin", "catalog version regression", "catalog version hash mismatch"}:
             raise BlueprintPinConflict()
+        if response.status_code == 409:
+            raise TargetConflict()
         raise TargetsUnavailable(f"{function}: HTTP {response.status_code}")
 
     async def _rpc_integer(self, function: str, payload: dict[str, Any]) -> int:
