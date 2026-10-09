@@ -32,6 +32,15 @@ export const ALLOW = [
     steps: ["t06-plan-section-unavailable", "t07-plan-section-error-and-retry", "t11-round-unknown-key"],
     reason: "Chrome logs the deliberate answers above as console errors",
   },
+  {
+    kind: "response", method: "PUT", url: /\/api\/v1\/targets\/[^/]+\/blueprint\/stages$/, status: 409,
+    steps: ["t02b-stage-practice-review-and-stage-removal"],
+    reason: "the stale_once scenario returns STAGE_PLAN_STALE so candidate draft reconciliation is verified",
+  },
+  {
+    kind: "console", text: /status of 409 \(Conflict\)/, steps: ["t02b-stage-practice-review-and-stage-removal"],
+    reason: "Chrome logs the deliberate stale stage-plan conflict above as a console error",
+  },
   // Loop 3 journey B: a business-roles target has no engineering rounds; asking for one is a deliberate 404.
   {
     kind: "response", url: /\/api\/v1\/targets\/[^/]+\/rounds\/coding_reasoning$/, status: 404, steps: ["t18-business-roles-round-detail"],
@@ -74,7 +83,10 @@ export function createCollector() {
       page.on("requestfailed", (request) =>
         bag.failed.push({ step: bag.step, url: request.url(), method: request.method(), error: request.failure()?.errorText ?? "" }));
       page.on("response", (response) => {
-        if (response.status() >= 400) bag.responses.push({ step: bag.step, url: response.url(), status: response.status() });
+        if (response.status() >= 400) {
+          const request = response.request?.();
+          bag.responses.push({ step: bag.step, url: response.url(), status: response.status(), method: request?.method?.() });
+        }
       });
     },
     /** Returns only what is NOT covered by the allow-list. */
@@ -85,6 +97,7 @@ export function createCollector() {
         && (!rule.url || rule.url.test(fields.url ?? ""))
         && (!rule.text || rule.text.test(fields.text ?? ""))
         && (!rule.status || rule.status === fields.status)
+        && (!rule.method || rule.method === fields.method)
         && (!rule.error || rule.error.test(fields.error ?? "")));
       return {
         pageErrors: bag.pageErrors,

@@ -59,6 +59,30 @@ test('only the optional target-create 503 in T16 is an expected browser error', 
   assert.equal(wrongStatus.consoleErrors.length, 1);
 });
 
+
+test('only the candidate stage stale-save conflict in T02b is expected', () => {
+  const observe = (step, requestUrl, status, method, consoleText) => {
+    const listeners = {};
+    const page = { on: (event, handler) => { listeners[event] = handler; }, url: () => 'http://127.0.0.1:3099/plan' };
+    const collector = createCollector();
+    collector.setStep(step);
+    collector.attach(page);
+    listeners.response({ status: () => status, url: () => requestUrl, request: () => ({ method: () => method }) });
+    listeners.console({ type: () => 'error', text: () => consoleText });
+    return collector.findings();
+  };
+  const step = 't02b-stage-practice-review-and-stage-removal';
+  const url = 'http://127.0.0.1:8099/api/v1/targets/00000000-0000-4000-8000-000000000311/blueprint/stages';
+  const message = 'Failed to load resource: the server responded with a status of 409 (Conflict)';
+  const expected = observe(step, url, 409, 'PUT', message);
+  assert.deepEqual(expected.badResponses, []);
+  assert.deepEqual(expected.consoleErrors, []);
+  assert.equal(observe(step, url, 409, 'GET', message).badResponses.length, 1, 'wrong method is not allowed');
+  assert.equal(observe('t09-round-detail', url, 409, 'PUT', message).badResponses.length, 1, 'wrong step is not allowed');
+  assert.equal(observe(step, url.replace('/blueprint/stages', '/blueprint'), 409, 'PUT', message).badResponses.length, 1, 'wrong path is not allowed');
+  assert.equal(observe(step, url, 500, 'PUT', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)').badResponses.length, 1, 'wrong status is not allowed');
+});
+
 test('only the other-family round 404 in T18 is expected; any other round or step still fails', () => {
   const observe = (step, requestUrl, status, consoleText) => {
     const listeners = {};
