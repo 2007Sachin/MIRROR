@@ -265,10 +265,10 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await heading("Your interview target", 2).waitFor();
   });
 
-  // T3 India target: not yet researched, Mirror's suggested rounds, no global guidance, one primary.
+  // T3 India target: not yet researched, Mirror's suggested rounds, no global guidance; fixture level remains unset.
   await step("t03-plan-india-not-yet-researched", async () => {
     await heading("Your interview target", 2).waitFor();
-    await page.getByText("Amazon · India · SDE II").waitFor();
+    await page.getByText("Amazon · India · Level not set yet").waitFor();
     await page.getByText("Not yet researched", { exact: true }).waitFor();
     const order = await page.locator("h2").allInnerTexts();
     assert.ok(order.indexOf("Your interview target") < order.indexOf("What this role looks for"), "section A above the plan");
