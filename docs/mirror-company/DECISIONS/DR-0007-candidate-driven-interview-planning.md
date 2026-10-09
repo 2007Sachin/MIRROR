@@ -1,11 +1,11 @@
 # DR-0007 Candidate-driven interview planning
-Status: **Proposed for CTO approval** · 2026-10-08 · Owner: CPO + CTO
+Status: **Bounded Loop 5A implementation reviewed; ready for PR review, not merge/release** · 2026-10-10 · Owner: CPO + CTO
 
 ## Problem
 
 Loop 4 and Loop 4B remain BLOCKED because India-specific company-process research did not meet the publication gate. Candidates still need useful preparation without an approved company process. The owner has now directly authorized Loop 5A: build and locally verify candidate-driven preparation; do not start Loop 5B, change hosted Supabase, deploy, add research, or waive a failed gate. This instruction supersedes the stale “Do not start Loop 5” status sentence for this bounded objective only.
 
-The initial architecture challenge required a precise candidate-stage snapshot, version/CAS rules, a read-consumer matrix, current-only notes lifecycle, and migration/compatibility behavior. This record defines those contracts; the additive migration, minimal stage-plan API seam, and local proofs are in the current working tree, with CTO/Security re-review pending. It does not approve a hosted migration, release, hosted operation, or deployment.
+The initial architecture challenge required a precise candidate-stage snapshot, version/CAS rules, a read-consumer matrix, current-only notes lifecycle, and migration/compatibility behavior. This record defines those contracts. The additive migration, API/UI flow, local proofs, isolated browser journeys, and exact-head CI are complete for the bounded PR slice. CPO/CTO/Security/Data/QA/UX/Journey/AI Evaluation reviews report no remaining blocker within their reviewed scopes. Gatekeeper accepts the slice for PR review, not merge. This record does not approve a hosted migration, release, hosted operation, or deployment.
 
 ## Evidence
 
@@ -15,8 +15,8 @@ The initial architecture challenge required a precise candidate-stage snapshot, 
 - `apps/api/app/research_content/taxonomy_v1.json`: role families `software_development_engineering` and `business_analysis`; existing rounds are role practice, not company stages.
 - `supabase/migrations/20261004200000_loop2_candidate_targets.sql`: immutable blueprint trigger, owner RLS, browser reads, service-role writes.
 - `supabase/migrations/20261005210000_target_prompt_completeness.sql`: generated question bodies and prompt manifests are server-only; client link reads are column-limited.
-- **Local evidence for the current draft, 2026-10-08:** migration-contract tests 10/10; disposable PostgreSQL 16.2 behavior verifier 90/90 with scratch-cluster cleanup verified; focused target repository, atomicity, route, and stage-plan API/schema tests 118/118. Coverage includes owner RLS, session-pinned history, append/save CAS and retries, catalog-pin monotonicity, coherent reader/writer locking, notes clear/remove/archive, guarded rollback, malformed payloads, RPC access denials, and the RPC-based append/read/save adapters. No hosted DB, deployment, or candidate-stage UI flow was exercised.
-- The first independent CTO and Security/Data reviews blocked the pre-API data draft. The current uncommitted revision adds the stage-plan read/save API seam and append-pin CAS adapter. The existing `BLUEPRINT_COLUMNS` projection remains deliberately pin-only for legacy consumers; the candidate-stage API reads the full immutable row through the coherent RPC. CTO/Security re-review is still required. Do not apply the migration to any runtime before the matching RPC adapter is present there; hosted rollout remains unapproved and untouched.
+- **Verification evidence:** migration-contract tests 10/10 and disposable PostgreSQL 16.2 behavior verifier 90/90 (scratch-cluster cleanup verified); focused repository/routes tests 105/105 after the stale-409 regression; exact-head GitHub Actions run `37984246806` passed backend/copy/AI, frontend typecheck/build, and isolated browser jobs. The browser artifact passed 41/41 desktop and 41/41 mobile steps. Review scope and limitations are recorded in `../RECEIPTS/LR-0005-loop5a-candidate-driven-interview-planning.md`. No hosted database or deployment was accessed.
+- The initial CTO and Security/Data reviews blocked the pre-API data draft; subsequent implementation and exact-head reviews resolved those findings. `BLUEPRINT_COLUMNS` remains deliberately pin-only for legacy consumers; the candidate-stage API reads the full immutable row through the coherent RPC. Do not apply the migration to any runtime; hosted rollout remains unapproved and untouched.
 
 ## Options considered
 
@@ -119,4 +119,4 @@ G. **Hosted:** NOT VERIFIED and NOT REQUIRED for local acceptance; no hosted mig
 
 ## Review state / revisit
 
-CPO approved the revised product contract. Data/Supabase approved this direction conditionally on the listed database safeguards. CTO approval is required on this complete contract before the full product flow is implemented. Security, QA, UX/Journey, AI Evaluation, and Release Gatekeeper must independently review the actual implementation SHA. Revisit if database consumers require notes in history, if a requested stage cannot map safely to the pinned taxonomy, or if the isolated PostgreSQL tests cannot prove the transaction/RLS invariants.
+The exact implementation SHA `4dc3d306c0ea6549360217cf72393d7bf03c9d1b` has scoped CPO, CTO, Security/Data, QA, UX/Journey, and AI Evaluation reviews; see `RECEIPTS/LR-0005-loop5a-candidate-driven-interview-planning.md`. Gatekeeper disposition is READY FOR PR REVIEW, NOT READY FOR MERGE. The owner accepted the pre-existing KI-020 typing-only practice limitation for PR #6 only; the issue remains open and this is not a general waiver. Revisit if database consumers require notes in history, if a requested stage cannot map safely to the pinned taxonomy, or if the isolated PostgreSQL tests cannot prove transaction/RLS invariants.

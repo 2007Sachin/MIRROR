@@ -1,5 +1,18 @@
 # Quality gates
 
+## Current Loop 5A disposition — READY FOR PR REVIEW, NOT MERGE (2026-10-10)
+
+| Gate | Status | Evidence scope |
+|---|---|---|
+| G0 — Records/scope | **PASS for reviewed implementation state** | LR-0005, DR-0007, current sprint/product state, known-issue note, and this gate record preserve Loop 4/4B holds and prohibit Loop 5B/hosted changes/deployment. |
+| G1 — Code/CI | **PASS at implementation SHA** | Exact-head GitHub Actions run `37984246806` passed all 3 required jobs at `4dc3d306c0ea6549360217cf72393d7bf03c9d1b`. Focused repository/routes tests: 105 passed. New docs receipt/status commit, if any, needs its own exact-head CI before merge. |
+| G2 — Data/security | **PASS for local contract only; hosted NOT VERIFIED** | Migration-contract tests 10/10; disposable PostgreSQL 16.2 verifier 90/90. Exact-SHA Security/Data review passed. No hosted DB access or migration. |
+| G3 — Candidate experience | **PASS for isolated synthetic browser scope** | Exact CI artifact: 41/41 desktop and 41/41 mobile steps, no overflow or unexpected page/console/network/API errors. Owner accepts KI-020 as pre-existing for this PR only; it remains open. No real-backend or accessibility/screen-reader signoff. |
+| G4 — AI behavior | **PASS deterministic only** | AI/persona tests 127 passed, 2 skipped, 7 deprecation warnings; no live provider, prompt, or assessment behavior changed. |
+| G5 — Independent disposition | **READY FOR PR REVIEW; NOT READY FOR MERGE** | Exact implementation-SHA CPO/CTO/Security/Data/QA/UX/Journey/AI reviews report no remaining blocker in scope. Gatekeeper requires required formal PR reviews and a final merge disposition. PR #6 is ready for review; no merge/release approval. |
+
+No release, merge, hosted migration, deployment, new research, or Loop 5B is authorized by this disposition. See `RECEIPTS/LR-0005-loop5a-candidate-driven-interview-planning.md`.
+
 ## Evidence labels (mandatory in every report and receipt)
 
 - **VERIFIED-EXECUTED** — a command, test, or browser/API run actually happened and its output was read.
