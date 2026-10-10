@@ -28,3 +28,4 @@ Date · Owner
 | DR-0004 | Interview Intelligence as an additive, global, versioned, provenance-first layer | **Proposed — needs human approval** |
 | DR-0005 | Lift the "no company research" non-goal, under provenance rules | **Proposed — needs human approval** |
 | DR-0006 | First objective: trust baseline, then a curated vertical slice | Accepted for Loop 1; later bounded Loop 2 authorization recorded in DR-0006 |
+| DR-0007 | Candidate-driven interview planning with immutable stage snapshots and current-only notes | Proposed for CTO approval; Loop 5A only |

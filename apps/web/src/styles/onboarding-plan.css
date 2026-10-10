@@ -129,6 +129,11 @@
 .ob-target-radios legend { font-weight: 600; margin-bottom: .25rem; }
 .ob-target-radios label { display: flex; align-items: center; gap: .5rem; min-height: 44px; }
 /* Plan ready: one primary exit (the plan) and a quiet text link (a short practice). */
+.op-stage-prompt summary { align-items: center; cursor: pointer; display: flex; font-weight: 650; min-height: 44px; }
+.op-stage-prompt summary:focus-visible,
+.op-stage-prompt :is(button, select):focus-visible { outline: 2px solid var(--ink, #17160f); outline-offset: 2px; }
+.op-stage-target { display: grid; gap: .4rem; }
+.op-stage-target select { max-width: 100%; min-height: 44px; }
 .op-exit-row { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; margin-top: 2rem; }
 .op-exit-row .op-target { min-height: 44px; }
 

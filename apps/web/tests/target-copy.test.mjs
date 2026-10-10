@@ -159,9 +159,11 @@ test("round practice goes to the existing practice start with the round, target 
   assert.equal(url.searchParams.get("focus"), "role");
 });
 
-test("plan and round links always carry the role", () => {
+test("plan and round links preserve the selected target as well as the role", () => {
   assert.equal(m.planHref("r 1"), "/plan?role=r%201");
+  assert.equal(m.planHref("r1", "t 1"), "/plan?role=r1&target=t%201");
   assert.equal(m.roundHref("r1", "system_design"), "/plan/rounds/system_design?role=r1");
+  assert.equal(m.roundHref("r1", "system_design", "t 1"), "/plan/rounds/system_design?role=r1&target=t%201");
 });
 
 test("the copy itself passes the banned-word list", () => {

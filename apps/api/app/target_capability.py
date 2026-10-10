@@ -1,7 +1,7 @@
 """Whether Loop 2 target storage can be used on this host.
 
 Two levels: the ``loop2_targets_enabled`` setting (off by default -> DISABLED) and a cached
-probe of the four target tables (missing -> UNAVAILABLE). A transient probe error is raised,
+probe of the required target tables (missing -> UNAVAILABLE). A transient probe error is raised,
 never cached, so one network blip cannot switch the feature off for the cache period.
 Reads use the state to return an empty result; writes refuse before any side effect.
 """

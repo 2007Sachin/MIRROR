@@ -56,7 +56,9 @@ def test_rounds_competencies_reasons_and_rationales_have_words() -> None:
 def test_plan_pages_always_carry_the_role() -> None:
     web = ROOT / "apps/web/src"
     plan = (web / "components/plan/plan-page.tsx").read_text(encoding="utf-8")
-    assert "router.replace(planHref(resolvedRole))" in plan  # bare /plan pins the resolved role
+    assert "router.replace(planHref(resolvedRole, initialTargetId ?? undefined))" in plan  # bare /plan pins the resolved role and preserves target selection
+    plan_route = (web / "app/plan/page.tsx").read_text(encoding="utf-8")
+    assert 'initialTargetId={typeof target === "string" && target ? target : null}' in plan_route
     route = (web / "app/plan/rounds/[round_key]/page.tsx").read_text(encoding="utf-8")
     assert "await Promise.all([params, searchParams])" in route and 'redirect("/plan")' in route
     home = (web / "components/dashboard/home-parts.tsx").read_text(encoding="utf-8")
@@ -79,7 +81,7 @@ def test_target_sections_are_keyed_and_ignore_stale_role_responses() -> None:
     overview = (web / "components/plan/target-overview.tsx").read_text(encoding="utf-8")
     assert "let active = true" in overview and "if (!isCurrent()) return" in overview
     round_route = (web / "app/plan/rounds/[round_key]/page.tsx").read_text(encoding="utf-8")
-    assert "key={role}" in round_route
+    assert 'key={`${role}:${targetId ?? ""}`}' in round_route
     round_page = (web / "components/plan/round-page.tsx").read_text(encoding="utf-8")
     assert "let active = true" in round_page and "if (!isCurrent()) return" in round_page
 

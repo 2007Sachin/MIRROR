@@ -44,6 +44,8 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     };
   });
   let engineeringPlan = null;
+  let candidateTargetId = null;
+  let candidateBlueprintPin = null;
 
   /** Shared checks for every Loop 2 screen. */
   async function screen(label, { primaries = 1 } = {}) {
@@ -103,14 +105,191 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await page.getByRole("button", { name: "Start a short practice instead" }).waitFor();
     assert.equal(await page.getByText("Explore my workspace").count(), 0);
     await screen("plan-ready", { primaries: 1 });
+    const stagePrompt = page.locator("details.op-stage-prompt");
+    await stagePrompt.locator("summary").click();
+    await page.getByRole("radio", { name: "I know one or more stages" }).check();
+    await page.getByRole("button", { name: "Add a stage" }).click();
+    await page.getByLabel("Type of stage").selectOption("TECHNICAL_INTERVIEW");
+    assert.equal(await page.getByLabel("How sure are you?").inputValue(), "UNCERTAIN", "a new stage starts uncertain");
+    await page.getByLabel("Private note for this stage").fill("QA-SYNTHETIC-STAGE-NOTE");
+    const planReadyUrl = page.url();
+    const leavePrompt = page.waitForEvent("dialog", { timeout: 5_000 });
+    const leaveClick = page.getByRole("button", { name: "See your plan" }).click();
+    const leaveDialog = await leavePrompt;
+    assert.match(leaveDialog.message(), /stage changes/);
+    await leaveDialog.dismiss();
+    await leaveClick;
+    assert.equal(page.url(), planReadyUrl, "cancel keeps the candidate on the editable plan-ready step");
+    assert.equal(await page.getByLabel("Private note for this stage").inputValue(), "QA-SYNTHETIC-STAGE-NOTE");
+    assert.equal(await page.evaluate(() => typeof window.navigation?.addEventListener === "function"), true,
+      "isolated browser supports cancelable navigation traversal events");
+    await page.evaluate(() => window.history.pushState(window.history.state, "", window.location.href));
+    const backPrompt = page.waitForEvent("dialog", { timeout: 5_000 });
+    const backNavigation = page.goBack({ waitUntil: "commit", timeout: 5_000 }).catch(() => null);
+    const backDialog = await backPrompt;
+    assert.match(backDialog.message(), /stage changes/);
+    await backDialog.dismiss();
+    await backNavigation;
+    await page.waitForFunction((url) => window.location.href === url, planReadyUrl);
+    assert.equal(await page.getByLabel("Private note for this stage").inputValue(), "QA-SYNTHETIC-STAGE-NOTE",
+      "canceling browser back preserves the unsaved note");
+    const forwardUrl = new URL(planReadyUrl);
+    forwardUrl.searchParams.set("history-test", "forward");
+    await page.evaluate((url) => window.history.pushState(window.history.state, "", url), forwardUrl.toString());
+    const acceptBackPrompt = page.waitForEvent("dialog", { timeout: 5_000 });
+    const backToEditor = page.goBack({ waitUntil: "commit", timeout: 5_000 }).catch(() => null);
+    const acceptBackDialog = await acceptBackPrompt;
+    assert.match(acceptBackDialog.message(), /stage changes/);
+    await acceptBackDialog.accept();
+    await backToEditor;
+    await page.waitForFunction((url) => window.location.href === url, planReadyUrl);
+    const cancelForwardPrompt = page.waitForEvent("dialog", { timeout: 5_000 });
+    const canceledForward = page.goForward({ waitUntil: "commit", timeout: 5_000 }).catch(() => null);
+    const forwardDialog = await cancelForwardPrompt;
+    assert.match(forwardDialog.message(), /stage changes/);
+    await forwardDialog.dismiss();
+    await canceledForward;
+    await page.waitForFunction((url) => window.location.href === url, planReadyUrl);
+    assert.equal(await page.getByLabel("Private note for this stage").inputValue(), "QA-SYNTHETIC-STAGE-NOTE",
+      "canceling browser forward preserves the editor URL and unsaved draft");
+    await page.getByRole("button", { name: "Save stages" }).click();
+    await page.getByText("Your stages are saved.", { exact: true }).waitFor();
+    const stageSave = await getState();
+    assert.ok(stageSave.requests.some((request) => /^PUT \/api\/v1\/targets\/[^/]+\/blueprint\/stages 200$/.test(request)), "candidate stages use the versioned save route");
+    candidateBlueprintPin = stageSave.targets.candidateStagePlanPins.find((pin) => pin.version === 2);
+    assert.ok(candidateBlueprintPin?.blueprint_id, "saved candidate stages create a new immutable blueprint pin");
     await page.getByRole("button", { name: "See your plan" }).click();
-    await page.waitForURL((url) => url.pathname === "/plan" && url.searchParams.get("role") === TARGET_IDS.newRole);
+    await page.waitForURL((url) => url.pathname === "/plan" && url.searchParams.get("role") === TARGET_IDS.newRole && Boolean(url.searchParams.get("target")));
+    candidateTargetId = new URL(page.url()).searchParams.get("target");
+    assert.equal(candidateBlueprintPin.target_id, candidateTargetId);
+    await page.locator(".pl-stage-plan h4").getByText("Role practice that may fit these stages").waitFor();
+    assert.equal(await page.locator(".pl-stage-plan").getByRole("link", { name: /Practice that may fit/ }).count(), 2,
+      "a technical stage maps to existing coding and system-design rounds");
+    await page.reload();
+    await page.locator(".pl-stage-plan h4").getByText("Role practice that may fit these stages").waitFor();
+    assert.equal(await page.locator(".pl-stage-plan").getByRole("link", { name: /Practice that may fit/ }).count(), 2,
+      "saved stage plan returns after refresh");
   });
 
-  // T3 India target: not yet researched, Mirror's suggested rounds, no global guidance, one primary.
+  // T2b A stage-linked round uses the existing practice and feedback path; deleting the stage also clears its note.
+  await step("t02b-stage-practice-review-and-stage-removal", async () => {
+    await page.goto(`${planUrl(TARGET_IDS.newRole)}&target=${TARGET_IDS.target}`);
+    const targetPicker = page.getByLabel("Choose a company and role");
+    await targetPicker.waitFor();
+    assert.equal(await targetPicker.locator("option").count(), 2, "a stale target from another role produces an explicit picker, not a dead end");
+    await targetPicker.selectOption(candidateTargetId);
+    await page.locator(".pl-stage-plan h4").getByText("Role practice that may fit these stages").waitFor();
+    const practiceLink = page.locator(".pl-stage-plan").getByRole("link", { name: /Practice that may fit/ }).first();
+    const stageUrl = new URL(await practiceLink.getAttribute("href"), baseUrl);
+    const targetId = stageUrl.searchParams.get("target");
+    assert.ok(targetId, "stage practice stays pinned to the selected target");
+    assert.equal(targetId, candidateTargetId, "the selected company target survives onboarding-to-plan navigation");
+    assert.equal(stageUrl.searchParams.get("role_profile_id"), TARGET_IDS.newRole);
+    assert.equal(stageUrl.searchParams.get("round"), "coding_reasoning");
+    const before = await getState();
+    const answersBefore = before.answers.length;
+    const genericStartsBefore = before.createBodies.length;
+    await practiceLink.click();
+    await page.waitForURL((url) => url.pathname === "/practice/start"
+      && url.searchParams.get("target") === targetId
+      && url.searchParams.get("round") === "coding_reasoning");
+    await page.getByRole("button", { name: "Start practice" }).click();
+    await page.waitForURL(/\/sessions\/[^/]+\/brief$/);
+    const started = await getState();
+    assert.equal(started.createBodies.length, genericStartsBefore, "stage-matched practice uses the existing target-linked path");
+    assert.equal(started.targets.roundPractice.at(-1).target_id, targetId);
+    assert.equal(started.targets.roundPractice.at(-1).round_key, "coding_reasoning");
+    assert.equal(started.targets.links.at(-1).blueprint_id, candidateBlueprintPin.blueprint_id,
+      "the practice session links the blueprint version that contained the stage plan");
+    assert.ok(started.targets.roundPracticeResponses.at(-1).prompts.every((prompt) => !("text" in prompt)));
+
+    const stageAnswers = [
+      "QA-SYNTHETIC-STAGE-ANSWER-ONE: I built a small reporting tool for a made-up team.",
+      "QA-SYNTHETIC-STAGE-ANSWER-TWO: I wrote the data model and the weekly export.",
+      "QA-SYNTHETIC-STAGE-ANSWER-THREE: Weekly reporting time dropped from two hours to ten minutes.",
+    ];
+    const stageQuestions = [/Tell me about one project you worked on\./, "What was your own part in it?", "What changed because of that work?"];
+    await page.getByRole("link", { name: /Begin the conversation/ }).click();
+    await page.waitForURL(/\/app\/interview\/[^/]+$/);
+    await heading("Ready when you are.", 1).waitFor();
+    await joinWithTyping();
+    await heading(stageQuestions[0], 1).waitFor();
+    for (let index = 0; index < stageAnswers.length; index += 1) {
+      await page.locator("#typed-answer").fill(stageAnswers[index]);
+      await page.getByRole("button", { name: "Send answer" }).click();
+      if (index < stageAnswers.length - 1) {
+        await heading(stageQuestions[index + 1], 1).waitFor();
+        const composerBack = await page.locator("#typed-answer").waitFor({ timeout: 2_500 }).then(() => true, () => false);
+        if (!composerBack) {
+          await page.reload();
+          await heading("Ready when you are.", 1).waitFor();
+          await joinWithTyping();
+          await heading(stageQuestions[index + 1], 1).waitFor();
+        }
+      }
+    }
+    await heading("Interview complete", 1).waitFor();
+    await poll(async () => (await getState()).ended, { message: "the stage-matched practice to end" });
+    const completed = await getState();
+    assert.deepEqual(completed.answers.slice(answersBefore), stageAnswers);
+    assert.equal(JSON.stringify(completed.targets.roundPracticeResponses.at(-1)).includes("QA-SYNTHETIC-STAGE-NOTE"), false,
+      "candidate notes do not enter the practice response");
+    await page.getByRole("button", { name: "View review" }).click();
+    await page.waitForURL(/\/app\/report\/[^/]+$/);
+    await heading(/Software Development Engineer/, 1).waitFor();
+    await heading("What landed well").waitFor();
+    for (const answer of stageAnswers) await page.getByText(answer, { exact: true }).waitFor();
+    assert.equal(await page.getByText("QA-SYNTHETIC-STAGE-NOTE").count(), 0, "candidate notes are absent from feedback");
+
+    await page.goto(`${planUrl(TARGET_IDS.newRole)}&target=${targetId}`);
+    const note = page.getByLabel("Private note for this stage");
+    await note.waitFor();
+    assert.equal(await note.inputValue(), "QA-SYNTHETIC-STAGE-NOTE");
+    await note.fill("QA-SYNTHETIC-UNSAVED-DRAFT");
+    await scenario({ stageSave: "stale_once" });
+    await page.getByRole("button", { name: "Save stages" }).click();
+    await page.getByText(/This plan changed elsewhere/).waitFor();
+    assert.equal(await note.inputValue(), "QA-SYNTHETIC-UNSAVED-DRAFT", "stale conflict keeps the unsaved draft");
+    const reloadLatest = page.getByRole("button", { name: "Load latest plan (replace these edits)" });
+    const cancelReload = page.waitForEvent("dialog", { timeout: 5_000 });
+    const cancelClick = reloadLatest.click();
+    const cancelDialog = await cancelReload;
+    await cancelDialog.dismiss();
+    await cancelClick;
+    assert.equal(await note.inputValue(), "QA-SYNTHETIC-UNSAVED-DRAFT", "cancel preserves the local draft");
+    const confirmReload = page.waitForEvent("dialog", { timeout: 5_000 });
+    const confirmClick = reloadLatest.click();
+    const confirmDialog = await confirmReload;
+    await confirmDialog.accept();
+    await confirmClick;
+    await page.waitForFunction(() => document.querySelector(".pl-stage-editor textarea")?.value === "QA-SYNTHETIC-REMOTE-NOTE");
+    assert.equal(await note.inputValue(), "QA-SYNTHETIC-REMOTE-NOTE", "explicit reconciliation loads the concurrent current note");
+    await page.getByRole("button", { name: "Remove stage" }).click();
+    await page.getByRole("radio", { name: "Not yet", exact: true }).check();
+    await page.getByRole("button", { name: "Save stages" }).click();
+    await page.getByText("Your stages are saved.", { exact: true }).waitFor();
+    const afterRemoval = await getState();
+    const currentPin = afterRemoval.targets.candidateStagePlanPins.find((pin) => pin.target_id === targetId);
+    assert.equal(currentPin.version, 4);
+    assert.notEqual(currentPin.blueprint_id, candidateBlueprintPin.blueprint_id);
+    assert.equal(afterRemoval.targets.links.at(-1).blueprint_id, candidateBlueprintPin.blueprint_id,
+      "later stage edits do not mutate the earlier practice session's blueprint pin");
+    await page.getByText("No stages shared yet; your general role preparation is still available.", { exact: true }).waitFor();
+    assert.equal(await page.locator(".pl-rounds > li").count(), 3, "general role rounds remain available when stages are cleared");
+    await page.reload();
+    await page.getByText("No stages shared yet; your general role preparation is still available.", { exact: true }).waitFor();
+    assert.equal(await page.locator(".pl-stage-editor__stage").count(), 0, "removed stage stays removed after refresh");
+    assert.equal(await page.locator(".pl-rounds > li").count(), 3);
+    await overflow("candidate-stage-removal-refresh");
+    await reset();
+    await page.goto(planUrl(IDS.role));
+    await heading("Your interview target", 2).waitFor();
+  });
+
+  // T3 India target: not yet researched, Mirror's suggested rounds, no global guidance; fixture level remains unset.
   await step("t03-plan-india-not-yet-researched", async () => {
     await heading("Your interview target", 2).waitFor();
-    await page.getByText("Amazon · India · SDE II").waitFor();
+    await page.getByText("Amazon · India · Level not set yet").waitFor();
     await page.getByText("Not yet researched", { exact: true }).waitFor();
     const order = await page.locator("h2").allInnerTexts();
     assert.ok(order.indexOf("Your interview target") < order.indexOf("What this role looks for"), "section A above the plan");
@@ -387,6 +566,12 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await screen("target-setup-failed", { primaries: 0 });
     await alert.getByRole("button", { name: "Continue with general role plan" }).click();
     await page.getByRole("button", { name: "See your plan" }).waitFor();
+    const stagePrompt = page.locator("details.op-stage-prompt");
+    await stagePrompt.locator("summary").click();
+    await page.getByRole("button", { name: "Try again" }).waitFor();
+    await scenario({ targets: "none" });
+    await page.getByRole("button", { name: "Try again" }).click();
+    await page.waitForFunction(() => !document.querySelector("details.op-stage-prompt"));
     const state = await getState();
     assert.equal(state.targets.analyze.length, 1, "the saved role analysis is not repeated");
     assert.equal(state.targets.creates.length, 0, "failed target storage leaves no target");

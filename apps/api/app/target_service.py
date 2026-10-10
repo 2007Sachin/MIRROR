@@ -47,6 +47,10 @@ from .target_capability import TargetAvailability, TargetCapability
 from .target_priority import PRIORITY_RULES_VERSION, CompetencyInProcess, PracticeFact, prioritise
 from .target_repository import (
     BlueprintPin,
+    BlueprintPinConflict,
+    CandidateStage,
+    CandidateStagePlan,
+    CandidateStagePlanInput,
     CandidateTarget,
     GeneratedQuestion,
     InterviewBlueprint,
@@ -57,6 +61,7 @@ from .target_repository import (
     TargetSessionLink,
     TargetSessionLinkCreate,
     TargetValues,
+    StaleStagePlan,
 )
 from .target_rounds import (
     PACK_MIN,
@@ -178,6 +183,7 @@ class TargetCreate(_Api):
     geography_label: str | None = Field(default=None, min_length=1, max_length=120)
     interview_date: date | None = None
 
+
     @field_validator("geography")
     @classmethod
     def _real_place(cls, value: str | None) -> str | None:
@@ -191,6 +197,10 @@ class TargetCreate(_Api):
         if not value.strip():
             raise ValueError("company is required")
         return value.strip()
+
+
+class CandidateStagePlanSaveRequest(CandidateStagePlanInput):
+    expected_blueprint_version: int = Field(strict=True, ge=1)
 
 
 class TargetView(_Api):
@@ -266,6 +276,15 @@ class RoundSummary(_Api):
     presence: Literal["CORE", "CONDITIONAL"] | None = None  # from exact-scope research only
 
 
+class CandidateStagePlanView(_Api):
+    candidate_stage_state: Literal["NOT_ASKED", "NOT_YET", "KNOWN"]
+    candidate_stage_order_known: bool
+    candidate_stages: tuple[CandidateStage, ...]
+    candidate_stage_mapping_version: int
+    candidate_stage_notes_revision: int
+    notes: dict[str, str]
+
+
 class BlueprintView(_Api):
     availability: TargetAvailability
     target: TargetView | None = None
@@ -277,6 +296,7 @@ class BlueprintView(_Api):
     conflicts: list[ConflictView] = Field(default_factory=list)
     unknowns: list[UnknownView] = Field(default_factory=list)
     rounds: list[RoundSummary] = Field(default_factory=list)
+    candidate_stage_plan: CandidateStagePlanView | None = None
 
 
 class PriorityView(_Api):
@@ -721,7 +741,7 @@ class TargetService:
             interview_date=payload.interview_date,
         )
         target = await self._repo.create_target(user_id, values)
-        blueprint = await self._pin(user_id, target, catalog)
+        blueprint = await self._pin(user_id, target, catalog, expected_version=0)
         return target, blueprint
 
     async def list(self, user_id: UUID) -> list[CandidateTarget]:
@@ -748,18 +768,47 @@ class TargetService:
         except Exception as exc:  # noqa: BLE001 - lock/policy failure means no research is served
             raise CatalogUnavailable from exc
 
-    async def _pin(self, user_id: UUID, target: CandidateTarget, catalog: RepoResearchCatalog) -> InterviewBlueprint:
+    async def _pin(
+        self, user_id: UUID, target: CandidateTarget, catalog: RepoResearchCatalog, *, expected_version: int,
+    ) -> InterviewBlueprint:
         match = scope_match(target, catalog)
         pin = BlueprintPin(
             catalog_version=catalog.version, catalog_sha256=catalog.content_sha256,
             match_state=match.state, rules_version=BLUEPRINT_RULES_VERSION,
         )
-        return await self._repo.create_blueprint(user_id, target.id, pin)
+        try:
+            return await self._repo.create_blueprint(user_id, target.id, pin, expected_version=expected_version)
+        except BlueprintPinConflict as exc:
+            current = await self._repo.get_target(target.id, user_id)
+            if current is not None and current.status == "ARCHIVED":
+                raise TargetArchived from exc
+            if expected_version == 0:
+                rows = await self._repo.blueprints(target.id, user_id)
+                if rows:
+                    winner = rows[-1]
+                    if (
+                        winner.catalog_version == pin.catalog_version
+                        and winner.catalog_sha256 == pin.catalog_sha256
+                        and winner.match_state == pin.match_state
+                        and winner.rules_version == pin.rules_version
+                    ):
+                        return winner
+            raise
+        except TargetConflict as exc:
+            current = await self._repo.get_target(target.id, user_id)
+            if current is not None and current.status == "ARCHIVED":
+                raise TargetArchived from exc
+            raise
 
     async def _blueprints(self, user_id: UUID, target: CandidateTarget) -> list[InterviewBlueprint]:
         rows = await self._repo.blueprints(target.id, user_id)
         if not rows and target.status == "ACTIVE":
-            rows = [await self._pin(user_id, target, self._latest())]
+            try:
+                rows = [await self._pin(user_id, target, self._latest(), expected_version=0)]
+            except BlueprintPinConflict:
+                rows = await self._repo.blueprints(target.id, user_id)
+                if not rows:
+                    raise
         return rows
 
     def _pinned_match(
@@ -790,13 +839,27 @@ class TargetService:
         rows = await self._blueprints(user_id, target)
         if not rows:
             raise BlueprintNotFound
-        pin = rows[-1] if version is None else next((row for row in rows if row.version == version), None)
-        if pin is None:
+        try:
+            plan = await self._repo.read_candidate_stage_plan(target_id, user_id, version)
+        except LookupError as exc:
+            if str(exc) == "blueprint not found":
+                raise BlueprintNotFound from exc
+            raise TargetNotFound from exc
+        if plan is None:
             raise BlueprintNotFound
+        pin = plan.blueprint
         state, match, catalog = self._pinned_match(target, pin)
         view = BlueprintView(
             availability=TargetAvailability.AVAILABLE, target=target_view(target),
-            blueprint=self._ref(pin, rows[-1].version), content_state=state,
+            blueprint=self._ref(pin, plan.latest_version), content_state=state,
+            candidate_stage_plan=CandidateStagePlanView(
+                candidate_stage_state=plan.candidate_stage_state,
+                candidate_stage_order_known=plan.candidate_stage_order_known,
+                candidate_stages=plan.candidate_stages,
+                candidate_stage_mapping_version=plan.candidate_stage_mapping_version,
+                candidate_stage_notes_revision=plan.candidate_stage_notes_revision,
+                notes=plan.notes,
+            ),
         )
         if match is None or catalog is None:
             return view
@@ -808,16 +871,46 @@ class TargetService:
         })
 
     async def refresh(self, target_id: UUID, user_id: UUID) -> tuple[BlueprintView, bool]:
+        last_conflict: BlueprintPinConflict | None = None
+        for _attempt in range(3):
+            target = await self.get(target_id, user_id)
+            if target.status != "ACTIVE":
+                raise TargetArchived
+            rows = await self._blueprints(user_id, target)
+            catalog = self._latest()
+            current = rows[-1]
+            if (current.catalog_version, current.catalog_sha256) == (catalog.version, catalog.content_sha256):
+                return await self.blueprint(target_id, user_id), False
+            try:
+                await self._pin(user_id, target, catalog, expected_version=current.version)
+            except BlueprintPinConflict as exc:
+                last_conflict = exc
+                continue
+            return await self.blueprint(target_id, user_id), True
+        if last_conflict is not None:
+            raise last_conflict
+        raise TargetConflict()
+
+    async def save_candidate_stage_plan(
+        self, target_id: UUID, user_id: UUID, expected_version: int, plan: CandidateStagePlanInput,
+    ) -> BlueprintView:
         target = await self.get(target_id, user_id)
         if target.status != "ACTIVE":
             raise TargetArchived
-        rows = await self._blueprints(user_id, target)
-        catalog = self._latest()
-        current = rows[-1]
-        if (current.catalog_version, current.catalog_sha256) == (catalog.version, catalog.content_sha256):
-            return await self.blueprint(target_id, user_id), False
-        await self._pin(user_id, target, catalog)
-        return await self.blueprint(target_id, user_id), True
+        try:
+            await self._repo.save_candidate_stage_plan(target_id, user_id, expected_version, plan)
+        except StaleStagePlan:
+            raise
+        except TargetConflict as exc:
+            current = await self._repo.get_target(target_id, user_id)
+            if current is not None and current.status == "ARCHIVED":
+                raise TargetArchived from exc
+            raise
+        except LookupError as exc:
+            if str(exc) == "blueprint not found":
+                raise BlueprintNotFound from exc
+            raise TargetNotFound from exc
+        return await self.blueprint(target_id, user_id)
 
     # rounds -----------------------------------------------------------
 

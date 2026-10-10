@@ -18,14 +18,15 @@ from typing import Any, Literal, Protocol
 from uuid import UUID, uuid4
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator, model_validator
 
 from .config import Settings
 from .http_pool import pooled
 
 TargetStatus = Literal["ACTIVE", "ARCHIVED"]
 MatchState = Literal["RESEARCHED", "GENERAL_ONLY", "NOT_RESEARCHED"]
-TABLES = ("candidate_targets", "interview_blueprints", "generated_questions", "target_session_links")
+TABLES = ("candidate_targets", "interview_blueprints", "generated_questions", "target_session_links", "candidate_stage_notes")
+BLUEPRINT_COLUMNS = "id,user_id,candidate_target_id,version,catalog_version,catalog_sha256,match_state,rules_version,created_at"
 _MISSING_RELATION_CODES = {"PGRST205", "42P01", "PGRST106"}
 
 
@@ -37,6 +38,10 @@ class TargetConflict(Exception):
     def __init__(self, existing_id: UUID | None = None) -> None:
         super().__init__("conflicting row exists")
         self.existing_id = existing_id
+
+
+class BlueprintPinConflict(TargetConflict):
+    """The selected research pin lost an optimistic-concurrency check."""
 
 
 class LinkAlreadyExists(Exception):
@@ -85,6 +90,88 @@ class InterviewBlueprint(BlueprintPin):
     candidate_target_id: UUID
     version: int = Field(ge=1)
     created_at: datetime
+
+
+StageKind = Literal["RECRUITER_SCREENING", "TECHNICAL_INTERVIEW", "CODING_EXERCISE", "CASE_INTERVIEW", "BEHAVIORAL_INTERVIEW", "HIRING_MANAGER_DISCUSSION", "PORTFOLIO_PROJECT_DISCUSSION", "OTHER"]
+
+
+class CandidateStage(_Model):
+    stage_id: StrictStr = Field(pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+    kind: StageKind
+    custom_label: StrictStr | None
+    certainty: Literal["SURE", "UNCERTAIN"]
+    sequence: StrictInt | None = Field(ge=1, le=12)
+
+    @field_validator("stage_id")
+    @classmethod
+    def canonical_uuid(cls, value: str) -> str:
+        parsed = UUID(value)
+        if str(parsed) != value:
+            raise ValueError("stage_id must be lowercase canonical UUID text")
+        return value
+
+    @model_validator(mode="after")
+    def label_matches_kind(self):
+        if self.kind == "OTHER":
+            if self.custom_label is None or not 1 <= len(self.custom_label.strip()) <= 80 or self.custom_label != self.custom_label.strip():
+                raise ValueError("OTHER requires a trimmed 1-80 character custom_label")
+        elif self.custom_label is not None:
+            raise ValueError("custom_label is only valid for OTHER")
+        return self
+
+
+class CandidateStagePlanInput(_Model):
+    state: Literal["NOT_ASKED", "NOT_YET", "KNOWN"]
+    order_known: StrictBool
+    stages: tuple[CandidateStage, ...] = Field(max_length=12)
+    notes: dict[StrictStr, StrictStr] = Field(max_length=12)
+
+    @model_validator(mode="after")
+    def consistent_snapshot(self):
+        ids = [stage.stage_id for stage in self.stages]
+        if len(ids) != len(set(ids)):
+            raise ValueError("stage IDs must be unique")
+        if (self.state == "KNOWN") != bool(self.stages):
+            raise ValueError("KNOWN requires stages and other states forbid stages")
+        if self.state != "KNOWN" and self.order_known:
+            raise ValueError("non-known stage state cannot have known order")
+        seqs = [stage.sequence for stage in self.stages]
+        if self.order_known:
+            if seqs != list(range(1, len(seqs) + 1)):
+                raise ValueError("known sequence must be contiguous and canonical")
+        elif any(value is not None for value in seqs):
+            raise ValueError("unknown order requires null sequence")
+        if set(self.notes) - set(ids):
+            raise ValueError("notes must reference existing stages")
+        for key, value in self.notes.items():
+            if str(UUID(key)) != key or value != value.strip() or not value or len(value) > 500:
+                raise ValueError("invalid stage note")
+        return self
+
+
+class CandidateStageBlueprint(InterviewBlueprint):
+    candidate_stage_state: Literal["NOT_ASKED", "NOT_YET", "KNOWN"]
+    candidate_stage_order_known: bool
+    candidate_stages: tuple[CandidateStage, ...]
+    candidate_stage_mapping_version: int
+    candidate_stage_notes_revision: int
+
+
+class CandidateStagePlan(_Model):
+    blueprint: CandidateStageBlueprint
+    blueprint_id: UUID
+    version: int
+    latest_version: int
+    candidate_stage_state: Literal["NOT_ASKED", "NOT_YET", "KNOWN"]
+    candidate_stage_order_known: bool
+    candidate_stages: tuple[CandidateStage, ...]
+    candidate_stage_mapping_version: int
+    candidate_stage_notes_revision: int
+    notes: dict[str, str] = Field(default_factory=dict)
+
+
+class StaleStagePlan(TargetConflict):
+    pass
 
 
 class QuestionCreate(_Model):
@@ -152,8 +239,10 @@ class TargetRepository(Protocol):
     async def list_targets(self, user_id: UUID) -> list[CandidateTarget]: ...
     async def get_target(self, target_id: UUID, user_id: UUID) -> CandidateTarget | None: ...
     async def archive_target(self, target_id: UUID, user_id: UUID) -> CandidateTarget | None: ...
-    async def create_blueprint(self, user_id: UUID, target_id: UUID, pin: BlueprintPin) -> InterviewBlueprint: ...
+    async def create_blueprint(self, user_id: UUID, target_id: UUID, pin: BlueprintPin, expected_version: int = 0) -> InterviewBlueprint: ...
     async def blueprints(self, target_id: UUID, user_id: UUID) -> list[InterviewBlueprint]: ...
+    async def read_candidate_stage_plan(self, target_id: UUID, user_id: UUID, version: int | None = None) -> CandidateStagePlan | None: ...
+    async def save_candidate_stage_plan(self, target_id: UUID, user_id: UUID, expected_version: int, plan: CandidateStagePlanInput) -> int: ...
     async def record_questions(self, user_id: UUID, rows: Sequence[QuestionCreate]) -> list[GeneratedQuestion]: ...
     async def questions_for_set(self, prompt_set_id: UUID, user_id: UUID) -> list[GeneratedQuestion]: ...
     async def questions_for_target(self, target_id: UUID, user_id: UUID, since: datetime | None = None) -> list[GeneratedQuestion]: ...
@@ -179,6 +268,8 @@ class MemoryTargetRepository:
     def __init__(self) -> None:
         self.targets: dict[UUID, CandidateTarget] = {}
         self.blueprint_rows: list[InterviewBlueprint] = []
+        self.stage_snapshots: dict[UUID, CandidateStageBlueprint] = {}
+        self.stage_notes: dict[tuple[UUID, str], str] = {}
         self.questions: list[GeneratedQuestion] = []
         self.links: dict[UUID, TargetSessionLink] = {}
         # All snapshots and check-and-write transitions use one lock, like a DB transaction with
@@ -222,6 +313,8 @@ class MemoryTargetRepository:
             now = datetime.now(UTC)
             archived = row.model_copy(update={"status": "ARCHIVED", "archived_at": now, "updated_at": now})
             self.targets[target_id] = archived
+            for key in [key for key in self.stage_notes if key[0] == target_id]:
+                del self.stage_notes[key]
             return archived
 
     async def _owned_target(self, target_id: UUID, user_id: UUID) -> CandidateTarget:
@@ -230,7 +323,7 @@ class MemoryTargetRepository:
             raise LookupError("target does not belong to this owner")
         return row
 
-    async def create_blueprint(self, user_id: UUID, target_id: UUID, pin: BlueprintPin) -> InterviewBlueprint:
+    async def create_blueprint(self, user_id: UUID, target_id: UUID, pin: BlueprintPin, expected_version: int = 0) -> InterviewBlueprint:
         await self._owned_target(target_id, user_id)
         with self._write_lock:
             target = self.targets.get(target_id)
@@ -238,18 +331,119 @@ class MemoryTargetRepository:
                 raise LookupError("target does not belong to this owner")
             if target.status != "ACTIVE":
                 raise TargetConflict()
-            version = 1 + max((b.version for b in self.blueprint_rows if b.candidate_target_id == target_id), default=0)
+            rows = [b for b in self.blueprint_rows if b.candidate_target_id == target_id and b.user_id == user_id]
+            current = max(rows, key=lambda row: row.version) if rows else None
+            current_version = current.version if current is not None else 0
+            if expected_version != current_version:
+                raise BlueprintPinConflict()
+            if current is not None:
+                if pin.catalog_version < current.catalog_version:
+                    raise BlueprintPinConflict()
+                if pin.catalog_version == current.catalog_version and pin.catalog_sha256 != current.catalog_sha256:
+                    raise BlueprintPinConflict()
+                if pin == BlueprintPin(
+                    catalog_version=current.catalog_version, catalog_sha256=current.catalog_sha256,
+                    match_state=current.match_state, rules_version=current.rules_version,
+                ):
+                    return current
+            version = current_version + 1
             row = InterviewBlueprint(
                 **pin.model_dump(), id=uuid4(), user_id=user_id, candidate_target_id=target_id,
                 version=version, created_at=datetime.now(UTC),
             )
             self.blueprint_rows.append(row)
+            prior = self.stage_snapshots.get(current.id) if current is not None else None
+            if current is not None and prior is None:
+                prior = CandidateStageBlueprint(
+                    **current.model_dump(), candidate_stage_state="NOT_ASKED",
+                    candidate_stage_order_known=False, candidate_stages=(),
+                    candidate_stage_mapping_version=0, candidate_stage_notes_revision=0,
+                )
+            self.stage_snapshots[row.id] = CandidateStageBlueprint(
+                **row.model_dump(),
+                candidate_stage_state=prior.candidate_stage_state if prior else "NOT_ASKED",
+                candidate_stage_order_known=prior.candidate_stage_order_known if prior else False,
+                candidate_stages=prior.candidate_stages if prior else (),
+                candidate_stage_mapping_version=prior.candidate_stage_mapping_version if prior else 1,
+                candidate_stage_notes_revision=prior.candidate_stage_notes_revision if prior else 0,
+            )
             return row
 
     async def blueprints(self, target_id: UUID, user_id: UUID) -> list[InterviewBlueprint]:
         with self._write_lock:
             rows = [b for b in self.blueprint_rows if b.candidate_target_id == target_id and b.user_id == user_id]
             return sorted(rows, key=lambda row: row.version)
+
+    async def read_candidate_stage_plan(self, target_id: UUID, user_id: UUID, version: int | None = None) -> CandidateStagePlan | None:
+        with self._write_lock:
+            target = self.targets.get(target_id)
+            if target is None or target.user_id != user_id:
+                return None
+            candidates = sorted((r for r in self.blueprint_rows if r.candidate_target_id == target_id and r.user_id == user_id), key=lambda r: r.version)
+            if not candidates:
+                return None
+            latest = candidates[-1]
+            row = latest if version is None else next((r for r in candidates if r.version == version), None)
+            if row is None:
+                return None
+            snapshot = self.stage_snapshots.get(row.id)
+            if snapshot is None:
+                snapshot = CandidateStageBlueprint(
+                    **row.model_dump(), candidate_stage_state="NOT_ASKED", candidate_stage_order_known=False,
+                    candidate_stages=(), candidate_stage_mapping_version=0, candidate_stage_notes_revision=0,
+                )
+            notes = {stage_id: text for (tid, stage_id), text in self.stage_notes.items() if tid == target_id} if version is None else {}
+            return CandidateStagePlan(
+                blueprint=snapshot, blueprint_id=row.id, version=row.version, latest_version=latest.version,
+                candidate_stage_state=snapshot.candidate_stage_state,
+                candidate_stage_order_known=snapshot.candidate_stage_order_known,
+                candidate_stages=snapshot.candidate_stages,
+                candidate_stage_mapping_version=snapshot.candidate_stage_mapping_version,
+                candidate_stage_notes_revision=snapshot.candidate_stage_notes_revision,
+                notes=notes,
+            )
+
+    async def save_candidate_stage_plan(self, target_id: UUID, user_id: UUID, expected_version: int, plan: CandidateStagePlanInput) -> int:
+        with self._write_lock:
+            target = self.targets.get(target_id)
+            if target is None or target.user_id != user_id:
+                raise LookupError("target does not belong to this owner")
+            if target.status != "ACTIVE":
+                raise TargetConflict()
+            rows = sorted((r for r in self.blueprint_rows if r.candidate_target_id == target_id and r.user_id == user_id), key=lambda r: r.version)
+            if not rows:
+                raise LookupError("blueprint not found")
+            current = rows[-1]
+            current_snapshot = self.stage_snapshots.get(current.id)
+            if current_snapshot is None:
+                current_snapshot = CandidateStageBlueprint(
+                    **current.model_dump(), candidate_stage_state="NOT_ASKED", candidate_stage_order_known=False,
+                    candidate_stages=(), candidate_stage_mapping_version=0, candidate_stage_notes_revision=0,
+                )
+            old_notes = {sid: text for (tid, sid), text in self.stage_notes.items() if tid == target_id}
+            notes_same = old_notes == plan.notes
+            snapshot_same = (
+                current_snapshot.candidate_stage_state == plan.state
+                and current_snapshot.candidate_stage_order_known == plan.order_known
+                and current_snapshot.candidate_stages == plan.stages
+            )
+            same = snapshot_same and notes_same
+            if expected_version != current.version and not same:
+                raise StaleStagePlan()
+            if same:
+                return current.version
+            successor = InterviewBlueprint(**current.model_dump(exclude={"id", "version", "created_at"}), id=uuid4(), version=current.version + 1, created_at=datetime.now(UTC))
+            self.blueprint_rows.append(successor)
+            self.stage_snapshots[successor.id] = CandidateStageBlueprint(
+                **successor.model_dump(), candidate_stage_state=plan.state,
+                candidate_stage_order_known=plan.order_known, candidate_stages=plan.stages,
+                candidate_stage_mapping_version=1,
+                candidate_stage_notes_revision=current_snapshot.candidate_stage_notes_revision + (0 if notes_same else 1),
+            )
+            for key in [key for key in self.stage_notes if key[0] == target_id]:
+                del self.stage_notes[key]
+            self.stage_notes.update({(target_id, sid): text for sid, text in plan.notes.items()})
+            return successor.version
 
     async def record_questions(self, user_id: UUID, rows: Sequence[QuestionCreate]) -> list[GeneratedQuestion]:
         for row in rows:
@@ -409,6 +603,50 @@ class SupabaseTargetRepository:
         except ValueError as exc:
             raise TargetsUnavailable from exc
 
+    def _raise_rpc_error(self, function: str, response: httpx.Response) -> None:
+        try:
+            details = response.json()
+        except ValueError:
+            details = {}
+        message = details.get("message") if isinstance(details, dict) else None
+        if message == "target does not belong to owner":
+            raise LookupError("target does not belong to this owner")
+        if message == "target is archived":
+            raise TargetConflict()
+        if message == "blueprint not found":
+            raise LookupError("blueprint not found")
+        if message == "target has no blueprint":
+            raise LookupError("blueprint not found")
+        if message == "stale candidate stage plan":
+            raise StaleStagePlan()
+        if message in {"stale blueprint pin", "catalog version regression", "catalog version hash mismatch"}:
+            raise BlueprintPinConflict()
+        if response.status_code == 409:
+            raise TargetConflict()
+        raise TargetsUnavailable(f"{function}: HTTP {response.status_code}")
+
+    async def _rpc_integer(self, function: str, payload: dict[str, Any]) -> int:
+        response = await self._send("POST", f"rpc/{function}", {}, json=payload)
+        if response.status_code >= 400:
+            self._raise_rpc_error(function, response)
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise TargetsUnavailable from exc
+        if isinstance(result, bool) or not isinstance(result, int) or result < 1:
+            raise TargetsUnavailable(f"{function}: unexpected response")
+        return result
+
+    async def _rpc_json(self, function: str, payload: dict[str, Any]) -> CandidateStagePlan:
+        response = await self._send("POST", f"rpc/{function}", {}, json=payload)
+        if response.status_code >= 400:
+            self._raise_rpc_error(function, response)
+        try:
+            result = response.json()
+            return CandidateStagePlan.model_validate(result)
+        except (TypeError, ValueError) as exc:
+            raise TargetsUnavailable(f"{function}: invalid response") from exc
+
     async def probe(self) -> bool:
         async def one(table: str) -> bool:
             response = await self._send("GET", table, {"select": "user_id", "limit": "0"})
@@ -458,25 +696,39 @@ class SupabaseTargetRepository:
         )
         return CandidateTarget.model_validate(rows[0]) if rows else await self.get_target(target_id, user_id)
 
-    async def create_blueprint(self, user_id: UUID, target_id: UUID, pin: BlueprintPin) -> InterviewBlueprint:
-        if await self.get_target(target_id, user_id) is None:
-            raise LookupError("target does not belong to this owner")
-        for _ in range(3):  # a concurrent refresh takes the version; try the next one
-            version = 1 + max((b.version for b in await self.blueprints(target_id, user_id)), default=0)
-            body = {**self._dump(pin, user_id), "candidate_target_id": str(target_id), "version": version}
-            try:
-                rows = await self._rows("POST", "interview_blueprints", {"select": "*"}, json=body, prefer="return=representation")
-            except TargetConflict:
-                continue
-            return InterviewBlueprint.model_validate(rows[0])
-        raise TargetsUnavailable("blueprint version contention")
+    async def create_blueprint(self, user_id: UUID, target_id: UUID, pin: BlueprintPin, expected_version: int = 0) -> InterviewBlueprint:
+        version = await self._rpc_integer("append_target_blueprint_pin", {
+            "p_user_id": str(user_id), "p_target_id": str(target_id), "p_expected_version": expected_version,
+            "p_catalog_version": pin.catalog_version, "p_catalog_sha256": pin.catalog_sha256,
+            "p_match_state": pin.match_state, "p_rules_version": pin.rules_version,
+        })
+        rows = await self._rows("GET", "interview_blueprints", {
+            "candidate_target_id": f"eq.{target_id}", "user_id": f"eq.{user_id}",
+            "version": f"eq.{version}", "select": BLUEPRINT_COLUMNS,
+        })
+        if not rows:
+            raise TargetsUnavailable("append_target_blueprint_pin returned a missing blueprint")
+        return InterviewBlueprint.model_validate(rows[0])
 
     async def blueprints(self, target_id: UUID, user_id: UUID) -> list[InterviewBlueprint]:
         rows = await self._rows(
             "GET", "interview_blueprints",
-            {"candidate_target_id": f"eq.{target_id}", "user_id": f"eq.{user_id}", "select": "*", "order": "version.asc"},
+            {"candidate_target_id": f"eq.{target_id}", "user_id": f"eq.{user_id}", "select": BLUEPRINT_COLUMNS, "order": "version.asc"},
         )
         return [InterviewBlueprint.model_validate(row) for row in rows]
+
+    async def read_candidate_stage_plan(self, target_id: UUID, user_id: UUID, version: int | None = None) -> CandidateStagePlan:
+        return await self._rpc_json("read_candidate_stage_plan", {
+            "p_user_id": str(user_id), "p_target_id": str(target_id), "p_version": version,
+        })
+
+    async def save_candidate_stage_plan(self, target_id: UUID, user_id: UUID, expected_version: int, plan: CandidateStagePlanInput) -> int:
+        return await self._rpc_integer("save_candidate_stage_plan", {
+            "p_user_id": str(user_id), "p_target_id": str(target_id), "p_expected_version": expected_version,
+            "p_state": plan.state, "p_order_known": plan.order_known,
+            "p_stages": [stage.model_dump(mode="json") for stage in plan.stages],
+            "p_notes": dict(plan.notes),
+        })
 
     async def record_questions(self, user_id: UUID, rows: Sequence[QuestionCreate]) -> list[GeneratedQuestion]:
         if not rows:

@@ -2,11 +2,13 @@
 
 import { ArrowRight } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PageAlert } from "@/components/workspace/page-shell";
-import { getBlueprint, targetForRole, type BlueprintView, type ClaimView, type TargetView } from "@/lib/api-targets";
+import { CandidateStagePlanEditor } from "@/components/plan/candidate-stage-plan-editor";
+import { getBlueprint, targetsForRole, type BlueprintView, type ClaimView, type TargetView } from "@/lib/api-targets";
 import {
+  candidateStageRoundGroups,
   claimCopy,
   claimMatchesTargetScope,
   conflictCopy,
@@ -24,12 +26,14 @@ import {
   unknownCopy,
 } from "@/lib/copy-targets";
 import { ApiError } from "@/lib/api";
+import { activeTargetsForRole, createRequestSequence, selectTargetForRole } from "@/lib/target-recovery";
 
 const t = targetCopy.section;
 
 type Overview =
   | { kind: "loading-list" }
   | { kind: "hidden" }
+  | { kind: "choose-target"; targets: TargetView[] }
   | { kind: "loading"; target: TargetView }
   | { kind: "unavailable"; target: TargetView }
   | { kind: "error"; target: TargetView }
@@ -43,26 +47,22 @@ type Overview =
 export function TargetOverview({
   roleProfileId,
   roleName,
+  initialTargetId,
   onPrimary,
 }: {
   roleProfileId: string;
   roleName: string;
+  initialTargetId?: string;
   /** Told whether this section shows the page's one filled action, so the plan below can step back. */
   onPrimary: (shown: boolean) => void;
 }) {
   const [state, setState] = useState<Overview>({ kind: "loading-list" });
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+  const [roleTargets, setRoleTargets] = useState<TargetView[]>([]);
+  const [editorDirty, setEditorDirty] = useState(false);
+  const requestSequence = useRef(createRequestSequence());
 
-  const load = useCallback(async (isCurrent: () => boolean = () => true) => {
-    let target: TargetView;
-    try {
-      const found = await targetForRole(roleProfileId);
-      if (!isCurrent()) return;
-      if (found.kind !== "TARGET") return setState({ kind: "hidden" });
-      target = found.target;
-    } catch {
-      if (!isCurrent()) return;
-      return setState({ kind: "hidden" }); // the plan works without this section
-    }
+  const loadTarget = useCallback(async (target: TargetView, isCurrent: () => boolean = () => true) => {
     setState({ kind: "loading", target });
     try {
       const view = await getBlueprint(target.id);
@@ -73,23 +73,83 @@ export function TargetOverview({
       const quiet = reason instanceof ApiError && failureKind(reason.status) === "UNAVAILABLE";
       setState({ kind: quiet ? "unavailable" : "error", target });
     }
-  }, [roleProfileId]);
+  }, []);
+
+  const load = useCallback(async (requestedTargetId?: string, isCurrent: () => boolean = () => true) => {
+    const requestId = requestSequence.current.next();
+    const current = () => requestSequence.current.isCurrent(requestId) && isCurrent();
+    try {
+      const found = await targetsForRole(roleProfileId);
+      if (!current()) return;
+      if (found.kind !== "TARGETS") {
+        setSelectedTargetId(null);
+        setRoleTargets([]);
+        return setState({ kind: "hidden" });
+      }
+      const availableTargets = activeTargetsForRole(found.targets, roleProfileId);
+      setRoleTargets(availableTargets);
+      const target = selectTargetForRole(availableTargets, roleProfileId, requestedTargetId);
+      if (!target || target.status !== "ACTIVE" || target.role_profile_id !== roleProfileId) {
+        setSelectedTargetId(null);
+        return availableTargets.length
+          ? setState({ kind: "choose-target", targets: availableTargets })
+          : setState({ kind: "hidden" });
+      }
+      setSelectedTargetId(target.id);
+      await loadTarget(target, current);
+    } catch {
+      if (!current()) return;
+      return setState({ kind: "hidden" }); // the plan works without this section
+    }
+  }, [loadTarget, roleProfileId]);
+
+  function switchTarget(targetId: string) {
+    if (!targetId || targetId === selectedTargetId) return;
+    const stageCopy = targetCopy.section.candidateStages;
+    if (editorDirty && !window.confirm(stageCopy.switchConfirm)) return;
+    setEditorDirty(false);
+    void load(targetId);
+  }
 
   useEffect(() => {
     let active = true;
-    void load(() => active);
+    void load(initialTargetId, () => active);
     return () => { active = false; };
-  }, [load]);
+  }, [initialTargetId, load]);
 
   const primary = state.kind === "ready" && state.view.rounds.length > 0;
   useEffect(() => onPrimary(primary), [onPrimary, primary]);
 
   if (state.kind === "hidden" || state.kind === "loading-list") return null;
+  if (state.kind === "choose-target") {
+    const stageCopy = targetCopy.section.candidateStages;
+    return (
+      <section className="pl-run" aria-labelledby="pl-run-title">
+        <h2 id="pl-run-title" className="pl-run-title">{t.title}</h2>
+        <label className="pl-target-picker">
+          <span>{stageCopy.selectTarget}</span>
+          <span className="pl-quiet">{stageCopy.selectTargetHelp}</span>
+          <select className="field" value="" onChange={(event) => switchTarget(event.target.value)}>
+            <option value="">{stageCopy.selectTarget}</option>
+            {state.targets.map((item) => <option key={item.id} value={item.id}>{targetLine(item)}</option>)}
+          </select>
+        </label>
+      </section>
+    );
+  }
   const target = state.target;
 
   return (
     <section className="pl-run" aria-labelledby="pl-run-title" aria-busy={state.kind === "loading" || undefined}>
       <h2 id="pl-run-title" className="pl-run-title">{t.title}</h2>
+      {roleTargets.length > 1 ? (
+        <label className="pl-target-picker">
+          <span>{targetCopy.section.candidateStages.selectTarget}</span>
+          <select className="field" value={target.id} onChange={(event) => switchTarget(event.target.value)}>
+            {roleTargets.map((item) => <option key={item.id} value={item.id}>{targetLine(item)}</option>)}
+          </select>
+        </label>
+      ) : null}
       <p className="pl-target-line">{targetLine(target)}</p>
       {state.kind === "loading" ? (
         <div className="pl-skeleton">
@@ -102,27 +162,69 @@ export function TargetOverview({
       {state.kind === "unavailable" ? (
         <p className="pl-quiet">
           {t.unavailable}{" "}
-          <button type="button" className="dh-text-action" onClick={() => void load()}>{t.retry}</button>
+          <button type="button" className="dh-text-action" onClick={() => void load(selectedTargetId ?? undefined)}>{t.retry}</button>
         </p>
       ) : null}
-      {state.kind === "error" ? <PageAlert message={t.error} onRetry={() => void load()} retryLabel={t.retry} /> : null}
-      {state.kind === "ready" ? <Ready target={target} view={state.view} roleProfileId={roleProfileId} roleName={roleName} /> : null}
+      {state.kind === "error" ? <PageAlert message={t.error} onRetry={() => void load(selectedTargetId ?? undefined)} retryLabel={t.retry} /> : null}
+      {state.kind === "ready" ? <Ready target={target} view={state.view} roleProfileId={roleProfileId} roleName={roleName} onSaved={(view) => setState({ kind: "ready", target, view })} onDirtyChange={setEditorDirty} /> : null}
     </section>
   );
 }
 
-function Ready({ target, view, roleProfileId, roleName }: { target: TargetView; view: BlueprintView; roleProfileId: string; roleName: string }) {
+function Ready({ target, view, roleProfileId, roleName, onSaved, onDirtyChange }: {
+  target: TargetView;
+  view: BlueprintView;
+  roleProfileId: string;
+  roleName: string;
+  onSaved: (view: BlueprintView) => void;
+  onDirtyChange: (dirty: boolean) => void;
+}) {
   const research = researchState(view);
   const claims = view.claims.filter((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version));
   const conflicts = view.conflicts.filter((conflict) => conflictCopy(conflict.key) && conflict.claims.some((claim) => claimMatchesTargetScope(claim, target) && claimCopy(claim.key, claim.version)));
   const unknowns = view.unknowns.filter((unknown) => unknownCopy(unknown.key));
   const researched = research === "RESEARCHED" || research === "GENERAL_ONLY";
   const rounds = [...view.rounds].sort((a, b) => a.ordinal - b.ordinal).filter((round) => roundLabel(round.label_key));
+  const stagePlan = view.candidate_stage_plan;
+  const stageCopy = targetCopy.section.candidateStages;
+  const mappedStages = stagePlan?.candidate_stage_state === "KNOWN"
+    ? candidateStageRoundGroups(target.role_family_key, stagePlan.candidate_stages, rounds.map((round) => round.key))
+    : [];
   const first = rounds[0];
   const anyLinked = rounds.some((round) => round.basis === "PUBLISHED_GUIDANCE");
 
   return (
     <>
+      <section className="pl-stage-plan" aria-labelledby="pl-stage-plan-title">
+        <h3 id="pl-stage-plan-title" className="pl-run-sub">{stageCopy.overviewTitle}</h3>
+        <p className="pl-quiet">{stageCopy.mappingIntro}</p>
+        <p className="pl-quiet">{stageCopy.editorIntro}</p>
+        <CandidateStagePlanEditor target={target} view={view} compact onSaved={onSaved} onDirtyChange={onDirtyChange} />
+        {mappedStages.length ? (
+          <>
+            <h4 className="pl-state-title">{stageCopy.mappingTitle}</h4>
+            <ul className="pl-stages">
+              {mappedStages.map((group) => {
+                const round = rounds.find((item) => item.key === group.roundKey);
+                if (!round) return null;
+                const stageLabels = group.stages.map((stage) => {
+                  const label = stage.kind === "OTHER" ? stage.custom_label?.trim() : stageCopy.stageKinds[stage.kind];
+                  return `${label || stageCopy.stageKinds[stage.kind] || "Stage"}${stage.certainty === "UNCERTAIN" ? ` · ${stageCopy.uncertain}` : ""}`;
+                });
+                return (
+                  <li key={group.roundKey}>
+                    <p className="pl-state-title">{roundLabel(round.label_key)}</p>
+                    <p className="pl-source">{stageLabels.join(" · ")}</p>
+                    <Link className="dh-text-action" href={roundPracticeHref({ roleName, roleProfileId, targetId: target.id, roundKey: round.key })}>
+                      {stageCopy.practice(stageLabels.join(", "))} <ArrowRight size={15} aria-hidden="true" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        ) : <p className="pl-quiet">{stagePlan?.candidate_stage_state === "KNOWN" ? stageCopy.noMapping : stageCopy.noStages}</p>}
+      </section>
       {research === "NOT_YET_RESEARCHED" ? (
         <div className="pl-state">
           <p className="pl-state-title">{t.notYetResearchedTitle}</p>
@@ -184,7 +286,7 @@ function Ready({ target, view, roleProfileId, roleName }: { target: TargetView; 
           <ol className="pl-rounds">
             {rounds.map((round) => (
               <li key={round.key} id={`round-${round.key}`}>
-                <Link href={roundHref(roleProfileId, round.key)} aria-describedby={`round-${round.key}-covers round-${round.key}-basis`}>
+                <Link href={roundHref(roleProfileId, round.key, target.id)} aria-describedby={`round-${round.key}-covers round-${round.key}-basis`}>
                   {roundLabel(round.label_key)} <ArrowRight size={15} aria-hidden="true" />
                 </Link>
                 <p id={`round-${round.key}-covers`}>{roundCovers(round.label_key)}</p>

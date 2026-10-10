@@ -1,5 +1,24 @@
 import type { TargetCreate, TargetView } from "@/lib/api-targets";
 
+export function activeTargetsForRole(targets: TargetView[], roleProfileId: string): TargetView[] {
+  return targets.filter((item) => item.role_profile_id === roleProfileId && item.status === "ACTIVE");
+}
+
+/** A requested target is never silently replaced by a different company; only one unambiguous active target auto-selects. */
+export function selectTargetForRole(targets: TargetView[], roleProfileId: string, requestedTargetId?: string): TargetView | null {
+  const active = activeTargetsForRole(targets, roleProfileId);
+  if (requestedTargetId) return active.find((item) => item.id === requestedTargetId) ?? null;
+  return active.length === 1 ? active[0] : null;
+}
+
+export function createRequestSequence() {
+  let latest = 0;
+  return {
+    next: () => ++latest,
+    isCurrent: (request: number) => request === latest,
+  };
+}
+
 export type RecoveryApi = {
   create: (body: TargetCreate) => Promise<{ target: TargetView }>;
   list: () => Promise<{ availability: string; targets: TargetView[] }>;

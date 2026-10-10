@@ -1,12 +1,12 @@
 # Current MIRROR sprint
 
-## Current disposition — Loop 4 research expansion BLOCKED (2026-10-08)
+## Current disposition — Loop 4 research expansion remains BLOCKED (2026-10-10)
 
 - **LR-0004 Loop 4: BLOCKED.** Research and independent challenge are complete; no requested India target passed the research publication gate. Amazon SDE I/II, Deloitte BA/Consultant, Microsoft SWE, Google SWE, and Accenture BA/Technology Consulting remain **HELD** for India. The Accenture careers-page guidance is general and is not assigned to India.
 - The Amazon SDE II candidate-report pattern is **UNVERIFIED**; no `SUPPORTED_PATTERN` claim is approved. No research claim, catalog entry, mapping, process version, API/UI behavior, or prompt change was added. Existing catalog v1 and Loop 2–3 contracts remain unchanged.
 - **Independent Release Gatekeeper decisions: REJECTED for release; Loop 4 remains BLOCKED.** Initial decision `deleg_28547ba5` and confirmatory review `deleg_5328d144` both reject release. A — PASS (no catalog additions; STATIC-ONLY); B — NOT MET; C — HELD (0 of 2 required approved India targets); D — NOT VERIFIED. G0 — PASS, STATIC-ONLY after both decisions and current records were reconciled; G1 — NOT RUN; G2 — NOT RUN / N.A. for this loop, hosted state NOT VERIFIED; G3 — NOT DONE; G4 — NOT RUN (design-only review); G5 — REJECTED.
 - No Loop 4 product tests, build/typecheck, copy lint, browser journey, or exact-head product CI were run because no product behavior changed. No hosted operation, migration, deployment, product commit, product PR, or product merge occurred. Branch `loop4/verified-interview-intelligence-expansion` remains at implementation baseline `e76176c59cb6b742e6269457c6f92b9c26986d2f`; the blocked closure is maintained in a separate documentation-only record and does not constitute product acceptance. See `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md`.
-- **Do not start Loop 5.** Reopen Loop 4 only with new eligible, independently verifiable India-scoped evidence and a separate authorization if scope changes.
+- **Loop 5A was separately authorized by the owner on 2026-10-08.** This does not reopen Loop 4 or relax its evidence gate. Do not start Loop 5B or any later loop. Loop 4/4B research holds and all hosted/production restrictions remain unchanged; see `DECISIONS/DR-0007-candidate-driven-interview-planning.md`.
 
 ## Historical disposition — Loop 3 local slice and repository closure (2026-10-08)
 
@@ -32,9 +32,9 @@ Browser safety-foundation repair is delivered and independently executed: **11/1
 
 Architecture approves the scoped verification-infrastructure corrections; Security/Data approves snapshot/Python/CI rails, corrected evidence framing and the fail-closed browser foundation. Independently executed results: Architecture joint suite121 passed/2 skipped/5 xfailed; unmasked known gaps5 failed; Security focused100 passed/1 deselected, optimized snapshot62 passed, Node safety11/11 passed. These approvals explicitly exclude production G4, executable browser G3 and release. Interim receipt: `RECEIPTS/LR-0001-trust-baseline.md` (OPEN/BLOCKED). Release Gatekeeper final disposition (`deleg_4d450c49`): scoped infrastructure ACCEPTED; Loop 1 BLOCKED / IN PROGRESS (not closed-with-blockers); G3 BLOCKED, product G4 FAIL, G5 REJECTED. No closure, deployment, hosted actions or Loop2. Next recommended bounded objective is B5 assessment-evidence validation; human/CPO decision required before product implementation.
 
-## Objective in flight
+## Current Loop 5A status — 2026-10-10
 
-No product implementation objective is in flight. Loop 4 is blocked because verified, India-scoped evidence did not clear publication gates. The blocked disposition is recorded and independently rejected for release; no Loop 5 starts from this status.
+Loop 4 remains BLOCKED on India-scoped research; its holds are unchanged. Loop 5A implementation is committed at `4dc3d306c0ea6549360217cf72393d7bf03c9d1b`; PR #6 is ready for review, not merged. Exact-head CI run `37984246806` passed all three required jobs. The isolated browser artifact passed 41/41 desktop and 41/41 mobile steps; the pre-existing KI-020 typing-only limitation was explicitly accepted by the owner for this PR only and remains open. Focused repository/route tests passed 105/105; deterministic AI/persona tests passed 127 with 2 skipped and 7 deprecation warnings. CPO, CTO, Security/Data, QA, UX/Journey, and AI Evaluation exact-head reviews report no remaining blocker in their scopes; Gatekeeper says ready for PR review, not merge. Formal PR reviews and a final Gatekeeper merge disposition remain outstanding. No hosted changes, deployment, new research, merge, or Loop 5B. See `RECEIPTS/LR-0005-loop5a-candidate-driven-interview-planning.md` and `DECISIONS/DR-0007-candidate-driven-interview-planning.md`.
 
 ## Historical bootstrap owner-decision table
 

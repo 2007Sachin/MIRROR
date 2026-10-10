@@ -59,6 +59,7 @@ export const SCENARIO_VALUES = {
   targets: ["available", "disabled", "none"],
   pack: ["full", "short"],
   slice: ["engineering", "business_roles"],
+  stageSave: ["normal", "stale_once"],
 };
 
 // Practice themes by round key, the same words as the backend taxonomy (round keys are unique per
@@ -82,13 +83,14 @@ const NEW_ROLE_NAME = "Software Development Engineer (test role)";
 const NOT_AVAILABLE = { code: "TARGETS_NOT_AVAILABLE", message: "Targets aren't available yet." };
 
 export function createTargetsMock({ fixture, clock = () => new Date().toISOString(), createSession, roleId, roleName }) {
-  const defaults = () => ({ blueprint: "not_researched", targets: "available", pack: "full", slice: "engineering" });
+  const defaults = () => ({ blueprint: "not_researched", targets: "available", pack: "full", slice: "engineering", stageSave: "normal" });
   const prefix = () => SLICE_PREFIX[state.scenario.slice];
   const seed = () => ({ ...fixture(`${prefix()}target.json`), id: TARGET_IDS.target, role_profile_id: roleId });
   const businessRoles = () => state.scenario.slice === "business_roles";
   const state = {
     scenario: defaults(),
     targets: new Map(),
+    stagePlans: new Map(),
     targetCreates: [],
     roundPracticeBodies: [],
     roundPracticeResponses: [],
@@ -98,9 +100,16 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     practiceKeys: new Map(),
   };
 
+  const blueprintIdFor = (targetId, version) => {
+    const suffix = (BigInt(`0x${targetId.slice(-12)}`) + BigInt(version)).toString(16).padStart(12, "0");
+    return `10000000-0000-4000-8000-${suffix}`;
+  };
+  const initialStagePlan = (targetId) => ({ version: 1, blueprint_id: blueprintIdFor(targetId, 1), state: "NOT_ASKED", order_known: false, stages: [], mapping_version: 0, notes_revision: 0, notes: {} });
+
   function reset() {
     state.scenario = defaults();
     state.targets = new Map([[TARGET_IDS.target, seed()]]);
+    state.stagePlans = new Map([[TARGET_IDS.target, initialStagePlan(TARGET_IDS.target)]]);
     for (const key of ["targetCreates", "roundPracticeBodies", "roundPracticeResponses", "analyzeBodies", "activeRolePuts", "links"]) state[key] = [];
     state.practiceKeys.clear();
   }
@@ -133,9 +142,15 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       if (!SCENARIO_VALUES[key]?.includes(value)) return err(422, `unknown scenario ${key}=${value}`);
     }
     Object.assign(state.scenario, body);
-    if (body.slice) state.targets = new Map([[TARGET_IDS.target, seed()]]);
-    if (body.targets === "none") state.targets.clear();
-    if (body.targets === "available" && !state.targets.size) state.targets.set(TARGET_IDS.target, seed());
+    if (body.slice) {
+      state.targets = new Map([[TARGET_IDS.target, seed()]]);
+      state.stagePlans = new Map([[TARGET_IDS.target, initialStagePlan(TARGET_IDS.target)]]);
+    }
+    if (body.targets === "none") { state.targets.clear(); state.stagePlans.clear(); }
+    if (body.targets === "available" && !state.targets.size) {
+      state.targets.set(TARGET_IDS.target, seed());
+      state.stagePlans.set(TARGET_IDS.target, initialStagePlan(TARGET_IDS.target));
+    }
     return { body: state.scenario };
   }
 
@@ -154,7 +169,13 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     if (!FAMILY_LEVELS[body.role_family].includes(body.level ?? "not_sure")) return err(422, { code: "UNSUPPORTED_TARGET", field: "level" });
     if (body.geography === "global") return err(422, "a target is a real place; 'global' is not one");
     state.targetCreates.push(body);
-    const clash = [...state.targets.values()].find((t) => t.role_profile_id === body.role_profile_id);
+    const companyKey = COMPANY_ALIASES[body.company.trim().toLowerCase()] ?? body.company.trim().toLowerCase();
+    const clash = [...state.targets.values()].find((t) => t.status === "ACTIVE"
+      && t.role_profile_id === body.role_profile_id
+      && (t.company_key ?? t.company_label.trim().toLowerCase()) === companyKey
+      && t.role_family_key === body.role_family
+      && (t.level_key ?? "") === (body.level ?? "")
+      && (t.geography_key ?? "") === (body.geography ?? ""));
     if (clash) return err(409, { code: "TARGET_EXISTS", target_id: clash.id });
     const id = `00000000-0000-4000-8000-${String(310 + state.targets.size).padStart(12, "0")}`;
     const target = {
@@ -170,6 +191,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       created_at: clock(),
     };
     state.targets.set(id, target);
+    state.stagePlans.set(id, initialStagePlan(id));
     return { status: 201, body: { target, blueprint: { version: 1, catalog_version: 1, match_state: "NOT_RESEARCHED" } } };
   }
 
@@ -180,7 +202,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
   }
 
   function blueprint({ match }) {
-    if (disabled()) return { body: { ...fixture("blueprint_not_researched.json"), availability: "DISABLED", target: null, blueprint: null, content_state: null, match_state: null, research_label_key: null, claims: [], conflicts: [], unknowns: [], rounds: [] } };
+    if (disabled()) return { body: { ...fixture("blueprint_not_researched.json"), availability: "DISABLED", target: null, blueprint: null, content_state: null, match_state: null, research_label_key: null, claims: [], conflicts: [], unknowns: [], rounds: [], candidate_stage_plan: null } };
     const target = owned(match[1]);
     if (!target) return err(404, "We couldn't find that target.");
     const scenario = state.scenario.blueprint;
@@ -190,7 +212,54 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       ? fixture("ba_blueprint_researched.json")
       : fixture(scenario === "researched" ? "blueprint_researched.json" : "blueprint_not_researched.json");
     if (scenario === "no_notes") Object.assign(base, { unknowns: [] });
-    return { body: { ...base, target }, ...(scenario === "slow" ? { delayMs: 1500 } : {}) };
+    const plan = state.stagePlans.get(target.id) ?? initialStagePlan(target.id);
+    base.blueprint = { ...base.blueprint, version: plan.version, latest_version: plan.version };
+    return { body: { ...base, target, candidate_stage_plan: {
+      candidate_stage_state: plan.state, candidate_stage_order_known: plan.order_known,
+      candidate_stages: plan.stages, candidate_stage_mapping_version: plan.mapping_version,
+      candidate_stage_notes_revision: plan.notes_revision, notes: { ...plan.notes },
+    } }, ...(scenario === "slow" ? { delayMs: 1500 } : {}) };
+  }
+
+  function saveStages({ match, body }) {
+    if (disabled()) return err(503, NOT_AVAILABLE);
+    const target = state.targets.get(match[1]);
+    if (!target) return err(404, "We couldn't find that target.");
+    if (target.status !== "ACTIVE") return err(409, { code: "TARGET_ARCHIVED" });
+    const current = state.stagePlans.get(target.id) ?? initialStagePlan(target.id);
+    if (!body || !Number.isInteger(body.expected_blueprint_version) || !["NOT_ASKED", "NOT_YET", "KNOWN"].includes(body.state) || typeof body.order_known !== "boolean" || !Array.isArray(body.stages) || !body.notes || typeof body.notes !== "object" || Array.isArray(body.notes)) return err(422, "invalid stage plan");
+    const stages = body.stages;
+    const ids = stages.map((s) => s?.stage_id);
+    const validUuid = (s) => typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s);
+    const kinds = ["RECRUITER_SCREENING", "TECHNICAL_INTERVIEW", "CODING_EXERCISE", "CASE_INTERVIEW", "BEHAVIORAL_INTERVIEW", "HIRING_MANAGER_DISCUSSION", "PORTFOLIO_PROJECT_DISCUSSION", "OTHER"];
+    const normalized = stages.map((s) => ({ ...s, custom_label: s?.custom_label?.trim() ?? null }));
+    const notes = Object.fromEntries(Object.entries(body.notes).map(([id, text]) => [id, typeof text === "string" ? text.trim() : text]));
+    if (stages.length > 12 || new Set(ids).size !== ids.length || ids.some((id) => !validUuid(id)) || stages.some((s, i) => !kinds.includes(s.kind) || !["SURE", "UNCERTAIN"].includes(s.certainty) || (s.kind === "OTHER" ? typeof normalized[i].custom_label !== "string" || !normalized[i].custom_label || normalized[i].custom_label.length > 80 : normalized[i].custom_label !== null))) return err(422, "invalid stages");
+    if ((body.state === "KNOWN") !== Boolean(stages.length) || (body.state !== "KNOWN" && body.order_known) || (body.order_known ? normalized.some((s, i) => s.sequence !== i + 1) : normalized.some((s) => s.sequence !== null))) return err(422, "inconsistent stage order");
+    if (Object.entries(notes).some(([id, text]) => !ids.includes(id) || !validUuid(id) || typeof text !== "string" || !text || text.length > 500)) return err(422, "invalid notes");
+    if (state.scenario.stageSave === "stale_once") {
+      state.scenario.stageSave = "normal";
+      const concurrentNotes = { ...current.notes };
+      const stageId = current.stages[0]?.stage_id;
+      if (stageId) concurrentNotes[stageId] = "QA-SYNTHETIC-REMOTE-NOTE";
+      const version = current.version + 1;
+      state.stagePlans.set(target.id, {
+        ...current,
+        version,
+        blueprint_id: blueprintIdFor(target.id, version),
+        notes: concurrentNotes,
+        notes_revision: current.notes_revision + (JSON.stringify(current.notes) === JSON.stringify(concurrentNotes) ? 0 : 1),
+      });
+      return err(409, { code: "STAGE_PLAN_STALE" });
+    }
+    const desired = { state: body.state, order_known: body.order_known, stages: normalized, notes };
+    const same = current.state === desired.state && current.order_known === desired.order_known && JSON.stringify(current.stages) === JSON.stringify(desired.stages) && JSON.stringify(current.notes) === JSON.stringify(desired.notes);
+    if (body.expected_blueprint_version !== current.version && !same) return err(409, { code: "STAGE_PLAN_STALE" });
+    if (!same) {
+      const version = current.version + 1;
+      state.stagePlans.set(target.id, { ...current, ...desired, version, blueprint_id: blueprintIdFor(target.id, version), mapping_version: 1, notes_revision: current.notes_revision + (JSON.stringify(current.notes) === JSON.stringify(notes) ? 0 : 1) });
+    }
+    return blueprint({ match: [null, target.id] });
   }
 
   function history(targetId, roundKey) {
@@ -252,7 +321,8 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
       idempotency_key: body.idempotency_key,
       ...(qaPromptSet ? { qa_prompt_set: qaPromptSet } : {}),
     });
-    const link = { ...fixture(`${prefix()}round_practice_link.json`), session_id: session.id, candidate_target_id: target.id, round_key: key, created_at: clock() };
+    const currentPlan = state.stagePlans.get(target.id) ?? initialStagePlan(target.id);
+    const link = { ...fixture(`${prefix()}round_practice_link.json`), session_id: session.id, candidate_target_id: target.id, blueprint_id: currentPlan.blueprint_id, round_key: key, created_at: clock() };
     state.links.push(link);
     const count = body.mode === "QUICK_DRILL" ? 3 : 4;
     const packPrompts = fixture(roundFixtureName(key)).pack?.prompts ?? [];
@@ -319,6 +389,7 @@ export function createTargetsMock({ fixture, clock = () => new Date().toISOStrin
     ["POST", "/api/v1/targets", create],
     ["GET", "/api/v1/targets/([^/]+)", read],
     ["GET", "/api/v1/targets/([^/]+)/blueprint", blueprint],
+    ["PUT", "/api/v1/targets/([^/]+)/blueprint/stages", saveStages],
     ["GET", "/api/v1/targets/([^/]+)/rounds/([^/]+)", round],
     ["POST", "/api/v1/targets/([^/]+)/rounds/([^/]+)/practice", practice],
     ["GET", "/api/v1/plan", plan],

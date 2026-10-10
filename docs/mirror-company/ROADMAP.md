@@ -1,8 +1,8 @@
 # Roadmap and backlog
 
-## Current disposition — 2026-10-08
+## Current disposition — 2026-10-10
 
-Loop 1–3 remain accepted only within their recorded scopes. Loop 4 was separately authorized and is **BLOCKED**: no India-scoped research claim passed publication review, no product behavior changed, and the target company/role slices remain HELD. Hosted migration/integration is NOT VERIFIED; production release/deployment is NOT APPROVED. Do not start Loop 5. Reopen research only with eligible sources that establish the exact requested India scope; see `RECEIPTS/LR-0004-verified-interview-intelligence-expansion.md`.
+Loop 1–3 remain accepted only within their recorded scopes. Loop 4/4B remain **BLOCKED/HELD**: no India-scoped research claim passed publication review, and the target company/role slices remain HELD. Separately, owner-authorized Loop 5A is implemented at `4dc3d306c0ea6549360217cf72393d7bf03c9d1b`; PR #6 is ready for review but not merge/release. Exact-head CI run `37984246806` passed all three required jobs, including the isolated synthetic desktop/mobile journey (41/41 steps per viewport). KI-020 is accepted by the owner as a pre-existing limitation for PR #6 only and remains open. Hosted migration/integration is NOT VERIFIED; no hosted changes, deployment, new research, merge, or Loop 5B. See `RECEIPTS/LR-0005-loop5a-candidate-driven-interview-planning.md`.
 
 > The roadmap below is the pre-Loop2 planning snapshot. Its milestone/backlog statuses are historical and do not supersede the current disposition above.
 

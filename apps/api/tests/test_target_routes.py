@@ -34,7 +34,7 @@ from app.routes_targets import (
     router,
 )
 from app.target_capability import TargetAvailability
-from app.target_repository import MemoryTargetRepository, TargetsUnavailable
+from app.target_repository import BlueprintPinConflict, MemoryTargetRepository, TargetsUnavailable
 from app.target_service import StaticCatalogProvider
 from tests.test_role_agent import USER_A, USER_B, RoleVerifier
 
@@ -122,6 +122,33 @@ class SpyRepository(MemoryTargetRepository):
         return await super().create_link(*args, **kwargs)
 
 
+class ArchiveBeforePinRepository(SpyRepository):
+    def __init__(self):
+        super().__init__()
+        self.archive_before_pin: bool = False
+
+    async def create_blueprint(self, user_id, target_id, pin, expected_version=0):
+        if self.archive_before_pin:
+            self.archive_before_pin = False
+            await super().archive_target(target_id, user_id)
+        return await super().create_blueprint(user_id, target_id, pin, expected_version=expected_version)
+
+
+class CommitThenConflictRepository(SpyRepository):
+    def __init__(self):
+        super().__init__()
+        self.conflict_after_next_append = False
+
+    async def create_blueprint(self, user_id, target_id, pin, expected_version=0):
+        row = await super().create_blueprint(
+            user_id, target_id, pin, expected_version=expected_version,
+        )
+        if self.conflict_after_next_append:
+            self.conflict_after_next_append = False
+            raise BlueprintPinConflict()
+        return row
+
+
 def revised_global_catalog(version: int = 2) -> RepoResearchCatalog:
     """A catalog-content revision for pin tests; all official claims remain global."""
     raw = json.loads(load_catalog().document.model_dump_json(by_alias=True))
@@ -145,7 +172,7 @@ def world():
     return state
 
 
-def client(world) -> TestClient:
+def client(world, *, raise_server_exceptions: bool = True) -> TestClient:
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_token_verifier] = lambda: RoleVerifier()
@@ -157,7 +184,7 @@ def client(world) -> TestClient:
     app.dependency_overrides[get_interview_state_machine] = lambda: world.engine
     app.dependency_overrides[get_role_progress_service] = lambda: world.progress
     app.dependency_overrides[get_plan_coverage] = lambda: getattr(world, "coverage", None)
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
 
 def create(c, headers=A, **over):
@@ -369,6 +396,207 @@ def test_refresh_appends_a_new_pin_and_old_content_is_still_served(world) -> Non
     assert old["content_state"] == "SERVED"
     assert [b.version for b in world.repo.blueprint_rows] == [1, 2]
     assert c.get(f"/api/v1/targets/{target['id']}/blueprint?version=9", headers=A).status_code == 404
+
+
+def test_candidate_stage_plan_reads_saves_and_hides_notes_from_history(world) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    target_id = target["id"]
+    url = f"/api/v1/targets/{target_id}/blueprint"
+
+    initial = c.get(url, headers=A)
+    assert initial.status_code == 200
+    assert initial.json()["candidate_stage_plan"] == {
+        "candidate_stage_state": "NOT_ASKED",
+        "candidate_stage_order_known": False,
+        "candidate_stages": [],
+        "candidate_stage_mapping_version": 1,
+        "candidate_stage_notes_revision": 0,
+        "notes": {},
+    }
+
+    stage_id = str(uuid4())
+    payload = {
+        "expected_blueprint_version": 1,
+        "state": "KNOWN",
+        "order_known": False,
+        "stages": [{
+            "stage_id": stage_id,
+            "kind": "TECHNICAL_INTERVIEW",
+            "custom_label": None,
+            "certainty": "UNCERTAIN",
+            "sequence": None,
+        }],
+        "notes": {stage_id: "I heard this from a recruiter"},
+    }
+    saved = c.put(f"{url}/stages", headers=A, json=payload)
+    assert saved.status_code == 200
+    current = saved.json()
+    assert current["blueprint"]["version"] == 2
+    assert current["candidate_stage_plan"]["candidate_stage_state"] == "KNOWN"
+    assert current["candidate_stage_plan"]["candidate_stages"][0]["certainty"] == "UNCERTAIN"
+    assert current["candidate_stage_plan"]["notes"] == {stage_id: "I heard this from a recruiter"}
+
+    historical = c.get(f"{url}?version=1", headers=A)
+    assert historical.status_code == 200
+    assert historical.json()["blueprint"]["version"] == 1
+    assert historical.json()["candidate_stage_plan"]["candidate_stage_state"] == "NOT_ASKED"
+    assert historical.json()["candidate_stage_plan"]["notes"] == {}
+    assert [row.version for row in world.repo.blueprint_rows] == [1, 2]
+
+
+def test_candidate_stage_save_retry_stale_conflict_and_note_removal(world) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    url = f"/api/v1/targets/{target['id']}/blueprint"
+    stage_id = str(uuid4())
+    payload = {
+        "expected_blueprint_version": 1,
+        "state": "KNOWN",
+        "order_known": False,
+        "stages": [{
+            "stage_id": stage_id, "kind": "TECHNICAL_INTERVIEW", "custom_label": None,
+            "certainty": "SURE", "sequence": None,
+        }],
+        "notes": {stage_id: "Current note"},
+    }
+
+    first = c.put(f"{url}/stages", headers=A, json=payload)
+    assert first.status_code == 200
+    assert first.json()["blueprint"]["version"] == 2
+    assert first.json()["candidate_stage_plan"]["candidate_stage_notes_revision"] == 1
+
+    retry = c.put(f"{url}/stages", headers=A, json=payload)
+    assert retry.status_code == 200 and retry.json()["blueprint"]["version"] == 2
+    conflict_payload = {**payload, "notes": {stage_id: "Stale overwrite"}}
+    conflict = c.put(f"{url}/stages", headers=A, json=conflict_payload)
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"] == {"code": "STAGE_PLAN_STALE"}
+    unchanged = c.get(url, headers=A).json()
+    assert unchanged["blueprint"]["version"] == 2
+    assert unchanged["candidate_stage_plan"]["notes"] == {stage_id: "Current note"}
+
+    clear = c.put(f"{url}/stages", headers=A, json={**payload, "expected_blueprint_version": 2, "notes": {}})
+    assert clear.status_code == 200 and clear.json()["blueprint"]["version"] == 3
+    assert clear.json()["candidate_stage_plan"]["candidate_stage_notes_revision"] == 2
+    assert clear.json()["candidate_stage_plan"]["notes"] == {}
+    remove = c.put(f"{url}/stages", headers=A, json={
+        "expected_blueprint_version": 3, "state": "NOT_YET", "order_known": False, "stages": [], "notes": {},
+    })
+    assert remove.status_code == 200 and remove.json()["blueprint"]["version"] == 4
+    historical = c.get(f"{url}?version=2", headers=A).json()["candidate_stage_plan"]
+    assert historical["candidate_stage_state"] == "KNOWN"
+    assert len(historical["candidate_stages"]) == 1 and historical["notes"] == {}
+    assert world.repo.stage_notes == {}
+    assert [row.version for row in world.repo.blueprint_rows] == [1, 2, 3, 4]
+
+
+def test_candidate_stage_save_is_owner_scoped_and_rejects_archived_target(world) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    url = f"/api/v1/targets/{target['id']}/blueprint/stages"
+    stage_id = str(uuid4())
+    payload = {
+        "expected_blueprint_version": 1, "state": "KNOWN", "order_known": False,
+        "stages": [{"stage_id": stage_id, "kind": "OTHER", "custom_label": "Case", "certainty": "SURE", "sequence": None}],
+        "notes": {stage_id: "Private"},
+    }
+
+    other_owner = c.put(url, headers=B, json=payload)
+    assert other_owner.status_code == 404 and target["id"] not in other_owner.text
+    assert [row.version for row in world.repo.blueprint_rows] == [1]
+    assert c.post(f"/api/v1/targets/{target['id']}/archive", headers=A).status_code == 200
+    archived = c.put(url, headers=A, json=payload)
+    assert archived.status_code == 409
+    assert archived.json()["detail"] == {"code": "TARGET_ARCHIVED"}
+    assert world.repo.stage_notes == {}
+    assert [row.version for row in world.repo.blueprint_rows] == [1]
+
+
+def test_refresh_retries_after_append_commit_response_conflict_without_duplicate(world) -> None:
+    world.repo = CommitThenConflictRepository()
+    c = client(world)
+    target = create(c).json()["target"]
+    world.catalogs = StaticCatalogProvider({1: load_catalog(), 2: revised_global_catalog(2)})
+    world.repo.conflict_after_next_append = True
+
+    response = c.post(f"/api/v1/targets/{target['id']}/blueprint/refresh", headers=A)
+
+    assert response.status_code == 200
+    assert response.json()["blueprint"]["version"] == 2
+    assert response.json()["blueprint"]["catalog_version"] == 2
+    assert [row.version for row in world.repo.blueprint_rows] == [1, 2]
+
+
+def test_create_target_accepts_an_identical_initial_pin_racing_lazy_blueprint_read(world) -> None:
+    world.repo = CommitThenConflictRepository()
+    world.repo.conflict_after_next_append = True
+    c = client(world)
+
+    response = create(c)
+
+    assert response.status_code == 201, response.text
+    target_id = UUID(response.json()["target"]["id"])
+    assert response.json()["blueprint"]["version"] == 1
+    assert [row.version for row in world.repo.blueprint_rows if row.candidate_target_id == target_id] == [1]
+
+
+def test_candidate_stage_plan_requires_strict_expected_blueprint_version(world) -> None:
+    c = client(world)
+    target = create(c).json()["target"]
+    stage_id = str(uuid4())
+    payload = {
+        "expected_blueprint_version": "1", "state": "KNOWN", "order_known": False,
+        "stages": [{"stage_id": stage_id, "kind": "BEHAVIORAL_INTERVIEW", "custom_label": None, "certainty": "SURE", "sequence": None}],
+        "notes": {},
+    }
+
+    response = c.put(f"/api/v1/targets/{target['id']}/blueprint/stages", headers=A, json=payload)
+
+    assert response.status_code == 422
+    assert [row.version for row in world.repo.blueprint_rows] == [1]
+
+
+def test_refresh_racing_archive_reports_archived_without_appending_blueprint(world) -> None:
+    world.repo = ArchiveBeforePinRepository()
+    c = client(world, raise_server_exceptions=False)
+    target = create(c).json()["target"]
+    world.catalogs = StaticCatalogProvider({1: load_catalog(), 2: revised_global_catalog(2)})
+    world.repo.archive_before_pin = True
+
+    response = c.post(f"/api/v1/targets/{target['id']}/blueprint/refresh", headers=A)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {"code": "TARGET_ARCHIVED"}
+    assert world.repo.targets[UUID(target["id"])].status == "ARCHIVED"
+    assert [row.version for row in world.repo.blueprint_rows] == [1]
+
+
+def test_create_target_archive_race_returns_archived_state(world) -> None:
+    world.repo = ArchiveBeforePinRepository()
+    world.repo.archive_before_pin = True
+    response = create(client(world, raise_server_exceptions=False))
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {"code": "TARGET_ARCHIVED"}
+    assert len(world.repo.targets) == 1
+    assert next(iter(world.repo.targets.values())).status == "ARCHIVED"
+    assert world.repo.blueprint_rows == []
+
+
+@pytest.mark.parametrize("endpoint", ["blueprint", "rounds/behavioural"])
+def test_lazy_blueprint_read_archive_race_returns_archived_state(world, endpoint) -> None:
+    world.repo = ArchiveBeforePinRepository()
+    c = client(world, raise_server_exceptions=False)
+    target = create(c).json()["target"]
+    world.repo.blueprint_rows.clear()
+    world.repo.archive_before_pin = True
+
+    response = c.get(f"/api/v1/targets/{target['id']}/{endpoint}", headers=A)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {"code": "TARGET_ARCHIVED"}
+    assert world.repo.blueprint_rows == []
 
 
 def test_pin_hash_mismatch_serves_nothing(world) -> None:
