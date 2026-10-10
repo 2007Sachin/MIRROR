@@ -262,6 +262,8 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     answers: [],
     idempotency: new Map(),
     clientTurns: new Map(),
+    failTextResponseOnce: false,
+    textClientTurnIds: [],
   };
   const QUESTIONS = [
     { text: "Hello, this is a short synthetic practice.\n\nTell me about one project you worked on.", type: "PLANNED" },
@@ -301,6 +303,17 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     phase: turn.phase,
     turn_type: turn.turn_type,
     remaining_time_seconds: remaining(),
+  });
+
+  const textStartFor = (turn) => ({
+    session_id: state.session.id,
+    interviewer_turn_index: turn.turn_index,
+    question_text: turn.text,
+    phase: turn.phase,
+    turn_type: turn.turn_type,
+    remaining_time_seconds: remaining(),
+    welcome_back: false,
+    welcome_text: null,
   });
 
   const assessment = () => ({
@@ -413,6 +426,14 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     return { body: { ...fixture("prepare.json"), session: state.session } };
   });
   route("GET", "/api/(?:v1/)?sessions/([^/]+)", ({ match }) => needSession(match[1]) ?? { body: state.session });
+  route("POST", "/api/v1/sessions/([^/]+)/start", ({ match }) => {
+    const missing = needSession(match[1]);
+    if (missing) return missing;
+    if (!["READY", "ACTIVE"].includes(state.session.status)) return err(409, "This session cannot be started.");
+    if (state.session.status === "READY") Object.assign(state.session, { status: "ACTIVE", started_at: clock(), phase: "PROJECTS" });
+    const last = state.turns.at(-1);
+    return { body: textStartFor(last?.speaker === "INTERVIEWER" ? last : addInterviewerTurn()) };
+  });
   route("POST", "/api/v1/sessions/([^/]+)/voice/start", ({ match }) => {
     const missing = needSession(match[1]);
     if (missing) return missing;
@@ -426,6 +447,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     if (missing) return missing;
     if (typeof body?.text !== "string" || !body.text.trim() || body.text.length > 20000) return err(422, "text must be 1-20000 characters");
     if (state.session.status !== "ACTIVE") return err(409, "This conversation is not active.");
+    state.textClientTurnIds.push(body.client_turn_id);
     const replay = state.clientTurns.get(body.client_turn_id);
     if (replay) return { body: replay };
     if (state.turns.at(-1)?.speaker !== "INTERVIEWER") return err(409, "It is not your turn.");
@@ -455,6 +477,10 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
       remaining_time_seconds: remaining(),
     };
     state.clientTurns.set(body.client_turn_id, result);
+    if (state.failTextResponseOnce) {
+      state.failTextResponseOnce = false;
+      return err(503, "simulated lost text-turn response after commit");
+    }
     return { body: result };
   });
   route("GET", "/api/v1/sessions/([^/]+)/turns", ({ match }) => needSession(match[1]) ?? { body: state.turns });
@@ -489,7 +515,13 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   for (const [method, pattern, handler] of targets.routes) route(method, pattern, handler);
 
   // Test-control surface (not part of the Mirror API). Read-only except reset and scenario.
-  route("POST", "/__qa/scenario", ({ body }) => targets.setScenario(body));
+  route("POST", "/__qa/scenario", ({ body }) => {
+    if (body?.scenario === "text-turn-response-lost-once") {
+      state.failTextResponseOnce = true;
+      return { body: { ok: true } };
+    }
+    return targets.setScenario(body);
+  });
   route("POST", "/__qa/targets/reset", () => {
     targets.reset();
     return { body: { ok: true } };
@@ -500,6 +532,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
       ended: state.ended,
       turns: state.turns.length,
       answers: state.answers,
+      textClientTurnIds: state.textClientTurnIds,
       createBodies: state.createBodies,
       heartbeats: state.heartbeats,
       unmocked: state.unmocked,
@@ -518,7 +551,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     },
   }));
   route("POST", "/__qa/reset", () => {
-    Object.assign(state, { session: null, turns: [], ended: false, createBodies: [], answers: [], heartbeats: 0, unmocked: [], requests: [] });
+    Object.assign(state, { session: null, turns: [], ended: false, createBodies: [], answers: [], heartbeats: 0, unmocked: [], requests: [], failTextResponseOnce: false, textClientTurnIds: [] });
     activeQuestions = QUESTIONS;
     state.idempotency.clear();
     state.clientTurns.clear();

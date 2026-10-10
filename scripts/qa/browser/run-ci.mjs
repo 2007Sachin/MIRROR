@@ -15,9 +15,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
 const AUTH_PORT = 54399, API_PORT = 8099, WEB_PORT = 3099;
 const WEB = `http://127.0.0.1:${WEB_PORT}`;
-// Known product defects accepted as KNOWN DEBT (docs/mirror-company/KNOWN_ISSUES.md). The strict result stays in
-// summary.ok; the job passes only if every other check is clean and every known issue is on this list.
-const ACKNOWLEDGED_KNOWN_ISSUES = new Set(['typing-only-room-stuck-after-answer']); // KI-020
+// No candidate-journey defects are currently accepted as browser-QA exceptions.
+const ACKNOWLEDGED_KNOWN_ISSUES = new Set();
 let web;
 let mock;
 

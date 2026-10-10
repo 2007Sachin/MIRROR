@@ -102,7 +102,7 @@ jobs:
         run: npm ci --prefix scripts/qa/browser
 
       - name: Browser QA safety unit tests (isolation policy, network rail, mock guards)
-        run: node --test scripts/qa/browser/tests/safety.test.mjs scripts/qa/browser/tests/mock-safety.test.mjs scripts/qa/browser/tests/network.test.mjs scripts/qa/browser/tests/targets-mock.test.mjs
+        run: node --test scripts/qa/browser/tests/safety.test.mjs scripts/qa/browser/tests/mock-safety.test.mjs scripts/qa/browser/tests/network.test.mjs scripts/qa/browser/tests/targets-mock.test.mjs scripts/qa/browser/tests/voice-interview-contract.test.mjs
 
       - name: Build web against loopback fakes
         run: npm --workspace @mirror/web run build
