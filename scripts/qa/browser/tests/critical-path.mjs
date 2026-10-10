@@ -71,6 +71,18 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     if (navigator.mediaDevices) {
       navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException("Permission denied", "NotAllowedError"));
     }
+    const nativeFetch = window.fetch.bind(window);
+    window.__qaLoseNextTextTurnResponse = false;
+    window.fetch = async (input, init) => {
+      const requestUrl = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
+      const requestMethod = init?.method ?? (input instanceof Request ? input.method : "GET");
+      const response = await nativeFetch(input, init);
+      if (window.__qaLoseNextTextTurnResponse && response.ok && requestMethod.toUpperCase() === "POST" && new URL(requestUrl, window.location.href).pathname.endsWith("/turn-text")) {
+        window.__qaLoseNextTextTurnResponse = false;
+        throw new TypeError("Synthetic client-side response loss after server commit");
+      }
+      return response;
+    };
   });
   const page = await context.newPage();
   page.setDefaultTimeout(15_000);
@@ -122,13 +134,6 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.getByText("Microphone blocked").waitFor();
     await page.getByRole("button", { name: "Continue with typing" }).click();
     await page.locator("#typed-answer").waitFor();
-  };
-  const setScenario = async (scenario) => {
-    const response = await fetch(`${mock.apiUrl}/__qa/scenario`, {
-      method: "POST", headers: { ...controlHeaders, "content-type": "application/json" },
-      body: JSON.stringify({ scenario }),
-    });
-    assert.equal(response.status, 200);
   };
 
   // 1. Unauthenticated visit is sent to /login by the middleware.
@@ -229,7 +234,9 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await step(`interview-answer-${i + 1}`, async () => {
       const navigationCount = documentNavigations;
       await page.locator("#typed-answer").fill(ANSWERS[i]);
-      if (i === 0) await setScenario("text-turn-response-lost-once");
+      if (i === 0) {
+        await page.evaluate(() => { window.__qaLoseNextTextTurnResponse = true; });
+      }
       await page.getByRole("button", { name: "Send answer" }).click();
       if (i === 0) {
         await page.getByRole("alert").waitFor();
@@ -240,6 +247,9 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
         const retried = await getState();
         assert.equal(retried.answers.filter((answer) => answer === ANSWERS[i]).length, 1, "server stores one answer");
         assert.equal(retried.textClientTurnIds[0], retried.textClientTurnIds[1], "retry reuses client_turn_id");
+        const turnRequests = retried.requests.filter((request) => request.includes("/turn-text"));
+        assert.equal(turnRequests.length, 2);
+        assert.ok(turnRequests.every((request) => request.endsWith(" 200")), "both server responses are successful; the browser alone loses the first response");
       }
       if (i < ANSWERS.length - 1) {
         await heading(QUESTIONS[i + 1], 1).waitFor();

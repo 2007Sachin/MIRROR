@@ -35,3 +35,11 @@ test("a text fallback in voice mode restores audio, while typed-only mode stays 
   assert.match(submit, /await presentQuestion\(voicedResult, true\)/, "voice-enabled mode preserves question playback");
   assert.match(submit, /await presentTextQuestion\(result\)/, "typing-only mode can progress from the text response");
 });
+
+test("interrupted response is simulated in the browser without a failing API status", () => {
+  const journey = fs.readFileSync(new URL("./critical-path.mjs", import.meta.url), "utf8");
+  const mock = fs.readFileSync(new URL("../mock/server.mjs", import.meta.url), "utf8");
+  assert.match(journey, /__qaLoseNextTextTurnResponse/, "browser harness simulates the client-side lost response");
+  assert.match(journey, /if \(window\.__qaLoseNextTextTurnResponse && response\.ok/, "only a successful response can be dropped by the synthetic fault");
+  assert.doesNotMatch(mock, /failTextResponseOnce|text-turn-response-lost-once/, "API mock does not emit an expected failing HTTP response");
+});

@@ -262,7 +262,6 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     answers: [],
     idempotency: new Map(),
     clientTurns: new Map(),
-    failTextResponseOnce: false,
     textClientTurnIds: [],
   };
   const QUESTIONS = [
@@ -477,10 +476,6 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
       remaining_time_seconds: remaining(),
     };
     state.clientTurns.set(body.client_turn_id, result);
-    if (state.failTextResponseOnce) {
-      state.failTextResponseOnce = false;
-      return err(503, "simulated lost text-turn response after commit");
-    }
     return { body: result };
   });
   route("GET", "/api/v1/sessions/([^/]+)/turns", ({ match }) => needSession(match[1]) ?? { body: state.turns });
@@ -515,13 +510,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   for (const [method, pattern, handler] of targets.routes) route(method, pattern, handler);
 
   // Test-control surface (not part of the Mirror API). Read-only except reset and scenario.
-  route("POST", "/__qa/scenario", ({ body }) => {
-    if (body?.scenario === "text-turn-response-lost-once") {
-      state.failTextResponseOnce = true;
-      return { body: { ok: true } };
-    }
-    return targets.setScenario(body);
-  });
+  route("POST", "/__qa/scenario", ({ body }) => targets.setScenario(body));
   route("POST", "/__qa/targets/reset", () => {
     targets.reset();
     return { body: { ok: true } };
@@ -551,7 +540,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     },
   }));
   route("POST", "/__qa/reset", () => {
-    Object.assign(state, { session: null, turns: [], ended: false, createBodies: [], answers: [], heartbeats: 0, unmocked: [], requests: [], failTextResponseOnce: false, textClientTurnIds: [] });
+    Object.assign(state, { session: null, turns: [], ended: false, createBodies: [], answers: [], heartbeats: 0, unmocked: [], requests: [], textClientTurnIds: [] });
     activeQuestions = QUESTIONS;
     state.idempotency.clear();
     state.clientTurns.clear();
