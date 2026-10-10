@@ -19,9 +19,11 @@ import {
   ApiError,
   mirrorApi,
   pauseOnPageExit,
+  type InterviewStart,
   type PracticeMode,
   uploadVoiceTurn,
   type PublicInterviewTurn,
+  type TextTurnResult,
   type VoiceTurnResult,
 } from "@/lib/api";
 import { lifecycleCopy } from "@/lib/copy-lifecycle";
@@ -157,6 +159,8 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const submitInFlightRef = useRef(false);
   const completionInFlightRef = useRef(false);
   const pendingVoiceRef = useRef<{ blob: Blob; durationMs: number; clientTurnId: string } | null>(null);
+  const pendingTextTurnIdRef = useRef<string | null>(null);
+  const textOnlyRef = useRef(false);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const redirectTimerRef = useRef<number | null>(null);
   const deadlineRef = useRef<number | null>(null);
@@ -187,6 +191,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const [errorKind, setErrorKind] = useState<RoomErrorKind | null>(null);
   const [showTextFallback, setShowTextFallback] = useState(false);
   const [typedAnswer, setTypedAnswer] = useState("");
+  const [textRetryPending, setTextRetryPending] = useState(false);
   const [closing, setClosing] = useState(false);
   const [transcript, setTranscript] = useState<PublicInterviewTurn[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -644,6 +649,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       setJoined(true);
       setPermission("granted");
       const result = await mirrorApi.startVoiceInterview(sessionId);
+      textOnlyRef.current = false;
       await refreshTranscript();
       await playWelcome(result);
       await presentQuestion(result, true);
@@ -757,19 +763,35 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     setErrorKind(null);
     transition("CONNECTING");
     try {
-      const result = await mirrorApi.startVoiceInterview(sessionId);
+      const result = await mirrorApi.startInterview(sessionId);
       if (!mountedRef.current) return;
+      textOnlyRef.current = true;
       joinedRef.current = true;
       setJoined(true);
       setShowTextFallback(true);
       await refreshTranscript();
-      await presentQuestion(result, false);
-      transition("PAUSED");
+      await presentTextQuestion(result);
     } catch (caught) {
       setErrorKind(caught instanceof ApiError && caught.status === 401 ? "AUTH" : "SESSION");
       setError(caught instanceof ApiError ? caught.message : "We couldn't open the conversation just now. Please try again.");
       transition("ERROR");
     }
+  }
+
+  async function presentTextQuestion(result: InterviewStart | TextTurnResult) {
+    if (!mountedRef.current) return;
+    setQuestion(result.question_text);
+    setPhase(result.phase);
+    setRemainingFromServer(result.remaining_time_seconds);
+    const isClosing = result.turn_type === "CLOSING";
+    closingRef.current = isClosing;
+    setClosing(isClosing);
+    if (isClosing) {
+      transition("COMPLETE");
+      await completeInterview();
+      return;
+    }
+    transition("PAUSED");
   }
 
   function toggleMute() {
@@ -807,6 +829,10 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   }
 
   function toggleTextFallback() {
+    if (textOnlyRef.current) {
+      setShowTextFallback(true);
+      return;
+    }
     const next = !showTextFallback;
     setShowTextFallback(next);
     if (next) {
@@ -825,17 +851,38 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     setError("");
     transition("PROCESSING");
     try {
-      await mirrorApi.sendTextTurn(sessionId, text, crypto.randomUUID());
+      const clientTurnId = pendingTextTurnIdRef.current ?? crypto.randomUUID();
+      pendingTextTurnIdRef.current = clientTurnId;
+      const result = await mirrorApi.sendTextTurn(sessionId, text, clientTurnId);
       if (!mountedRef.current) return;
+      if (!textOnlyRef.current) {
+        try {
+          const voicedResult = await mirrorApi.startVoiceInterview(sessionId);
+          if (!mountedRef.current) return;
+          pendingTextTurnIdRef.current = null;
+          setTextRetryPending(false);
+          setTypedAnswer("");
+          setShowTextFallback(false);
+          await refreshTranscript();
+          submitInFlightRef.current = false;
+          await presentQuestion(voicedResult, true);
+          return;
+        } catch {
+          // The typed answer is already accepted; continue from its text response if voice is unavailable.
+        }
+        if (!mountedRef.current) return;
+      }
+      pendingTextTurnIdRef.current = null;
+      setTextRetryPending(false);
       setTypedAnswer("");
-      setShowTextFallback(false);
-      const voicedResult = await mirrorApi.startVoiceInterview(sessionId);
       await refreshTranscript();
       submitInFlightRef.current = false;
-      await presentQuestion(voicedResult, true);
+      await presentTextQuestion(result);
     } catch (caught) {
       if (!mountedRef.current) return;
       setError(caught instanceof ApiError ? caught.message : "We couldn't send that answer just now. Please try again.");
+      setTextRetryPending(pendingTextTurnIdRef.current !== null);
+      setShowTextFallback(true);
       transition("ERROR");
     } finally {
       submitInFlightRef.current = false;
@@ -863,6 +910,11 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     if (pendingVoiceRef.current) {
       const pending = pendingVoiceRef.current;
       void submitVoice(pending.blob, pending.durationMs, pending.clientTurnId);
+      return;
+    }
+    if (textOnlyRef.current) {
+      setShowTextFallback(true);
+      transition("PAUSED");
       return;
     }
     if (audioUrl && roomStateRef.current === "ERROR" && audioFailed) {
@@ -1116,7 +1168,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
               <article className="interview-participant interview-participant--candidate">
                 <div className="interview-participant-label">
                   <span>You</span>
-                  <small>{muted ? "Muted" : "Microphone on"}</small>
+                  <small>{textOnlyRef.current ? "Typing" : muted ? "Muted" : "Microphone on"}</small>
                 </div>
                 <div ref={meterRef} className="interview-voice-meter" aria-hidden="true">
                   {Array.from({ length: 13 }, (_, index) => <i key={index} />)}
@@ -1168,11 +1220,11 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
             </aside>
           </div>
 
-          {showTextFallback ? (
+          {(showTextFallback || textOnlyRef.current) ? (
             <form className="interview-text-composer" onSubmit={submitTextFallback}>
               <div>
                 <label htmlFor="typed-answer">Type your answer</label>
-                <span>Voice pauses while you type.</span>
+                <span>{textRetryPending ? "Retry the same answer to continue." : "Voice pauses while you type."}</span>
               </div>
               <textarea
                 id="typed-answer"
@@ -1181,11 +1233,12 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                 placeholder="Write naturally, as you would say it…"
                 maxLength={20_000}
                 disabled={processing}
+                readOnly={textRetryPending}
                 autoFocus
               />
               <div>
-                <button type="button" onClick={toggleTextFallback}>Cancel</button>
-                <button type="submit" disabled={processing || !typedAnswer.trim()}>Send answer</button>
+                {!textOnlyRef.current ? <button type="button" onClick={toggleTextFallback}>Cancel</button> : null}
+                <button type="submit" disabled={processing || !typedAnswer.trim()}>{textRetryPending ? "Retry answer" : "Send answer"}</button>
               </div>
             </form>
           ) : null}
@@ -1193,7 +1246,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
           {error ? (
             <div className="interview-error-banner" role="alert">
               <span><strong>{errorKind === "NETWORK" ? "Connection interrupted. " : errorKind === "MIC" ? "Microphone unavailable. " : ""}</strong>{error}</span>
-              {!processing && !closing ? <button type="button" onClick={resumeConversation}>Continue</button> : null}
+              {!processing && !closing && !textRetryPending ? <button type="button" onClick={resumeConversation}>Continue</button> : null}
             </div>
           ) : null}
 
@@ -1210,6 +1263,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                 type="button"
                 className={muted ? "is-active" : ""}
                 onClick={toggleMute}
+                hidden={textOnlyRef.current}
                 disabled={processing || closing}
                 aria-pressed={muted}
                 aria-label={muted ? "Unmute microphone" : "Mute microphone"}
@@ -1221,6 +1275,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                 type="button"
                 className={showTextFallback ? "is-active" : ""}
                 onClick={toggleTextFallback}
+                hidden={textOnlyRef.current}
                 disabled={processing || closing}
                 aria-pressed={showTextFallback}
               >

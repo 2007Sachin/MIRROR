@@ -339,6 +339,7 @@ test("the critical path runs the Loop 2 journeys before sign-out, and every allo
 test("server wires the Loop 2 routes, the scenario control and delayed answers", () => {
   const source = fs.readFileSync(new URL("../mock/server.mjs", import.meta.url), "utf8");
   assert.match(source, /createTargetsMock\(/);
+  assert.match(source, /route\("POST", "\/api\/v1\/sessions\/\(\[\^\/\]\+\)\/start"/);
   assert.match(source, /route\("POST", "\/__qa\/scenario"/);
   assert.match(source, /delayMs/);
   assert.match(source, /targets\.reset\(\)/);

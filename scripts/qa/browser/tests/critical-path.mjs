@@ -71,11 +71,27 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     if (navigator.mediaDevices) {
       navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException("Permission denied", "NotAllowedError"));
     }
+    const nativeFetch = window.fetch.bind(window);
+    window.__qaLoseNextTextTurnResponse = false;
+    window.fetch = async (input, init) => {
+      const requestUrl = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
+      const requestMethod = init?.method ?? (input instanceof Request ? input.method : "GET");
+      const response = await nativeFetch(input, init);
+      if (window.__qaLoseNextTextTurnResponse && response.ok && requestMethod.toUpperCase() === "POST" && new URL(requestUrl, window.location.href).pathname.endsWith("/turn-text")) {
+        window.__qaLoseNextTextTurnResponse = false;
+        throw new TypeError("Synthetic client-side response loss after server commit");
+      }
+      return response;
+    };
   });
   const page = await context.newPage();
   page.setDefaultTimeout(15_000);
   collector.attach(page);
 
+  let documentNavigations = 0;
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) documentNavigations += 1;
+  });
   let index = 0;
   let failed = false;
   async function step(name, fn) {
@@ -206,38 +222,41 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.locator("#typed-answer").waitFor();
     await heading(QUESTIONS[0], 1).waitFor();
     await page.getByText("Hello, this is a short synthetic practice.").first().waitFor(); // spoken welcome shown as text
+    const typedOnlyState = await getState();
+    assert.equal(typedOnlyState.requests.filter((request) => request.includes("/voice/start")).length, 0, "microphone-denied typed-only join does not request voice prompts");
     await overflow("interview-room");
+    await page.getByRole("button", { name: "Mute microphone" }).waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: "Cancel", exact: true }).waitFor({ state: "hidden" });
+    documentNavigations = 0;
   });
 
   for (let i = 0; i < ANSWERS.length; i += 1) {
     await step(`interview-answer-${i + 1}`, async () => {
-      if (i > 0 && !(await page.locator("#typed-answer").isVisible())) {
-        // Reached only if the composer did not come back after the previous answer (see knownIssues).
-        await joinAgain(QUESTIONS[i]);
-      }
+      const navigationCount = documentNavigations;
       await page.locator("#typed-answer").fill(ANSWERS[i]);
+      if (i === 0) {
+        await page.evaluate(() => { window.__qaLoseNextTextTurnResponse = true; });
+      }
       await page.getByRole("button", { name: "Send answer" }).click();
+      if (i === 0) {
+        await page.getByRole("alert").waitFor();
+        assert.equal(await page.locator("#typed-answer").inputValue(), ANSWERS[i], "draft survives ambiguous failure");
+        assert.equal(await page.locator("#typed-answer").isEditable(), false, "pending answer cannot be changed before idempotent retry");
+        await page.getByRole("button", { name: "Retry answer" }).click();
+        await heading(QUESTIONS[i + 1], 1).waitFor();
+        const retried = await getState();
+        assert.equal(retried.answers.filter((answer) => answer === ANSWERS[i]).length, 1, "server stores one answer");
+        assert.equal(retried.textClientTurnIds[0], retried.textClientTurnIds[1], "retry reuses client_turn_id");
+        const turnRequests = retried.requests.filter((request) => request.includes("/turn-text"));
+        assert.equal(turnRequests.length, 2);
+        assert.ok(turnRequests.every((request) => request.endsWith(" 200")), "both server responses are successful; the browser alone loses the first response");
+      }
       if (i < ANSWERS.length - 1) {
         await heading(QUESTIONS[i + 1], 1).waitFor();
-        const composerBack = await page.locator("#typed-answer").waitFor({ timeout: 2_500 }).then(() => true, () => false);
-        if (!composerBack) {
-          const status = (await page.locator(".interview-call-status strong").innerText()).trim();
-          const typeDisabled = await page.getByRole("button", { name: "Type" }).isDisabled();
-          result.knownIssues.push({
-            id: "typing-only-room-stuck-after-answer",
-            where: "apps/web/src/components/voice-interview.tsx submitTextFallback()",
-            observed: `after a typed answer with no microphone the room stays "${status}", the composer is closed and the Type button is ${typeDisabled ? "disabled" : "enabled"}`,
-            workaround: "reload the room and re-join with typing",
-          });
-        }
+        await page.locator("#typed-answer").waitFor({ timeout: 2_500 });
       }
+      assert.equal(documentNavigations, navigationCount, "typed progression does not reload or navigate the document");
     });
-  }
-  async function joinAgain(question) {
-    await page.reload();
-    await heading("Ready when you are.", 1).waitFor();
-    await joinWithTyping();
-    await heading(question, 1).waitFor();
   }
 
   await step("interview-complete", async () => {

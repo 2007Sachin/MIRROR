@@ -675,14 +675,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
       if (index < QA_BUSINESS_CASE_PROMPTS.length - 1) {
         const next = QA_BUSINESS_CASE_PROMPTS[index + 1];
         await heading(next.text, 1).waitFor();
-        const composerBack = await page.locator("#typed-answer").waitFor({ timeout: 2_500 }).then(() => true, () => false);
-        if (!composerBack) {
-          // KI-020 typing-only-room recovery (known issue, reported by the main critical path too).
-          await page.reload();
-          await heading("Ready when you are.", 1).waitFor();
-          await joinWithTyping();
-          await heading(next.text, 1).waitFor();
-        }
+        await page.locator("#typed-answer").waitFor({ timeout: 2_500 });
       }
     }
     await heading("Interview complete", 1).waitFor();
