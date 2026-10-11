@@ -382,7 +382,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await reviewScenario("processing");
     await page.goto(reviewAt);
     await heading("Preparing your review", 1).waitFor();
-    await page.getByRole("status").filter({ hasText: "Preparing your review" }).waitFor(); // the loader announces the state once
+    await page.getByRole("status").filter({ hasText: "Preparing." }).waitFor(); // the loader announces the state once
     await page.getByText(/is looking at what you shared and how it connects/).waitFor();
     await overflow("review-processing");
   });
@@ -397,7 +397,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await reviewScenario("unavailable503");
     await page.goto(reviewAt);
     await heading("Your review isn't available right now", 1).waitFor();
-    await page.getByRole("alert").waitFor();
+    await page.getByRole("alert").filter({ hasText: /couldn't load your review/ }).waitFor(); // not Next's route announcer
   });
   await step("review-restored", async () => {
     await reviewScenario("ready");

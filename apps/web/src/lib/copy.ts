@@ -352,7 +352,7 @@ export const loading = {
   onboarding: { label: "Getting ready", note: "Bringing back where you left off." },
   space: { label: "Loading", note: "Getting your space ready." },
   report: { label: "Loading", note: "Opening your review." },
-  reflecting: { label: "Preparing your review", note: "Looking at what you shared. Thank you for your patience." },
+  reflecting: { label: "Preparing", note: "Looking at what you shared. Thank you for your patience." },
   room: { label: "Getting ready", note: "Preparing your room." },
 } as const;
 
