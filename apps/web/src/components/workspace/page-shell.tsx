@@ -88,7 +88,7 @@ export function PageShell({ children, readingRoom = false }: { children: ReactNo
   const profile = useProfile();
   return (
     <AppShell profile={profile}>
-      <div className={readingRoom ? "dh reading-room" : "dh"}>{children}</div>
+      <div className={readingRoom ? "dh dh-page-layout reading-room" : "dh dh-page-layout"}>{children}</div>
     </AppShell>
   );
 }

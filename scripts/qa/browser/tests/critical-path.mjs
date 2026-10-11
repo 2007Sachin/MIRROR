@@ -140,7 +140,9 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
   await step("landing", async () => {
     await page.goto(baseUrl);
     await heading("Find the words for your experience.", 1).waitFor();
-    await page.getByRole("link", { name: "Start practicing" }).waitFor();
+    const signupLinks = page.getByRole("link", { name: "Start practicing" });
+    assert.ok(await signupLinks.count() >= 1, "landing exposes a Start practicing link");
+    assert.ok(await signupLinks.evaluateAll((links) => links.every((link) => link.getAttribute("href") === "/signup")), "every Start practicing link opens signup");
     await page.getByRole("link", { name: "See a sample reflection" }).click();
     await page.locator("#sample-reflection").waitFor();
     await page.getByRole("table", { name: "Mirror compared with a generic mock interview" }).waitFor();

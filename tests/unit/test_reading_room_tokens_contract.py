@@ -112,3 +112,11 @@ def test_isolated_browser_journey_covers_landing_content_and_layout() -> None:
         'overflow("landing", true)',
     ):
         assert expected in CRITICAL_PATH
+
+
+def test_mobile_comparison_keeps_semantic_headers_available() -> None:
+    css = (WEB / "styles" / "landing.css").read_text(encoding="utf-8")
+    mobile = css[css.index("@media (max-width: 40rem)") :]
+    header = mobile[mobile.index(".ld-comparison-head") : mobile.index(".ld-comparison-row")]
+    assert "display: none" not in header
+    assert "clip-path: inset(50%)" in header

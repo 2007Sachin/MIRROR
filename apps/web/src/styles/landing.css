@@ -390,7 +390,15 @@
 .ld-comparison-row td:nth-child(3) { color: var(--silver); font-size: var(--text-sm); }
 
 @media (max-width: 40rem) {
-  .ld-comparison-head { display: none; }
+  .ld-comparison-head {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
   .ld-comparison-row { grid-template-columns: 1fr; gap: var(--space-1); }
   .ld-comparison-row td:nth-child(3)::before { content: "Generic: "; color: var(--silver); }
   .ld-comparison-row td:nth-child(2)::before { content: "Mirror: "; color: var(--action); }
