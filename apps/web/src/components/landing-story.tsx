@@ -9,7 +9,7 @@ import { landing as t, meta } from "@/lib/copy";
 
 export function LandingStory() {
   return (
-    <main id="main-content" className="ld-page">
+    <main id="main-content" className="ld-page reading-room">
       <section className="ld-hero shell">
         <div className="ld-hero-copy">
           <p className="ld-eyebrow mono">{t.hero.eyebrow}</p>

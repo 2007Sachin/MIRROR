@@ -122,7 +122,7 @@ export function OnboardingFlow({ initialOnboarding }: { initialOnboarding: Onboa
 
   const shown = role ? step : 1;
   return (
-    <main id="main-content" className="op-flow" data-step={shown}>
+    <main id="main-content" className="op-flow reading-room" data-step={shown}>
       <nav className="op-progress" aria-label={t.progress.label(shown, STEPS)}>
         <ol>
           {t.progress.steps.map((label, index) => (

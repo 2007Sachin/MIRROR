@@ -10,7 +10,7 @@ export default async function OnboardingPage() {
   if (result.status === "unauthenticated") redirect("/login?reason=session_expired");
   if (result.status === "unavailable") {
     return (
-      <main id="main-content" className="ob-workspace">
+      <main id="main-content" className="ob-workspace reading-room">
         <section className="ob-main">
           <div className="ob-restore">
             <p className="ob-eyebrow">Session unavailable for now</p>

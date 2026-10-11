@@ -83,6 +83,8 @@ MIGRATED = {
     "components/progress/progress-hub.tsx", "components/progress/role-progress.tsx", "components/progress/dimension-detail.tsx",
     "components/progress/dimension-answers.tsx", "components/progress/answer-detail.tsx",
     "app/reflect/reflect-view.tsx", "components/practice/practice-page.tsx", "components/practice/start-practice.tsx",
+    # P3C: Landing, Login/Signup, Onboarding
+    "components/landing-story.tsx", "components/auth-form.tsx", "components/onboarding-flow.tsx", "app/onboarding/page.tsx",
 }
 
 
