@@ -36,7 +36,7 @@ export function PressureTestPage({ roleProfileId }: { roleProfileId: string }) {
   }
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={rolesCopy.eyebrow}
         title={t.title}

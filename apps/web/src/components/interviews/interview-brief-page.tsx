@@ -35,7 +35,7 @@ export function InterviewBriefPage({ roleProfileId, eventId }: { roleProfileId: 
   const brief = data?.brief;
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={brief ? brief.role_title : t.eyebrow}
         title={brief ? t.brief.title(roundLabel(brief.event)) : t.title}

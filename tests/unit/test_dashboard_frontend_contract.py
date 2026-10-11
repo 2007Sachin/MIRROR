@@ -197,8 +197,9 @@ def test_dashboard_topbar_and_responsive_navigation_are_present() -> None:
 
 
 def test_the_profile_menu_is_an_account_menu_and_nothing_is_invented() -> None:
-    assert 'aria-haspopup="menu"' in APP_SHELL
-    assert 'role="menuitem"' in APP_SHELL
+    # A disclosure, not an ARIA menu: plain links Tab moves through, closed when focus leaves.
+    assert "aria-controls={panelId}" in APP_SHELL and "aria-expanded={open}" in APP_SHELL
+    assert 'role="menu' not in APP_SHELL and "relatedTarget" in APP_SHELL
     assert "menuCopy.signOut" in APP_SHELL
     # No notification surface exists in the backend, so none is shown.
     assert "Notifications" not in APP_SHELL

@@ -116,6 +116,33 @@
   --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px rgba(30, 33, 36, 0.1);
 }
 
+/* Reading Room scope (redesign P3). Screens migrate one at a time by adding .reading-room to
+   their root (PageShell readingRoom, or the page's own root outside the shell). Inside it the
+   legacy token names resolve to the Reading Room tokens, so shared primitives (.button-*,
+   .field, .dh-*, .ws-*) follow without per-file rewrites; screens not yet migrated are unchanged.
+   Content stays on solid surfaces; glass is reserved for the shell's navigation. */
+.reading-room {
+  --paper: var(--canvas);
+  --paper-raised: var(--surface);
+  --paper-sunken: var(--canvas-sunken);
+  --ink: var(--fg-primary);
+  --slate: var(--fg-secondary);
+  --silver: var(--fg-muted);
+  --action: var(--accent-600);
+  --action-hover: var(--accent-700);
+  --action-soft: var(--accent-50);
+  --pulse: var(--accent-600);
+  --pulse-hover: var(--accent-700);
+  --pulse-soft: var(--accent-50);
+  color: var(--fg-primary);
+}
+.reading-room .ws-panel { background: var(--surface); border-radius: var(--radius-panel); box-shadow: var(--elevation-1); }
+.reading-room :is(.button-primary, .button-secondary, .dh-primary-action, .field) { border-radius: var(--radius-control); }
+.reading-room :is(.button-primary, .button-secondary, .dh-primary-action) { min-height: 2.75rem; }
+.reading-room :focus-visible { outline-color: var(--focus-ring); }
+.reading-room :is(.dh-title, .ws-page-header h1) { text-wrap: balance; }
+.reading-room :is(.dh-header p, .dh-section-body, .ws-page-header > div > p:last-child) { max-width: 64ch; text-wrap: pretty; }
+
 /* Glass falls back to a solid surface without blur support or when people ask for less transparency. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root { --glass-bg: var(--surface-fallback); }

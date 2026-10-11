@@ -70,3 +70,25 @@ def test_reading_room_controls_and_focus_meet_non_text_contrast() -> None:
 def test_glass_falls_back_to_a_solid_surface() -> None:
     assert re.search(r"@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)\s*\{\s*:root \{ --glass-bg: var\(--surface-fallback\); \}", CSS)
     assert re.search(r"@media \(prefers-reduced-transparency: reduce\)\s*\{\s*:root \{ --glass-bg: var\(--surface-fallback\); --glass-blur: none; \}", CSS)
+
+
+MIGRATED = {
+    # P3A: Help, Settings, Roles, Stories
+    "components/help/help-page.tsx", "components/workspace/account-settings.tsx",
+    "components/roles/roles-page.tsx", "components/roles/role-detail.tsx", "components/roles/pressure-test-page.tsx",
+    "components/interviews/interviews-page.tsx", "components/interviews/interview-brief-page.tsx",
+    "components/onboarding/new-role-flow.tsx", "components/stories/stories-page.tsx", "components/stories/story-editor.tsx",
+}
+
+
+def test_reading_room_scope_maps_legacy_tokens_to_role_tokens() -> None:
+    scope = re.search(r"\.reading-room \{(.*?)\}", CSS, re.S).group(1)
+    for legacy, role in (("--paper", "--canvas"), ("--ink", "--fg-primary"), ("--action", "--accent-600"), ("--pulse", "--accent-600")):
+        assert f"{legacy}: var({role});" in scope
+    assert not re.search(r"#[0-9a-f]{3,6}\b|rgba?\(", scope)  # tokens only, no raw colours
+
+
+def test_migrated_screens_opt_into_the_reading_room() -> None:
+    web = Path(__file__).parents[2] / "apps" / "web" / "src"
+    missing = [f for f in sorted(MIGRATED) if "readingRoom" not in (web / f).read_text(encoding="utf-8") and "reading-room" not in (web / f).read_text(encoding="utf-8")]
+    assert missing == []

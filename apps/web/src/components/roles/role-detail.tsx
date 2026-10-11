@@ -45,7 +45,7 @@ export function RoleDetail({ roleProfileId }: { roleProfileId: string }) {
   const role = data?.map.target_role ?? "";
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={t.eyebrow}
         title={state === "ready" ? role : mapCopy.eyebrow}

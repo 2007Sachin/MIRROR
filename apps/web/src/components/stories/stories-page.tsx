@@ -68,7 +68,7 @@ export function StoriesPage() {
   }
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={t.eyebrow}
         title={t.title}

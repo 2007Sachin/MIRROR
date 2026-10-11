@@ -9,7 +9,7 @@ const SUPPORT_EMAIL = "support@pathwisse.com";
 
 export function HelpPage() {
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader eyebrow={t.eyebrow} title={t.title} intro={t.intro} />
       <div className="dh-home-sections">
         {t.sections.map((section) => (

@@ -118,13 +118,13 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     console.log(`  ${entry.ok ? "ok  " : entry.skipped ? "skip" : "FAIL"} [${viewport.name}] ${label}${entry.error ? `  -> ${entry.error}` : ""}`);
   }
 
-  async function overflow(label) {
+  async function overflow(label, always = false) {
     const metrics = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
     }));
     result.overflow[label] = metrics;
-    if (viewport.name === "mobile") {
+    if (always || viewport.name === "mobile") {
       assert.ok(metrics.scrollWidth <= metrics.clientWidth, `horizontal overflow on ${label}: scrollWidth ${metrics.scrollWidth} > clientWidth ${metrics.clientWidth}`);
     }
   }
@@ -174,6 +174,16 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.getByRole("link", { name: `Start ${ROLE} practice` }).waitFor();
     await page.getByText(QA_NAME).first().waitFor({ state: "attached" }); // profile loaded from /api/v1/me (name sits in a menu on narrow screens)
     await overflow("home");
+    if (viewport.name === "desktop") {
+      // The top bar is tightest just above the tab-bar breakpoint: every link stays visible, nothing scrolls sideways.
+      for (const width of [1025, 1100, 1180]) {
+        await page.setViewportSize({ width, height: viewport.height });
+        await page.locator(".ws-nav-item", { hasText: "Reflect" }).waitFor();
+        await overflow(`home-${width}`, true);
+        await page.screenshot({ path: path.join(outDir, `${viewport.name}-05-home-${width}.png`) }).catch(() => undefined);
+      }
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    }
   });
 
   // 3. Start ONE quick drill.
@@ -301,13 +311,23 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await overflow("home-after-practice");
   });
 
+  // 5b. Reading Room screens whose data the mock serves: each renders a heading and never scrolls sideways.
+  for (const route of ["/help", "/roles", "/settings"]) {
+    await step(`reading-room${route.replace("/", "-")}`, async () => {
+      await page.goto(`${baseUrl}${route}`);
+      await page.locator(".reading-room h1").first().waitFor();
+      await page.waitForLoadState("networkidle");
+      await overflow(`reading-room${route}`);
+    });
+  }
+
   // 6. Loop 2: interview target, plan, research-scoped round practice and no-target recovery (T1–T16, including T3b/T9b).
   await runTargetJourneys({ page, step, baseUrl, mock, viewport, overflow, getState, poll });
 
   // 7. Sign out; the session is really gone.
   await step("sign-out", async () => {
     await page.getByRole("button", { name: /^Your account/ }).click();
-    await page.getByRole("menuitem", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out" }).click();
     await page.waitForURL((url) => url.pathname === "/login");
     await heading("Sign in to Mirror", 1).waitFor();
     const state = await getState();

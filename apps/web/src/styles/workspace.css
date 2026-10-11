@@ -104,6 +104,8 @@ html:has(.ws-shell) { scroll-padding-top: 4.5rem; }
 }
 .ws-profile-panel :is(a, button):hover { background: var(--paper-sunken); }
 .ws-profile-panel .ws-signout { font-weight: 600; }
+.ws-profile-narrow-only { display: none !important; }
+@media (max-width: 720px) { .ws-profile-narrow-only { display: flex !important; } }
 .ws-profile-panel svg { color: var(--slate); flex: none; }
 .ws-topbar-user {
   align-items: center;
