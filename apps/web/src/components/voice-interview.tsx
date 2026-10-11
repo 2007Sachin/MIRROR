@@ -6,7 +6,10 @@ import { Loader } from "@/components/loader";
 import { loading, voiceRoom } from "@/lib/copy";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import {
+  ChatCircleText,
+  Clock,
   Keyboard,
+  LockSimple,
   Microphone,
   MicrophoneSlash,
   SpeakerHigh,
@@ -27,6 +30,7 @@ import {
   type VoiceTurnResult,
 } from "@/lib/api";
 import { lifecycleCopy } from "@/lib/copy-lifecycle";
+import { focusFor, modeCopy } from "@/lib/practice-view";
 import { useLifecycle } from "@/lib/use-lifecycle";
 
 type RoomState =
@@ -168,6 +172,11 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const [phase, setPhase] = useState("INTRO");
   const [targetRole, setTargetRole] = useState("");
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("FULL_INTERVIEW");
+  // The pre-join carries what the separate brief page used to show (redesign P7).
+  const [practiceArea, setPracticeArea] = useState<string | null>(null);
+  const [resuming, setResuming] = useState(false);
+  const [roomLoaded, setRoomLoaded] = useState(false);
+  const prejoinActionRef = useRef<HTMLButtonElement | null>(null);
   const [remaining, setRemaining] = useState(0);
   const [question, setQuestion] = useState("");
   const [turnId, setTurnId] = useState<string | null>(null);
@@ -345,6 +354,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
         if (!active) return;
         setTargetRole(session.target_role);
         setPracticeMode(session.practice_mode ?? "FULL_INTERVIEW");
+        setPracticeArea(session.practice_theme ?? focusFor(session.practice_focus)?.title ?? null);
         if (session.status === "COMPLETED") {
           transition("COMPLETE");
           return;
@@ -358,16 +368,16 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
           transition("ERROR");
           return;
         }
+        setRoomLoaded(true);
         setPhase(session.phase);
         setRemainingFromServer(
           Math.max(0, session.total_time_budget_seconds - session.elapsed_seconds),
         );
         if (session.status === "ACTIVE") {
+          setResuming(true);
           await refreshTranscript();
-          transition("PREJOIN");
-        } else {
-          transition("PREJOIN");
         }
+        transition("PREJOIN");
       } catch (caught) {
         if (!active) return;
         setError(
@@ -391,6 +401,10 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     // The session identity is stable for the lifetime of this route.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, sessionId]);
+
+  useEffect(() => {
+    if (permission !== "prompt" && !joinedRef.current) prejoinActionRef.current?.focus();
+  }, [permission]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -664,7 +678,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
         setPermission("denied");
         setShowTextFallback(true);
         setErrorKind("MIC");
-        setError("Microphone access is blocked. Allow it in browser settings to join by voice.");
+        setError("Microphone access is blocked. Allow it from the address bar, or continue with typing. Your answers count the same either way.");
       } else {
         setPermission(caught instanceof ApiError ? "granted" : "unavailable");
         setErrorKind(caught instanceof ApiError && caught.status === 401 ? "AUTH" : "MIC");
@@ -751,7 +765,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       setPermission(denied ? "denied" : "unavailable");
       setErrorKind("MIC");
       setError(denied
-        ? "Microphone access is blocked. Allow it in browser settings, then check again."
+        ? "Microphone access is blocked. Allow it from the address bar, or continue with typing. Your answers count the same either way."
         : caught instanceof Error ? caught.message : "We couldn't find a working microphone.");
       transition("ERROR");
     }
@@ -1059,7 +1073,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const processing = roomState === "CONNECTING" || roomState === "CHECKING_MIC" || roomState === "PROCESSING";
 
   return (
-    <main className={`interview-room interview-room--${roomState.toLowerCase()}`}>
+    <main className={`interview-room interview-room--${roomState.toLowerCase()}${!joined && roomState !== "COMPLETE" ? " is-prejoin reading-room" : ""}`}>
       <header className="interview-room-header">
         <div className="interview-room-brand">
           <span className="interview-room-mark">M</span>
@@ -1084,56 +1098,87 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
             <button type="button" className="is-quiet" onClick={() => router.push("/dashboard")}>Return to Home</button>
           </div>
         </section>
+      ) : !joined && !roomLoaded ? (
+        <section className="interview-prejoin" aria-labelledby="prejoin-title">
+          <div className="prejoin-panel">
+            <h1 id="prejoin-title" className="display">We couldn&apos;t open this practice just now</h1>
+            <p role="alert" className="interview-inline-error">{error}</p>
+            <div className="prejoin-actions">
+              <button type="button" className="interview-join-button" onClick={() => window.location.reload()}>Try again</button>
+              <button type="button" className="interview-text-entry-button" onClick={() => router.push("/dashboard")}>Return to Home</button>
+            </div>
+          </div>
+        </section>
       ) : !joined ? (
         <section className="interview-prejoin" aria-labelledby="prejoin-title">
-          <div className="interview-prejoin-preview">
-            <div className="interview-presence interview-presence--preview" aria-hidden="true">
-              <span>M</span>
-              <i /><i /><i />
-            </div>
-            <div className="interview-prejoin-device">
-              <span className={`interview-device-dot ${permission === "denied" || permission === "unavailable" ? "is-denied" : ""}`} />
-              {permission === "granted" ? "Microphone ready" : permission === "denied" ? "Microphone blocked" : permission === "unavailable" ? "Microphone unavailable" : "Microphone permission required"}
-            </div>
-            {permission === "granted" ? (
-              <div ref={meterRef} className="interview-voice-meter interview-voice-meter--preview" aria-label="Live microphone level">
-                {Array.from({ length: 13 }, (_, index) => <i key={index} />)}
-              </div>
-            ) : null}
-          </div>
-          <div className="interview-prejoin-copy">
+          <div className="prejoin-panel">
             <p className="mono">{practiceLabels[practiceMode]} · {targetRole || "Interview practice"}</p>
-            <h1 id="prejoin-title" className="display">Ready when you are.</h1>
-            <p>
-              This works like a live call. Mirror asks a question, listens while you answer,
-              and responds when you finish speaking. There are no trick questions, and you can mute or stop whenever you like.
-            </p>
+            <h1 id="prejoin-title" className="display">{resuming ? voiceRoom.draft.title : "Ready when you are."}</h1>
+            <p className="prejoin-lede">{resuming ? voiceRoom.draft.copy : "Mirror asks about your own work. Take a pause whenever you need one."}</p>
+            <ul className="prejoin-points">
+              <li><Clock size={20} aria-hidden="true" /><span>{modeCopy(practiceMode).length}. You can step away and come back.</span></li>
+              {practiceMode !== "FULL_INTERVIEW" && practiceArea ? (
+                <li><ChatCircleText size={20} aria-hidden="true" /><span>You&apos;ll practise <strong>{modeCopy(practiceMode).title} · {practiceArea}</strong></span></li>
+              ) : null}
+              <li><Keyboard size={20} aria-hidden="true" /><span>You can type any answer instead of speaking.</span></li>
+              <li><LockSimple size={20} aria-hidden="true" /><span>Your spoken answers are recorded and saved privately to your account, with a transcript, so Mirror can prepare your review.</span></li>
+            </ul>
+
+            <div className="prejoin-mic">
+              <span className={`interview-device-dot ${permission === "denied" || permission === "unavailable" ? "is-denied" : ""}`} aria-hidden="true" />
+              {/* Always mounted, so a permission result is announced once. */}
+              <p role="status">
+                <span aria-hidden={error ? true : undefined}>{permission === "granted" ? "Microphone ready" : permission === "denied" ? "Microphone blocked" : permission === "unavailable" ? "Microphone unavailable" : "Check your microphone before you start."}</span>
+              </p>
+              {permission === "granted" ? (
+                <div ref={meterRef} className="interview-voice-meter interview-voice-meter--preview" aria-hidden="true">
+                  {Array.from({ length: 13 }, (_, index) => <i key={index} />)}
+                </div>
+              ) : null}
+            </div>
             {error ? <p role="alert" className="interview-inline-error">{error}</p> : null}
-            {permission !== "granted" ? <button
-              type="button"
-              className="interview-mic-test-button"
-              onClick={() => void testMicrophone()}
-              disabled={roomState === "CHECKING_MIC"}
-            >
-              {roomState === "CHECKING_MIC" ? <SpinnerGap className="interview-spinner" size={19} /> : <Microphone size={19} />}
-              {roomState === "CHECKING_MIC" ? "Checking microphone…" : "Check microphone"}
-            </button> : null}
-            <button
-              type="button"
-              className="interview-join-button"
-              onClick={() => void joinInterview()}
-              disabled={processing || permission !== "granted"}
-            >
-              {roomState === "CONNECTING" ? <SpinnerGap className="interview-spinner" size={19} /> : <Microphone size={19} />}
-              {roomState === "CONNECTING" ? "Joining…" : permission === "granted" ? "Start interview" : "Enable microphone first"}
-            </button>
-            {permission === "denied" || permission === "unavailable" ? (
-              <button type="button" className="interview-text-entry-button" onClick={() => void joinWithTyping()} disabled={processing}>
-                Continue with typing
-              </button>
-            ) : null}
+
+            {/* One primary action per state; typing is always available. */}
+            <div className="prejoin-actions">
+              {permission === "granted" ? (
+                <button
+                  type="button"
+                  ref={prejoinActionRef}
+                  className="interview-join-button"
+                  onClick={() => void joinInterview()}
+                  disabled={processing || permission !== "granted"}
+                >
+                  {roomState === "CONNECTING" ? <SpinnerGap className="interview-spinner" size={19} /> : <Microphone size={19} />}
+                  {roomState === "CONNECTING" ? "Joining…" : resuming ? voiceRoom.draft.continue : "Start interview"}
+                </button>
+              ) : permission === "denied" || permission === "unavailable" ? (
+                <button type="button" ref={prejoinActionRef} className="interview-join-button" onClick={() => void joinWithTyping()} disabled={processing}>
+                  <Keyboard size={19} aria-hidden="true" /> Continue with typing
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  ref={prejoinActionRef}
+                  className="interview-join-button"
+                  onClick={() => void testMicrophone()}
+                  disabled={roomState === "CHECKING_MIC"}
+                >
+                  {roomState === "CHECKING_MIC" ? <SpinnerGap className="interview-spinner" size={19} /> : <Microphone size={19} />}
+                  {roomState === "CHECKING_MIC" ? "Checking microphone…" : "Check microphone"}
+                </button>
+              )}
+              {permission === "denied" || permission === "unavailable" ? (
+                <button type="button" className="interview-text-entry-button" onClick={() => void testMicrophone()} disabled={processing}>
+                  Try the microphone again
+                </button>
+              ) : (
+                <button type="button" className="interview-text-entry-button" onClick={() => void joinWithTyping()} disabled={processing}>
+                  Continue with typing
+                </button>
+              )}
+            </div>
             <small>
-              Your interview audio and confirmed transcript are saved for your review. Live captions use your browser&apos;s speech service when supported and are not the interview record.
+              Live captions use your browser&apos;s speech service when supported. They help you follow along and are not the interview record.
             </small>
           </div>
         </section>

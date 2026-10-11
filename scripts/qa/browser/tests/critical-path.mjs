@@ -218,7 +218,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
 
   await step("start-practice-create-session", async () => {
     await page.getByRole("button", { name: "Start practice" }).click();
-    await page.waitForURL(/\/sessions\/[^/]+\/brief$/);
+    await page.waitForURL(/\/app\/interview\/[^/]+$/); // P7: a new practice opens on the pre-join
     const state = await getState();
     assert.equal(state.createBodies.length, 1, "exactly one session is created");
     assert.equal(state.createBodies[0].practice_mode, "QUICK_DRILL");
@@ -226,11 +226,46 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     assert.equal(state.createBodies[0].role_profile_id, IDS.role);
   });
 
+  // P7: the brief now lives in the pre-join; the old brief URL still opens the same session.
+  const sessionPath = new URL(page.url()).pathname;
+  const startsSoFar = async () => (await getState()).requests.filter((request) => /\/sessions\/[^/]+\/(voice\/)?start /.test(request)).length;
   await step("session-brief", async () => {
-    await heading("Before we begin", 1).waitFor();
+    await heading("Ready when you are.", 1).waitFor();
     await page.getByText("5-minute drill · Explain a project").waitFor();
-    await page.getByRole("link", { name: /Begin the conversation/ }).waitFor();
+    await page.getByText(/recorded and saved privately to your account, with a transcript/).waitFor();
+    await page.getByRole("button", { name: "Check microphone" }).waitFor();
+    await page.getByRole("button", { name: "Continue with typing" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Start interview" }).count(), 0, "no start before the microphone is checked");
     await overflow("brief");
+    if (viewport.name === "desktop") {
+      await page.setViewportSize({ width: 820, height: 1180 });
+      await overflow("prejoin-tablet", true);
+      await page.screenshot({ path: path.join(outDir, "tablet-prejoin.png"), fullPage: true });
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    }
+  });
+
+  await step("brief-deep-link-opens-prejoin", async () => {
+    const sessionId = sessionPath.split("/").at(-1);
+    await page.goto(`${baseUrl}/sessions/${sessionId}/brief`);
+    await page.waitForURL((url) => url.pathname === sessionPath);
+    await heading("Ready when you are.", 1).waitFor();
+    assert.equal(await startsSoFar(), 0, "opening the pre-join never starts the interview");
+  });
+
+  await step("prejoin-microphone-allowed", async () => {
+    // A synthetic, silent microphone for this page only; the next navigation restores the blocked one.
+    await page.evaluate(() => {
+      navigator.mediaDevices.getUserMedia = async () => new AudioContext().createMediaStreamDestination().stream;
+    });
+    await page.getByRole("button", { name: "Check microphone" }).click();
+    await page.getByRole("status").filter({ hasText: "Microphone ready" }).waitFor();
+    await page.getByRole("button", { name: "Start interview" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Check microphone" }).count(), 0, "one primary action once the microphone is ready");
+    await page.getByRole("button", { name: "Continue with typing" }).waitFor();
+    assert.equal(await startsSoFar(), 0);
+    await page.reload(); // back to the run's blocked microphone for the next steps
+    await heading("Ready when you are.", 1).waitFor();
   });
 
   await step("home-shows-active-practice", async () => {
@@ -256,19 +291,24 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
   // 4. Interview, typed answers.
   await step("interview-prejoin-microphone-blocked-offers-typing", async () => {
     await heading("Ready when you are.", 1).waitFor();
+    await page.getByRole("button", { name: "Try the microphone again" }).waitFor({ state: "hidden" });
     await overflow("interview-prejoin");
     await page.getByRole("button", { name: "Check microphone" }).click();
     await page.getByText("Microphone blocked").waitFor();
     await page.getByRole("button", { name: "Continue with typing" }).waitFor();
+    await page.getByRole("button", { name: "Try the microphone again" }).waitFor();
+    await page.getByText(/Microphone access is blocked/).waitFor();
   });
 
   await step("interview-join-with-typing", async () => {
-    await page.getByRole("button", { name: "Continue with typing" }).click();
+    // A double click must start the interview once: the button is disabled while joining.
+    await page.getByRole("button", { name: "Continue with typing" }).dblclick();
     await page.locator("#typed-answer").waitFor();
     await heading(QUESTIONS[0], 1).waitFor();
     await page.getByText("Hello, this is a short synthetic practice.").first().waitFor(); // spoken welcome shown as text
     const typedOnlyState = await getState();
     assert.equal(typedOnlyState.requests.filter((request) => request.includes("/voice/start")).length, 0, "microphone-denied typed-only join does not request voice prompts");
+    assert.equal(await startsSoFar(), 1, "a double click starts the interview once");
     await overflow("interview-room");
     await page.getByRole("button", { name: "Mute microphone" }).waitFor({ state: "hidden" });
     await page.getByRole("button", { name: "Cancel", exact: true }).waitFor({ state: "hidden" });
@@ -302,6 +342,22 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
       }
       assert.equal(documentNavigations, navigationCount, "typed progression does not reload or navigate the document");
     });
+    if (i === 0) {
+      // P7: refreshing mid-interview returns to the pre-join for the same session; nothing is lost.
+      await step("interview-refresh-rejoin", async () => {
+        const before = await startsSoFar();
+        await page.reload();
+        await heading("Your conversation is saved", 1).waitFor();
+        await page.getByText("Pick up where you left off.").waitFor();
+        await page.getByRole("button", { name: "Continue with typing" }).click();
+        await page.locator("#typed-answer").waitFor();
+        await heading(QUESTIONS[1], 1).waitFor();
+        const rejoined = await getState();
+        assert.equal(rejoined.answers.filter((answer) => answer === ANSWERS[0]).length, 1, "the saved answer is kept, not repeated");
+        assert.equal(await startsSoFar(), before + 1, "rejoining starts once");
+        await overflow("interview-rejoin");
+      });
+    }
   }
 
   await step("interview-complete", async () => {

@@ -12,7 +12,8 @@ START = read(WEB / "components" / "practice" / "start-practice.tsx")
 VIEW = read(WEB / "lib" / "practice-view.ts")
 COPY = read(WEB / "lib" / "copy.ts")
 MODES_PY = read(API_APP / "practice_modes.py")
-BRIEF = read(WEB / "components" / "practice" / "practice-brief-note.tsx")
+# Redesign P7: the brief lives in the interview room's pre-join; the old URL redirects there.
+BRIEF = read(WEB / "components" / "voice-interview.tsx")
 BRIEF_PAGE = read(WEB / "app" / "sessions" / "[id]" / "brief" / "page.tsx")
 
 
@@ -40,5 +41,7 @@ def test_a_short_practice_cannot_start_without_an_area() -> None:
 
 
 def test_the_pre_practice_brief_uses_the_actual_session_duration() -> None:
-    assert "modeCopy(session.practice_mode).length" in BRIEF
-    assert "Allow about 20 minutes" not in BRIEF_PAGE
+    assert "modeCopy(practiceMode).length" in BRIEF
+    assert 'setPracticeMode(session.practice_mode ?? "FULL_INTERVIEW")' in BRIEF
+    assert "Allow about 20 minutes" not in BRIEF + BRIEF_PAGE
+    assert "redirect(`/app/interview/${encodeURIComponent(id)}`)" in BRIEF_PAGE  # same session, never dropped

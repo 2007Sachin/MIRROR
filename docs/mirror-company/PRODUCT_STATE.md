@@ -41,7 +41,7 @@ An **evidence-backed readiness diagnostic for one candidate and one role**: clai
       ├─ Experience /experience  (evidence library: resume / work / projects / achievements; /evidence redirects)
       ├─ Practice   /practice (one recommended drill) → /practice/start (role → how → what: mode + focus)
       │             or straight to /sessions/new (setup; defaults to a full ~20-minute interview) from Home-no-role,
-      │             Reflect/Progress/Roles empty states → /sessions/[id]/brief
+      │             Reflect/Progress/Roles empty states → interview pre-join (/app/interview/[id]; old /sessions/[id]/brief links redirect there, redesign P7)
       │             → /app/interview/[session_id]  (VoiceInterview: voice or text; pause/resume/recovery)
       │             → /app/report/[session_id]    (review: overview, what came through, ≤3 items needing work,
       │                                           answers + Try again, one "Practice next")

@@ -11,7 +11,7 @@ import {
   maximumFileSizeMb,
 } from "@/lib/documents";
 import { Reveal } from "@/components/motion/reveal";
-import { briefHref, choiceFrom, choiceIsComplete } from "@/lib/practice-view";
+import { prejoinHref, choiceFrom, choiceIsComplete } from "@/lib/practice-view";
 import "@/styles/sessions.css";
 
 /**
@@ -124,7 +124,7 @@ export default function NewSessionPage() {
       const session = await mirrorApi.createSession(role, jdText, practiceChoice, roleProfileId ?? roleAnalysis.id, idempotencyKey);
       await mirrorApi.linkSessionDocuments(session.id, [resumeDocument.id, roleBrief.id]);
       await mirrorApi.prepare(session.id);
-      router.push(briefHref(session.id));
+      router.push(prejoinHref(session.id));
     } catch (caught) {
       if (caught instanceof PipelineError) setError(caught.message);
       else if (caught instanceof ApiError && caught.status === 401) setError("Your session expired. Please sign in again.");
