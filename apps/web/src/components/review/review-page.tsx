@@ -25,6 +25,7 @@ import { reflect, reflection as r } from "@/lib/copy-practice";
 import { attemptsByAnswer, latestAttempt } from "@/lib/attempt-view";
 import { formatDay } from "@/lib/dashboard-view";
 import { focusFor, modeCopy, startPracticeHref } from "@/lib/practice-view";
+import { claimGroups, timecode, type ClaimGroup } from "@/lib/review-groups";
 import { answerBlocks, answerTargets, practiceNext, reviewStrengths, strengthenItem, type AnswerTarget } from "@/lib/review-view";
 
 type ViewState = "loading" | "processing" | "error" | "ready";
@@ -135,6 +136,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
   const landedFrom = useMemo(() => answerTargets(strengths.length, blocks, "cameThrough"), [strengths, blocks]);
   const strengthenFrom = useMemo(() => answerTargets(strengthen ? 1 : 0, blocks, "couldBeClearer")[0] ?? null, [strengthen, blocks]);
   const byAnswer = useMemo(() => attemptsByAnswer(attempts), [attempts]);
+  const groups = useMemo(() => claimGroups(report), [report]);
   const next = practiceNext(review);
   const role = report?.session.target_role ?? review?.target_role ?? "";
 
@@ -144,7 +146,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
 
   if (state === "loading") {
     return (
-      <PageShell>
+      <PageShell readingRoom>
         <Loader page label={loading.report.label} note={loading.report.note} />
       </PageShell>
     );
@@ -152,17 +154,17 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
 
   if (state === "processing") {
     return (
-      <PageShell>
+      <PageShell readingRoom>
         <PageHeader eyebrow={t.eyebrow} title={reportCopy.states.processingTitle} back={{ href: "/practice", label: t.back }} />
         <Loader label={loading.reflecting.label} note={loading.reflecting.note} />
-        <p className="dh-prose">{reportCopy.states.processingBody}</p>
+        <p className="dh-prose" role="status">{reportCopy.states.processingBody}</p>
       </PageShell>
     );
   }
 
   if (state === "error") {
     return (
-      <PageShell>
+      <PageShell readingRoom>
         <PageHeader
           eyebrow={t.eyebrow}
           title={retryable ? reportCopy.states.failedTitle : reportCopy.states.unavailableTitle}
@@ -189,12 +191,47 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
   const sameAnswer = strengthenFrom ? "#review-strengthen-title" : "#review-answers-title";
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader eyebrow={t.eyebrow} title={role} back={{ href: "/reflect", label: reflect.eyebrow }} />
       <p className="dh-step-count">
         <time dateTime={report.session.completed_at}>{formatDay(report.session.completed_at)}</time>
       </p>
-      {review.shorter_conversation ? <p className="dh-action-meta">{reportCopy.shorterNote}</p> : null}
+      {/* The summary first: the backend's own label and sentence, beside the one next practice. */}
+      <section className="pr-summary" aria-labelledby="review-summary-title">
+        <div className="pr-summary-main">
+          <p className="dh-section-label">{reportCopy.summary.eyebrow}</p>
+          <h2 id="review-summary-title">{report.verdict.label}</h2>
+          <p>{report.verdict.summary}</p>
+          {review.counts ? (
+            <p className="pr-counts">{reportCopy.cameThrough.counts(review.counts.clear, review.counts.could_be_stronger, review.counts.worth_revisiting)}</p>
+          ) : null}
+          {review.shorter_conversation ? <p className="dh-action-meta">{reportCopy.shorterNote}</p> : null}
+        </div>
+        <section className="dh-next-action" aria-labelledby="review-next">
+          <p className="dh-section-label">{r.nextTitle}</p>
+          {next ? (
+            <>
+              <h2 id="review-next" className="display">{focusFor(next.focus)?.title ?? review.next_step.title}</h2>
+              <p className="dh-next-copy">{review.next_step.body}</p>
+              <div className="dh-action-row">
+                <Link className="dh-primary-action" href={startPracticeHref(role, next, review.role_profile_id)}>
+                  {r.nextAction} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+                <span className="dh-action-meta">{modeCopy(next.mode).title} · {modeCopy(next.mode).length}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 id="review-next" className="display">{r.nextChoose}</h2>
+              <div className="dh-action-row">
+                <Link className="dh-primary-action" href={startPracticeHref(role, undefined, review.role_profile_id)}>
+                  {r.nextChooseAction} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
+            </>
+          )}
+        </section>
+      </section>
       {report.assessment_scope ? (
         <aside className="dh-trust" data-testid="report-assessment-scope" aria-labelledby="review-scope-title">
           <Info size={20} aria-hidden="true" />
@@ -259,30 +296,14 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
           )}
         </Section>
 
-        <section className="dh-next-action" aria-labelledby="review-next">
-          <p className="dh-section-label">{r.nextTitle}</p>
-          {next ? (
-            <>
-              <h2 id="review-next" className="display">{focusFor(next.focus)?.title ?? review.next_step.title}</h2>
-              <p className="dh-next-copy">{review.next_step.body}</p>
-              <div className="dh-action-row">
-                <Link className="dh-primary-action" href={startPracticeHref(role, next, review.role_profile_id)}>
-                  {r.nextAction} <ArrowRight size={17} aria-hidden="true" />
-                </Link>
-                <span className="dh-action-meta">{modeCopy(next.mode).title} · {modeCopy(next.mode).length}</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 id="review-next" className="display">{r.nextChoose}</h2>
-              <div className="dh-action-row">
-                <Link className="dh-primary-action" href={startPracticeHref(role, undefined, review.role_profile_id)}>
-                  {r.nextChooseAction} <ArrowRight size={17} aria-hidden="true" />
-                </Link>
-              </div>
-            </>
-          )}
-        </section>
+
+        {groups.length ? (
+          <Section id="review-came-through" label={reportCopy.cameThrough.eyebrow} title={reportCopy.cameThrough.title} body={reportCopy.cameThrough.legend}>
+            <div className="pr-claims">
+              {groups.map((group) => <ClaimList key={group.key} group={group} />)}
+            </div>
+          </Section>
+        ) : null}
 
         <Section id="review-repeat" title={r.repeatTitle}>
           <ul className="pr-repeat">
@@ -415,6 +436,59 @@ function QuoteNotes({ title, quotes, tone }: { title: string; quotes: ReportEvid
       <ul>
         {quotes.slice(0, 2).map((quote, index) => (
           <li key={`${quote.quote}-${index}`}>{quote.quote}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * One group of what the person shared, as the backend grouped it. Each row says where the item came
+ * from (their documents, the job description or the conversation); quotes are shown as said or
+ * written, and Mirror's own sentence is marked as Mirror's note. Nothing missing is filled in.
+ */
+function ClaimList({ group }: { group: ClaimGroup }) {
+  const copy = reportCopy.cameThrough;
+  const openByDefault = group.key === "contradicted";
+  return (
+    <div className={`pr-claim-group is-${group.key}`}>
+      <h3>{copy.groups[group.key]}</h3>
+      <ul className="pr-claim-list">
+        {group.claims.map((claim, index) => (
+          <li key={claim.id}>
+            <details className="pr-claim" open={openByDefault || (group.key === "held" && index === 0)}>
+              <summary>
+                <span className="pr-claim-text">{claim.claim_text}</span>
+                <span className="sr-only">, </span>
+                <span className="pr-source">{copy.sources[claim.source] ?? copy.sourceDocument}</span>
+              </summary>
+              <div className="pr-claim-body">
+                {claim.evidence.length ? (
+                  <ul className="pr-quotes">
+                    {claim.evidence.map((quote, quoteIndex) => {
+                      const spoken = Boolean(quote.turn_id);
+                      const time = spoken ? timecode(quote.timecode_ms) : null;
+                      const source = spoken ? copy.sources.SPOKEN : copy.sources[claim.source] ?? copy.sourceDocument;
+                      const rowSource = copy.sources[claim.source] ?? copy.sourceDocument;
+                      return (
+                        <li key={`${quote.quote}-${quoteIndex}`}>
+                          <blockquote>{quote.quote}</blockquote>
+                          <p className="pr-quote-meta">
+                            {source !== rowSource ? <span className="pr-source">{source}</span> : null}
+                            {spoken ? <span className="pr-time">{time ?? copy.noTime}</span> : null}
+                            <span>{copy.directions[quote.direction] ?? copy.directions.CONTEXT_ONLY}</span>
+                          </p>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="dh-review-empty">{copy.noQuotes}</p>
+                )}
+                <p className="pr-note"><span>{copy.mirrorNote}</span> {claim.explanation}</p>
+              </div>
+            </details>
+          </li>
         ))}
       </ul>
     </div>

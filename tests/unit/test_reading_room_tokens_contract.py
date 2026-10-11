@@ -87,6 +87,8 @@ MIGRATED = {
     "app/reflect/reflect-view.tsx", "components/practice/practice-page.tsx", "components/practice/start-practice.tsx",
     # P3C: Landing, Login/Signup, Onboarding
     "components/landing-story.tsx", "components/auth-form.tsx", "components/onboarding-flow.tsx", "app/onboarding/page.tsx",
+    # P6: Review
+    "components/review/review-page.tsx",
 }
 
 

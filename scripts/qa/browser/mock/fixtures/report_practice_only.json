@@ -1,0 +1,76 @@
+{
+  "session": {
+    "target_role": "QA Analyst (test role)",
+    "completed_at": "2026-01-01T09:00:00Z",
+    "duration_seconds": 120,
+    "assessment_confidence": 0.5
+  },
+  "verdict": {
+    "code": "PRACTICE_ONLY",
+    "label": "Practice only",
+    "summary": "This practice round covers a few areas, so this review talks about them only."
+  },
+  "role_readiness": {
+    "low": null,
+    "high": null,
+    "label": "Not enough evidence yet",
+    "signal_strength": "LOW",
+    "confidence_note": "Synthetic fixture."
+  },
+  "interview_readiness": {
+    "low": null,
+    "high": null,
+    "label": "Not enough evidence yet",
+    "signal_strength": "LOW",
+    "confidence_note": "Synthetic fixture."
+  },
+  "claims_audit": {
+    "held": [],
+    "partially_held": [],
+    "walked_back": [],
+    "contradicted": [],
+    "insufficient_evidence": [],
+    "unverified": []
+  },
+  "skill_assessments": [
+    {
+      "skill": "Explaining a project",
+      "status": "DEVELOPING",
+      "readiness": null,
+      "signal_strength": "LOW",
+      "evidence": [
+        {
+          "turn_id": null,
+          "timecode_ms": null,
+          "quote": "QA-FIXTURE-QUOTE-SUPPORTS",
+          "direction": "SUPPORTS"
+        },
+        {
+          "turn_id": null,
+          "timecode_ms": null,
+          "quote": "QA-FIXTURE-QUOTE-WEAKENS",
+          "direction": "WEAKENS"
+        }
+      ],
+      "explanation": "Synthetic fixture explanation."
+    }
+  ],
+  "session_moments": [],
+  "root_cause": "NOT_APPLICABLE",
+  "trust_and_limitations": {
+    "ai_assessments_can_make_mistakes": true,
+    "candidate_may_dispute_assessments": true,
+    "skills_may_have_insufficient_signal": true,
+    "evaluates_this_interview_evidence": true,
+    "outcome_validation_status": "NOT_VALIDATED"
+  },
+  "prescription": null,
+  "shorter_conversation": true,
+  "assessment_scope": {
+    "round_label": "Coding conversation",
+    "competency_titles": [
+      "Solving problems step by step"
+    ],
+    "provenance_class": "MIRROR_GENERATED"
+  }
+}

@@ -321,6 +321,26 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await heading("Try this next").or(page.getByText("Try this next")).first().waitFor();
     for (const answer of ANSWERS) await page.getByText(answer, { exact: true }).waitFor();
     await page.getByText("QA-FIXTURE-QUOTE-SUPPORTS").first().waitFor();
+    // P6: the backend's own summary, then what came through with where each item came from.
+    await heading("Developing", 2).waitFor();
+    await heading("What you shared, and how it came through", 2).waitFor();
+    await page.getByText("QA-FIXTURE-QUOTE-HELD").first().waitFor(); // also attached to the answer it came from
+    await page.getByText("1:14").waitFor();
+    await page.getByText("Backs this up").first().waitFor();
+    await page.getByText("Mirror's note").first().waitFor();
+    await page.getByText("From your conversation").first().waitFor();
+    await heading("Not enough to say yet", 3).waitFor();
+    // A closed row opens from the keyboard and shows the line from the person's own documents.
+    const resumeRow = page.locator("summary", { hasText: "Led the QA fixture migration (synthetic)" });
+    await resumeRow.focus();
+    await page.keyboard.press("Enter");
+    await page.getByText("QA-FIXTURE-RESUME-LINE").waitFor();
+    await page.getByText("From your resume or documents").first().waitFor();
+    assert.equal(await page.locator(".dh-primary-action").count(), 1, "one primary action on the review");
+  };
+  const reviewScenario = async (review) => {
+    const response = await fetch(`${mock.apiUrl}/__qa/scenario`, { method: "POST", headers: { ...controlHeaders, "content-type": "application/json" }, body: JSON.stringify({ review }), redirect: "error" });
+    assert.equal(response.status, 200, `review scenario ${review}`);
   };
   await step("review", async () => {
     await page.getByRole("button", { name: "View review" }).click();
@@ -336,6 +356,52 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     assert.equal(state.sessionStatus, "COMPLETED");
     assert.equal(state.ended, true);
     await overflow("review-reloaded");
+  });
+
+  if (viewport.name === "desktop") {
+    await step("review-tablet", async () => {
+      await page.setViewportSize({ width: 820, height: viewport.height });
+      await heading("What you shared, and how it came through", 2).waitFor();
+      await overflow("review-tablet", true);
+      await page.screenshot({ path: path.join(outDir, `${viewport.name}-review-820.png`), fullPage: true }).catch(() => undefined);
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    });
+  }
+
+  // P6 review states, served by the mock exactly as the backend answers them.
+  const reviewAt = page.url();
+  await step("review-practice-only", async () => {
+    await reviewScenario("practice_only");
+    await page.goto(reviewAt);
+    await heading("Practice only", 2).waitFor();
+    await page.getByText(/From a shorter conversation/).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "What you shared, and how it came through" }).count(), 0, "no empty ledger");
+    await overflow("review-practice-only");
+  });
+  await step("review-processing", async () => {
+    await reviewScenario("processing");
+    await page.goto(reviewAt);
+    await heading("Preparing your review", 1).waitFor();
+    await page.getByRole("status").filter({ hasText: /looking at what you shared/i }).waitFor();
+    await overflow("review-processing");
+  });
+  await step("review-failed", async () => {
+    await reviewScenario("failed");
+    await page.goto(reviewAt);
+    await heading("We couldn't finish your review just now", 1).waitFor();
+    await page.getByRole("button", { name: "Try again" }).waitFor();
+    await page.getByRole("alert").filter({ hasText: /without repeating the conversation/ }).waitFor();
+  });
+  await step("review-unavailable", async () => {
+    await reviewScenario("unavailable503");
+    await page.goto(reviewAt);
+    await heading("Your review isn't available right now", 1).waitFor();
+    await page.getByRole("alert").waitFor();
+  });
+  await step("review-restored", async () => {
+    await reviewScenario("ready");
+    await page.goto(reviewAt);
+    await assertReview();
   });
 
   await step("home-shows-completed-practice", async () => {
