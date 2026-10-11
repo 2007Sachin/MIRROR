@@ -382,7 +382,8 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await reviewScenario("processing");
     await page.goto(reviewAt);
     await heading("Preparing your review", 1).waitFor();
-    await page.getByRole("status").filter({ hasText: /looking at what you shared/i }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Preparing your review" }).waitFor(); // the loader announces the state once
+    await page.getByText(/is looking at what you shared and how it connects/).waitFor();
     await overflow("review-processing");
   });
   await step("review-failed", async () => {

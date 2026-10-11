@@ -157,7 +157,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
       <PageShell readingRoom>
         <PageHeader eyebrow={t.eyebrow} title={reportCopy.states.processingTitle} back={{ href: "/practice", label: t.back }} />
         <Loader label={loading.reflecting.label} note={loading.reflecting.note} />
-        <p className="dh-prose" role="status">{reportCopy.states.processingBody}</p>
+        <p className="dh-prose">{reportCopy.states.processingBody}</p>
       </PageShell>
     );
   }
