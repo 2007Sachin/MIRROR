@@ -180,6 +180,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const stageRef = useRef<HTMLElement | null>(null);
   const joinFocusDoneRef = useRef(false);
   const leaveButtonRef = useRef<HTMLButtonElement | null>(null);
+  const typedAnswerRef = useRef<HTMLTextAreaElement | null>(null);
   const stepAwayDialogRef = useRef<HTMLDivElement | null>(null);
   const [remaining, setRemaining] = useState(0);
   const [question, setQuestion] = useState("");
@@ -434,6 +435,14 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     return () => window.removeEventListener("keydown", escape);
   }, [stepAway, savingDraft]);
   const dialogOpen = stepAway !== "closed";
+  // autoFocus misses the answer box when it mounts disabled (while joining), so focus it once each
+  // question is ready to answer in typing mode.
+  const typingReady = joined && (showTextFallback || textOnlyRef.current) && roomState !== "PROCESSING" && roomState !== "CONNECTING";
+  useEffect(() => {
+    if (typingReady && !dialogOpen) typedAnswerRef.current?.focus({ preventScroll: true });
+    // Re-run per question only; dialogOpen is read, not tracked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typingReady, question]);
   useEffect(() => {
     if (!dialogOpen && joinedRef.current) leaveButtonRef.current?.focus({ preventScroll: true });
   }, [dialogOpen]);
@@ -1301,6 +1310,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                 <span>{textRetryPending ? "Retry the same answer to continue." : "Voice pauses while you type."}</span>
               </div>
               <textarea
+                ref={typedAnswerRef}
                 id="typed-answer"
                 value={typedAnswer}
                 onChange={(event) => setTypedAnswer(event.target.value)}
