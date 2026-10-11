@@ -1402,6 +1402,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
               type="button"
               ref={leaveButtonRef}
               className="interview-leave-button"
+              aria-label={voiceRoom.stepAway.button /* the text label is hidden on small screens */}
               onClick={openStepAway}
               disabled={processing || roomState === "CANDIDATE_SPEAKING" || closing}
               title={roomState === "CANDIDATE_SPEAKING" ? "Pause briefly so Mirror can save your final answer" : undefined}
