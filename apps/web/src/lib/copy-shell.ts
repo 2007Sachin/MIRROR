@@ -9,8 +9,6 @@ export const shellCopy = {
   },
   primaryNav: "Main",
   mobileNav: "Main, mobile",
-  openNav: "Open navigation",
-  closeNav: "Close navigation",
   homeLink: "Mirror home",
   memberFallback: "Mirror member",
   emailFallback: "Private workspace",

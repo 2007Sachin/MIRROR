@@ -188,8 +188,12 @@ def test_starting_a_practice_carries_the_exact_role() -> None:
 
 def test_dashboard_topbar_and_responsive_navigation_are_present() -> None:
     assert "shellCopy.profile.help" in APP_SHELL  # Help lives in the profile menu
-    assert "aria-expanded={sidebarOpen}" in APP_SHELL
-    assert "ws-mobile-nav" in APP_SHELL
+    # One navigation list drives both the glass top bar and the mobile tab bar; no hidden drawer.
+    assert APP_SHELL.count("primaryNavigation.map(") == 2
+    assert 'className="ws-nav"' in APP_SHELL and "ws-mobile-nav" in APP_SHELL
+    assert "sidebarOpen" not in APP_SHELL
+    css = (WEB / "styles" / "workspace.css").read_text(encoding="utf-8")
+    assert "backdrop-filter: var(--glass-blur)" in css and "blur(" not in css
 
 
 def test_the_profile_menu_is_an_account_menu_and_nothing_is_invented() -> None:
