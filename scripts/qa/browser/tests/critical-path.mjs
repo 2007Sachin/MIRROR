@@ -264,6 +264,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     assert.equal(await page.getByRole("button", { name: "Check microphone" }).count(), 0, "one primary action once the microphone is ready");
     await page.getByRole("button", { name: "Continue with typing" }).waitFor();
     assert.equal(await startsSoFar(), 0);
+    await page.screenshot({ path: path.join(outDir, `${viewport.name}-prejoin-microphone-ready.png`), fullPage: true });
     await page.reload(); // back to the run's blocked microphone for the next steps
     await heading("Ready when you are.", 1).waitFor();
   });
@@ -312,6 +313,14 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await overflow("interview-room");
     await page.getByRole("button", { name: "Mute microphone" }).waitFor({ state: "hidden" });
     await page.getByRole("button", { name: "Cancel", exact: true }).waitFor({ state: "hidden" });
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "typed-answer", "joining by typing focuses the answer box");
+    await page.screenshot({ path: path.join(outDir, `${viewport.name}-room-typing.png`) });
+    if (viewport.name === "desktop") {
+      await page.setViewportSize({ width: 820, height: 1180 });
+      await overflow("interview-room-tablet", true);
+      await page.screenshot({ path: path.join(outDir, "tablet-room-typing.png") });
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    }
     documentNavigations = 0;
   });
 
@@ -343,6 +352,27 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
       assert.equal(documentNavigations, navigationCount, "typed progression does not reload or navigate the document");
     });
     if (i === 0) {
+      await step("interview-step-away-cannot-end-by-accident", async () => {
+        await page.getByRole("button", { name: "Step away" }).click();
+        const sheet = page.getByRole("dialog", { name: "Need to step away?" });
+        await sheet.waitFor();
+        assert.ok(await sheet.evaluate((node) => node.contains(document.activeElement)), "focus moves into the sheet");
+        await page.getByRole("button", { name: "End and get my review" }).click();
+        await page.getByRole("dialog", { name: "End and get my review" }).waitFor();
+        assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Not yet", "the safe choice has focus");
+        await page.screenshot({ path: path.join(outDir, `${viewport.name}-room-end-confirm.png`) });
+        await page.keyboard.press("Escape");
+        await sheet.waitFor();
+        // Escape on the menu only moves focus to "Stay"; staying is a deliberate press.
+        await page.keyboard.press("Escape");
+        assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Stay in the conversation");
+        await page.keyboard.press("Enter");
+        await sheet.waitFor({ state: "hidden" });
+        assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Step away", "focus returns to the trigger");
+        await heading(QUESTIONS[1], 1).waitFor();
+        await page.locator("#typed-answer").waitFor();
+        assert.equal((await getState()).ended, false, "backing out of the sheet never ends the interview");
+      });
       // P7: refreshing mid-interview returns to the pre-join for the same session; nothing is lost.
       await step("interview-refresh-rejoin", async () => {
         const before = await startsSoFar();
