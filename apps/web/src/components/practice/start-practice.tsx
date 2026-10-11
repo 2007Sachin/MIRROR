@@ -15,7 +15,7 @@ import { practice, practiceFocus, startPractice as t } from "@/lib/copy";
 import { preCheck } from "@/lib/copy-practice";
 import { roundLabel, targetCopy, targetLine } from "@/lib/copy-targets";
 import { newSessionHref, practiceOptions, type PracticeOption } from "@/lib/dashboard-view";
-import { MODES, briefHref, choiceFrom, choiceIsComplete, focusFor, modeCopy, sameRole, setupHref } from "@/lib/practice-view";
+import { MODES, prejoinHref, choiceFrom, choiceIsComplete, focusFor, modeCopy, sameRole, setupHref } from "@/lib/practice-view";
 import { canStartDirectly, createPractice } from "@/lib/start-practice";
 import { documentsForRoundRole } from "@/lib/round-practice-documents";
 
@@ -112,7 +112,7 @@ export function StartPractice() {
 
         if (documentIds.length) await mirrorApi.linkSessionDocuments(started.session.id, documentIds);
         await mirrorApi.prepare(started.session.id);
-        router.push(briefHref(started.session.id));
+        router.push(prejoinHref(started.session.id));
         return;
       }
       const direct = canStartDirectly(role, data.onboarding) && (!roleProfileId || roleProfileId === data.onboarding.onboarding_role_profile_id);
@@ -120,12 +120,12 @@ export function StartPractice() {
         // Never fall through to the setup flow here: it would quietly drop the chosen story.
         if (!data.story) setStartError(t.story.missing);
         else if (!direct) setStartError(t.story.roleNeeded);
-        else router.push(briefHref(await createPractice(role, data.onboarding, choice, roleProfileId, idempotencyKey.current, [data.story.id])));
+        else router.push(prejoinHref(await createPractice(role, data.onboarding, choice, roleProfileId, idempotencyKey.current, [data.story.id])));
         if (!data.story || !direct) setBusy(false);
         return;
       }
       if (direct) {
-        router.push(briefHref(await createPractice(role, data.onboarding, choice, roleProfileId, idempotencyKey.current)));
+        router.push(prejoinHref(await createPractice(role, data.onboarding, choice, roleProfileId, idempotencyKey.current)));
         return;
       }
       router.push(setupHref(role, choice, roleProfileId));
@@ -138,7 +138,7 @@ export function StartPractice() {
   }
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={t.eyebrow}
         title={step === 1 ? t.roleStep.title : t.focusStep.title}

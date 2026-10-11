@@ -35,7 +35,7 @@ export function NewRoleFlow() {
   }
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <div className="op-flow op-flow--embedded">
         {setup ? (
           <PlanReadyStep

@@ -71,7 +71,10 @@ def test_css_uses_tokens_only_and_no_blue() -> None:
     assert '"@/styles/plan.css"' in PLAN
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b|rgb|hsl", CSS)
     assert "blue" not in CSS.lower()
-    allowed = {"action", "action-soft", "ink", "slate", "line", "paper-raised", "success", "caution"}
+    allowed = {
+        "action", "action-hover", "action-soft", "focus-ring", "ink", "slate",
+        "line", "line-strong", "paper-raised", "success", "caution",
+    }
     colors = set(re.findall(r"var\(--([a-z-]+)\)", CSS)) - {name for name in re.findall(r"var\(--([a-z-]+)", CSS) if name.startswith(("space", "text"))}
     assert colors <= allowed, colors
 

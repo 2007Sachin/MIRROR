@@ -9,7 +9,7 @@ import { landing as t, meta } from "@/lib/copy";
 
 export function LandingStory() {
   return (
-    <main id="main-content" className="ld-page">
+    <main id="main-content" className="ld-page reading-room">
       <section className="ld-hero shell">
         <div className="ld-hero-copy">
           <p className="ld-eyebrow mono">{t.hero.eyebrow}</p>
@@ -172,20 +172,24 @@ export function LandingStory() {
         <div className="shell">
           <p className="ld-eyebrow mono">{t.comparison.eyebrow}</p>
           <h2 className="ld-h2 display">{t.comparison.title}</h2>
-          <div className="ld-comparison" role="table" aria-label={t.comparison.ariaLabel}>
-            <div role="row" className="ld-comparison-head">
-              {t.comparison.head.map((label) => (
-                <span key={label}>{label}</span>
+          <table className="ld-comparison" aria-label={t.comparison.ariaLabel}>
+            <thead>
+              <tr className="ld-comparison-head">
+                {t.comparison.head.map((label) => (
+                  <th key={label} scope="col">{label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {t.comparison.rows.map(([label, mirror, generic]) => (
+                <tr key={label} className="ld-comparison-row">
+                  <th scope="row">{label}</th>
+                  <td>{mirror}</td>
+                  <td>{generic}</td>
+                </tr>
               ))}
-            </div>
-            {t.comparison.rows.map(([label, mirror, generic]) => (
-              <div role="row" key={label} className="ld-comparison-row">
-                <strong>{label}</strong>
-                <span>{mirror}</span>
-                <span>{generic}</span>
-              </div>
-            ))}
-          </div>
+            </tbody>
+          </table>
         </div>
       </Reveal>
 

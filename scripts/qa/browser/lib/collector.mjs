@@ -28,6 +28,21 @@ export const ALLOW = [
     reason: "an unknown round key renders the not-found message",
   },
   {
+    kind: "response", url: /\/api\/v1\/sessions\/[^/]+\/(report|review)$/, status: 409,
+    steps: ["review-processing", "review-failed", "review-unavailable", "review-restored"],
+    reason: "P6 review scenarios: the backend answers 409 while the review is being prepared or after it stopped",
+  },
+  {
+    kind: "response", url: /\/api\/v1\/sessions\/[^/]+\/(report|review)$/, status: 503,
+    steps: ["review-unavailable", "review-restored"],
+    reason: "P6 review scenario: the backend's ReportUnavailable answer",
+  },
+  {
+    kind: "console", text: /status of (409|503)/,
+    steps: ["review-processing", "review-failed", "review-unavailable", "review-restored"],
+    reason: "Chrome logs the deliberate review answers above as console errors",
+  },
+  {
     kind: "console", text: /status of (503|500|404)/,
     steps: ["t06-plan-section-unavailable", "t07-plan-section-error-and-retry", "t11-round-unknown-key"],
     reason: "Chrome logs the deliberate answers above as console errors",

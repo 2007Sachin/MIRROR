@@ -101,3 +101,70 @@ div.pr-reflection-list > div { border-left-color: var(--caution); }
 @media (prefers-reduced-motion: reduce) {
   .pr-repeat a { transition: none; }
 }
+
+/* ---------------------------------------------------------------- Review (redesign P6)
+   Solid reading surfaces only; glass stays in the shell. Provenance tags use the provenance
+   tokens and never carry meaning by colour alone (the tag text says where an item came from). */
+.pr-summary {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--elevation-1);
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  overflow: hidden;
+}
+.pr-summary-main { display: grid; gap: var(--space-3); align-content: start; padding: var(--space-8); }
+.pr-summary-main h2 { font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 560; letter-spacing: -.035em; line-height: 1.05; margin: 0; }
+.pr-summary-main > p { color: var(--fg-secondary); line-height: 1.6; margin: 0; max-width: 60ch; }
+.pr-counts { color: var(--fg-primary) !important; font-weight: 600; }
+.pr-summary .dh-next-action { background: var(--accent-50); border: 0; border-left: 1px solid var(--line); border-radius: 0; margin: 0; padding: var(--space-8); }
+
+.pr-claims { display: grid; gap: var(--space-6); }
+.pr-claim-group h3 { font-size: var(--text-md); font-weight: 640; margin: 0 0 var(--space-2); }
+.pr-claim-list { list-style: none; margin: 0; padding: 0; }
+.pr-claim-list > li { border-top: 1px solid var(--line); }
+.pr-claim-list > li:last-child { border-bottom: 1px solid var(--line); }
+.pr-claim > summary {
+  align-items: center;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  display: grid;
+  gap: var(--space-2) var(--space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+  list-style: none;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-2);
+}
+.pr-claim > summary::-webkit-details-marker { display: none; }
+.pr-claim > summary::after { content: "+" / ""; color: var(--fg-muted); font-family: var(--font-mono); grid-column: 2; grid-row: 1; }
+.pr-claim[open] > summary::after { content: "\2212" / ""; }
+.pr-claim > summary:hover { background: var(--canvas-sunken); }
+.pr-claim > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.pr-claim-text { font-weight: 560; overflow-wrap: anywhere; }
+.pr-claim > summary .pr-source { grid-column: 1; justify-self: start; }
+.pr-source {
+  background: var(--provenance-50);
+  border-radius: var(--radius-pill);
+  color: var(--provenance-600);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: .15rem .6rem;
+  white-space: nowrap;
+}
+.pr-claim-body { display: grid; gap: var(--space-3); padding: 0 var(--space-2) var(--space-4); }
+.pr-quotes { display: grid; gap: var(--space-3); list-style: none; margin: 0; padding: 0; }
+.pr-quotes blockquote { overflow-wrap: anywhere; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-control); margin: 0; padding: var(--space-3) var(--space-4); }
+.pr-quote-meta { align-items: center; color: var(--fg-secondary); display: flex; flex-wrap: wrap; font-size: var(--text-xs); gap: var(--space-2) var(--space-3); margin: var(--space-2) 0 0; }
+.pr-time { font-family: var(--font-mono); }
+.pr-note { color: var(--fg-secondary); font-size: var(--text-sm); margin: 0; }
+.pr-note span { color: var(--fg-primary); font-weight: 650; }
+
+@media (max-width: 900px) {
+  .pr-summary { grid-template-columns: 1fr; }
+  .pr-summary-main, .pr-summary .dh-next-action { padding: var(--space-6) var(--space-5); }
+  .pr-summary .dh-next-action { border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (forced-colors: active) {
+  .pr-source { border: 1px solid CanvasText; }
+}

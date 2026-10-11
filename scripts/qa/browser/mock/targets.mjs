@@ -60,6 +60,7 @@ export const SCENARIO_VALUES = {
   pack: ["full", "short"],
   slice: ["engineering", "business_roles"],
   stageSave: ["normal", "stale_once"],
+  review: ["ready", "processing", "failed", "practice_only", "unavailable503"],
 };
 
 // Practice themes by round key, the same words as the backend taxonomy (round keys are unique per
@@ -83,7 +84,7 @@ const NEW_ROLE_NAME = "Software Development Engineer (test role)";
 const NOT_AVAILABLE = { code: "TARGETS_NOT_AVAILABLE", message: "Targets aren't available yet." };
 
 export function createTargetsMock({ fixture, clock = () => new Date().toISOString(), createSession, roleId, roleName }) {
-  const defaults = () => ({ blueprint: "not_researched", targets: "available", pack: "full", slice: "engineering", stageSave: "normal" });
+  const defaults = () => ({ blueprint: "not_researched", targets: "available", pack: "full", slice: "engineering", stageSave: "normal", review: "ready" });
   const prefix = () => SLICE_PREFIX[state.scenario.slice];
   const seed = () => ({ ...fixture(`${prefix()}target.json`), id: TARGET_IDS.target, role_profile_id: roleId });
   const businessRoles = () => state.scenario.slice === "business_roles";

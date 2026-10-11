@@ -114,7 +114,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   const isLogin = mode === "login";
   return (
-    <main id="main-content" className="mirror-auth">
+    <main id="main-content" className="mirror-auth reading-room">
       <section className="mirror-auth-visual" aria-hidden="true">
         <div className="mirror-auth-visual-inner">
           <p className="mirror-auth-visual-eyebrow">Mirror by Pathwisse</p>

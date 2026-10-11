@@ -194,7 +194,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
       && url.searchParams.get("target") === targetId
       && url.searchParams.get("round") === "coding_reasoning");
     await page.getByRole("button", { name: "Start practice" }).click();
-    await page.waitForURL(/\/sessions\/[^/]+\/brief$/);
+    await page.waitForURL(/\/app\/interview\/[^/]+$/); // P7: straight to the pre-join
     const started = await getState();
     assert.equal(started.createBodies.length, genericStartsBefore, "stage-matched practice uses the existing target-linked path");
     assert.equal(started.targets.roundPractice.at(-1).target_id, targetId);
@@ -209,7 +209,6 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
       "QA-SYNTHETIC-STAGE-ANSWER-THREE: Weekly reporting time dropped from two hours to ten minutes.",
     ];
     const stageQuestions = [/Tell me about one project you worked on\./, "What was your own part in it?", "What changed because of that work?"];
-    await page.getByRole("link", { name: /Begin the conversation/ }).click();
     await page.waitForURL(/\/app\/interview\/[^/]+$/);
     await heading("Ready when you are.", 1).waitFor();
     await joinWithTyping();
@@ -419,8 +418,8 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     }
     await screen("fictional-researched-practice-check", { primaries: 1 });
     await page.getByRole("button", { name: "Start practice" }).click();
-    await page.waitForURL(/\/sessions\/[^/]+\/brief$/);
-    await heading("Before we begin", 1).waitFor();
+    await page.waitForURL(/\/app\/interview\/[^/]+$/); // P7: straight to the pre-join
+    await heading("Ready when you are.", 1).waitFor();
 
     const started = await getState();
     assert.equal(started.createBodies.length, genericStartsBefore, "round practice uses the target-linked session path");
@@ -433,7 +432,6 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     assert.ok(promptRefs.some((prompt) => prompt.rationale_code === "PUBLISHED_GUIDANCE_AREA"));
     assert.ok(promptRefs.every((prompt) => !("text" in prompt)), "the start response exposes metadata, not wording");
 
-    await page.getByRole("link", { name: /Begin the conversation/ }).click();
     await page.waitForURL(/\/app\/interview\/[^/]+$/);
     await heading("Ready when you are.", 1).waitFor();
     await joinWithTyping();
@@ -509,7 +507,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await page.locator(".pr-check").getByText("Mirror practice round: Coding conversation — for Amazon · India · Level not set yet").waitFor();
     await overflow("round-practice-check");
     await page.getByRole("button", { name: "Start practice" }).click();
-    await page.waitForURL(/\/sessions\/[^/]+\/brief$/);
+    await page.waitForURL(/\/app\/interview\/[^/]+$/); // P7: straight to the pre-join
     const state = await getState();
     assert.equal(state.targets.roundPractice.length, 1);
     assert.equal(state.targets.roundPractice[0].round_key, "coding_reasoning");
@@ -654,7 +652,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     }
     await screen("business-roles-practice-check", { primaries: 1 });
     await page.getByRole("button", { name: "Start practice" }).click();
-    await page.waitForURL(/\/sessions\/[^/]+\/brief$/);
+    await page.waitForURL(/\/app\/interview\/[^/]+$/); // P7: straight to the pre-join
     const started = await getState();
     assert.equal(started.createBodies.length, genericStartsBefore, "round practice uses the target-linked session path");
     const practice = started.targets.roundPractice.at(-1);
@@ -663,7 +661,6 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     assert.ok(refs.every((prompt) => !("text" in prompt)), "the start response exposes metadata, not wording");
     assert.ok(refs.some((prompt) => prompt.rationale_code === "PUBLISHED_GUIDANCE_AREA"));
 
-    await page.getByRole("link", { name: /Begin the conversation/ }).click();
     await page.waitForURL(/\/app\/interview\/[^/]+$/);
     await heading("Ready when you are.", 1).waitFor();
     await joinWithTyping();

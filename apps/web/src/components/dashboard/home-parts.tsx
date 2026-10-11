@@ -50,24 +50,33 @@ export function HomeView({
   const comparable = data.progress?.stage === "COMPARABLE" && data.progress.insights.length > 0;
   const showSince = comparable && !["FIRST_PRACTICE", "EARLY_BASELINE", "NO_ROLE"].includes(data.state);
   const showUpNext = data.next_step && (data.state === "ACTIVE_PRACTICE" || data.state === "REVIEW_READY");
+  const showRail = Boolean(role || showSince || showUpNext || data.state === "EARLY_BASELINE" || data.activity.length);
 
   return (
     <div className="hm">
       <header className="hm-header">
         <h1 className="dh-title display">{greeting}, {firstName}</h1>
         <p className="hm-sub">{subline(data)}</p>
-        {role ? <RoleContext data={data} onSelect={handlers.onSelectRole} /> : null}
       </header>
 
-      <div className="hm-stack">
-        {data.upcoming_interview ? <UpcomingInterview event={data.upcoming_interview} now={now} /> : null}
-        {data.other_active ? <OtherRole practice={data.other_active} onEnd={handlers.onEnd} now={now} /> : null}
-        <Primary data={data} handlers={handlers} now={now} />
-        {data.state === "EARLY_BASELINE" ? <Focus data={data} /> : null}
-        {showUpNext ? <UpNext data={data} /> : null}
-        {showSince && role ? <Since data={data} roleId={roleId} roleName={role.target_role} /> : null}
-        {role ? <Preparation data={data} roleId={roleId} roleName={role.target_role} /> : null}
-        {data.activity.length ? <Activity data={data} now={now} /> : null}
+      <div className="hm-layout">
+        <div className="hm-main" aria-label="Dashboard focus">
+          <div className="hm-stack">
+            <Primary data={data} handlers={handlers} now={now} />
+            {data.other_active ? <OtherRole practice={data.other_active} onEnd={handlers.onEnd} now={now} /> : null}
+          </div>
+        </div>
+        {showRail ? (
+          <aside className="hm-rail" aria-label="Dashboard context">
+            {role ? <RoleContext data={data} onSelect={handlers.onSelectRole} /> : null}
+            {data.upcoming_interview ? <UpcomingInterview event={data.upcoming_interview} now={now} /> : null}
+            {data.state === "EARLY_BASELINE" ? <Focus data={data} /> : null}
+            {showUpNext ? <UpNext data={data} /> : null}
+            {showSince && role ? <Since data={data} roleId={roleId} roleName={role.target_role} /> : null}
+            {role ? <Preparation data={data} roleId={roleId} roleName={role.target_role} /> : null}
+            {data.activity.length ? <Activity data={data} now={now} /> : null}
+          </aside>
+        ) : null}
       </div>
     </div>
   );
@@ -76,21 +85,20 @@ export function HomeView({
 function RoleContext({ data, onSelect }: { data: HomeResponse; onSelect: (id: string) => void }) {
   const selected = data.selected;
   if (!selected) return null;
-  if (data.roles.length < 2) {
-    return <p className="hm-role">{t.preparingFor} <strong>{selected.target_role}</strong></p>;
-  }
   return (
-    <label className="hm-role">
-      <span>{t.preparingFor}</span>
-      <span className="hm-select">
-        <select value={selected.role_profile_id} onChange={(event) => onSelect(event.target.value)} aria-label={t.roleLabel}>
-          {data.roles.map((option) => (
-            <option key={option.role_profile_id} value={option.role_profile_id}>{option.target_role}</option>
-          ))}
-        </select>
-        <CaretDown size={13} aria-hidden="true" />
-      </span>
-    </label>
+    <section className="hm-role-card" aria-labelledby="hm-role-context">
+      <p className="dh-section-label" id="hm-role-context">{t.preparingFor}</p>
+      {data.roles.length < 2 ? <strong>{selected.target_role}</strong> : (
+        <span className="hm-select">
+          <select value={selected.role_profile_id} onChange={(event) => onSelect(event.target.value)} aria-label={t.roleLabel}>
+            {data.roles.map((option) => (
+              <option key={option.role_profile_id} value={option.role_profile_id}>{option.target_role}</option>
+            ))}
+          </select>
+          <CaretDown size={13} aria-hidden="true" />
+        </span>
+      )}
+    </section>
   );
 }
 
@@ -101,6 +109,7 @@ function Card({
   icon,
   badge,
   label,
+  dominant = true,
 }: {
   eyebrow: string;
   tone?: "attention";
@@ -108,9 +117,10 @@ function Card({
   icon?: ReactNode;
   badge?: string;
   label: string;
+  dominant?: boolean;
 }) {
   return (
-    <section className={`hm-card${tone ? ` is-${tone}` : ""}`} aria-labelledby={label}>
+    <section className={`hm-card${dominant ? " hm-focus-slip" : ""}${tone ? ` is-${tone}` : ""}`} aria-labelledby={label}>
       <div className="hm-card-main">
         <div className="hm-eyebrow-row">
           <p className="dh-section-label">{eyebrow}</p>
@@ -330,11 +340,11 @@ function OtherRole({ practice, onEnd, now }: { practice: HomeActivePractice; onE
   const area = practiceArea(practice.practice_mode, practice.practice_focus, practice.practice_theme);
   const line = [area, questionLine(practice), t.active.lastActive(timeAgo(practice.last_active_at, now))].filter(Boolean).join(" · ");
   return (
-    <Card eyebrow={t.otherRole.eyebrow} tone="attention" label="hm-other">
+    <Card eyebrow={t.otherRole.eyebrow} tone="attention" label="hm-other" dominant={false}>
       <h2 id="hm-other" className="hm-title">{practiceHeading(practice.target_role, practice.practice_mode)}</h2>
       <p className="hm-meta">{line}</p>
       <div className="hm-actions">
-        <Link className="hm-primary-action" href={continueHref(practice.session_id)}>
+        <Link className="hm-secondary-action" href={continueHref(practice.session_id)}>
           {t.otherRole.continue(practice.target_role)} <ArrowRight size={16} aria-hidden="true" />
         </Link>
         <EndPractice sessionId={practice.session_id} onEnd={onEnd} />

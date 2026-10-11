@@ -36,7 +36,7 @@ export function RolesPage() {
   }, [data]);
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={t.eyebrow}
         title={t.title}

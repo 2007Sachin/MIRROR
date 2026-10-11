@@ -115,7 +115,7 @@ export function DimensionDetail({ roleProfileId, dimensionKey }: { roleProfileId
   const { state, data, error, reload } = useRoleProgress(roleProfileId);
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       {state === "loading" ? <PageLoading /> : null}
       {state === "error" ? <PageAlert message={error} onRetry={reload} /> : null}
       {state === "ready" && !data ? (

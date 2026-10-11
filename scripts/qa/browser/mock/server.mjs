@@ -37,6 +37,10 @@ export function reportForSession(reportFixture, session, turns) {
   value.session.completed_at = session.completed_at;
   const firstAnswer = turns.find((turn) => turn.speaker === "CANDIDATE");
   for (const quote of value.skill_assessments[0]?.evidence ?? []) quote.turn_id = firstAnswer?.id ?? null;
+  // Fixture quotes with this sentinel turn id were spoken in the first answer of this mock conversation.
+  for (const claims of Object.values(value.claims_audit)) for (const claim of claims) for (const quote of claim.evidence) {
+    if (quote.turn_id === "00000000-0000-4000-8000-0000000fa115") quote.turn_id = firstAnswer?.id ?? null;
+  }
   return value;
 }
 const turnId = (index) => `00000000-0000-4000-8000-${String(200 + index).padStart(12, "0")}`;
@@ -318,7 +322,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   const assessment = () => ({
     ...fixture("assessment.json"),
     session_id: state.session.id,
-    status: state.ended ? "COMPLETED" : "PENDING",
+    status: !state.ended ? "PENDING" : { processing: "PROCESSING", failed: "FAILED" }[targets.state.scenario.review] ?? "COMPLETED",
     queued_at: state.ended ? state.session.completed_at : null,
     started_at: state.ended ? state.session.completed_at : null,
     completed_at: state.ended ? state.session.completed_at : null,
@@ -362,8 +366,11 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     };
   };
 
-  const review = () => ({ ...fixture("review.json"), session_id: state.session.id, completed_at: state.session.completed_at });
-  const report = () => reportForSession(fixture("report.json"), state.session, state.turns);
+  const review = () => ({
+    ...fixture("review.json"), session_id: state.session.id, completed_at: state.session.completed_at,
+    ...(targets.state.scenario.review === "practice_only" ? { shorter_conversation: true, counts: null } : {}),
+  });
+  const report = () => reportForSession(fixture(targets.state.scenario.review === "practice_only" ? "report_practice_only.json" : "report.json"), state.session, state.turns);
 
   // ----------------------------------------------------------------------------- api routes
   const err = (status, detail) => ({ status, body: { detail } });
@@ -498,8 +505,16 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   });
   route("GET", "/api/v1/sessions/([^/]+)/assessment", ({ match }) => needSession(match[1]) ?? { body: assessment() });
   const notReady = { code: "ASSESSMENT_NOT_READY", message: "Your review is still being prepared." };
-  route("GET", "/api/v1/sessions/([^/]+)/report", ({ match }) => needSession(match[1]) ?? (state.ended ? { body: report() } : err(409, notReady)));
-  route("GET", "/api/v1/sessions/([^/]+)/review", ({ match }) => needSession(match[1]) ?? (state.ended ? { body: review() } : err(409, notReady)));
+  // Review scenarios: processing/failed keep the review behind a 409 (as the backend does while the
+  // assessment runs or after it stops); unavailable503 is the backend's ReportUnavailable answer.
+  const reviewGate = () => {
+    const scenario = targets.state.scenario.review;
+    if (!state.ended || scenario === "processing" || scenario === "failed") return err(409, notReady);
+    if (scenario === "unavailable503") return err(503, "Your review isn't available right now.");
+    return null;
+  };
+  route("GET", "/api/v1/sessions/([^/]+)/report", ({ match }) => needSession(match[1]) ?? reviewGate() ?? { body: report() });
+  route("GET", "/api/v1/sessions/([^/]+)/review", ({ match }) => needSession(match[1]) ?? reviewGate() ?? { body: review() });
   route("GET", "/api/v1/sessions/([^/]+)/attempts", ({ match }) => needSession(match[1]) ?? { body: [] });
   route("GET", "/api/v1/sessions/([^/]+)/story-suggestions", ({ match }) => needSession(match[1]) ?? { body: [] });
 

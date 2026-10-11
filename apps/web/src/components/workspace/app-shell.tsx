@@ -8,16 +8,15 @@ import {
   FileText,
   Gear,
   House,
-  List,
   MapTrifold,
   Notebook,
+  Plus,
   Question,
-  X,
 } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import type { Profile } from "@/lib/api";
 import { profileMenu as menuCopy } from "@/lib/copy";
@@ -68,7 +67,6 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
   const pathname = usePathname();
   const router = useRouter();
   const [logoutError, setLogoutError] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const activeFor = (match: Match[]) => match.some((item) => matches(pathname, item));
 
@@ -85,67 +83,29 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
 
   return (
     <div className="app-shell ws-shell">
-      <button
-        type="button"
-        className={`ws-sidebar-backdrop${sidebarOpen ? " is-visible" : ""}`}
-        aria-label={shellCopy.closeNav}
-        onClick={() => setSidebarOpen(false)}
-      />
-      <aside id="workspace-navigation" className={`ws-sidebar${sidebarOpen ? " is-open" : ""}`} aria-label={shellCopy.primaryNav}>
-        <div className="ws-sidebar-head">
-          <Link href="/dashboard" className="ws-brand" aria-label={shellCopy.homeLink} onClick={() => setSidebarOpen(false)}>
-            <Image src="/icon.svg" alt="" width={24} height={24} priority />
-            <span>MIRROR</span>
-          </Link>
-          <button type="button" className="ws-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label={shellCopy.closeNav}>
-            <X size={19} aria-hidden="true" />
-          </button>
-        </div>
-
+      {/* Glass top bar. One navigation list drives both this bar (wide screens) and the tab bar (narrow screens). */}
+      <header className="ws-topbar">
+        <Link href="/dashboard" className="ws-brand" aria-label={shellCopy.homeLink}>
+          <Image src="/icon.svg" alt="" width={22} height={22} priority />
+          <span>MIRROR</span>
+        </Link>
         <nav className="ws-nav" aria-label={shellCopy.primaryNav}>
-          {primaryNavigation.map(({ href, label, icon: Icon, match }) => {
+          {primaryNavigation.map(({ href, label, match }) => {
             const active = activeFor(match);
             return (
-              <Link key={href} href={href} className={`ws-nav-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)}>
-                <Icon size={18} weight={active ? "fill" : "regular"} aria-hidden="true" />
-                <span>{label}</span>
+              <Link key={href} href={href} className={`ws-nav-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}>
+                {label}
               </Link>
             );
           })}
         </nav>
-
-        <div className="ws-sidebar-account">
-          <Link href="/settings" className="ws-account-link" onClick={() => setSidebarOpen(false)}>
-            <span className="ws-avatar" aria-hidden="true">{initials(profile)}</span>
-            <span className="ws-account-info">
-              <strong>{profile?.full_name || shellCopy.memberFallback}</strong>
-              <span>{profile?.email || shellCopy.emailFallback}</span>
-            </span>
-          </Link>
+        <div className="ws-topbar-actions">
+          <RoleSwitcher />
+          <ProfileMenu profile={profile} onSignOut={logout} />
         </div>
-      </aside>
+      </header>
 
-      <div className="ws-main">
-        <header className="ws-topbar">
-          <div className="ws-topbar-start">
-            <button type="button" className="ws-menu-button" aria-label={shellCopy.openNav} aria-controls="workspace-navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)}>
-              <List size={20} aria-hidden="true" />
-            </button>
-            <Link href="/dashboard" className="ws-topbar-brand" aria-label={shellCopy.homeLink}>
-              <Image src="/icon.svg" alt="" width={22} height={22} priority />
-              <span>MIRROR</span>
-            </Link>
-            <RoleSwitcher />
-          </div>
-          <div className="ws-topbar-actions">
-            <ProfileMenu profile={profile} onSignOut={logout} />
-          </div>
-        </header>
-
-        {logoutError ? <div className="ws-alert" role="alert">{logoutError}</div> : null}
-        <main id="main-content" className="ws-content">{children}</main>
-      </div>
-
+      {/* The tab bar is fixed to the bottom but sits before <main> so keyboard and screen-reader users reach it first. */}
       <nav className="ws-mobile-nav" aria-label={shellCopy.mobileNav}>
         {primaryNavigation.map(({ href, mobileLabel, icon: Icon, match }) => {
           const active = activeFor(match);
@@ -157,17 +117,22 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
           );
         })}
       </nav>
+
+      {logoutError ? <div className="ws-alert" role="alert">{logoutError}</div> : null}
+      <main id="main-content" className="ws-content">{children}</main>
     </div>
   );
 }
 
 /**
  * The profile menu holds everything that is not a primary destination: experience,
- * roles, preferences, help, and a labelled Sign out.
+ * roles, preferences, help, and a labelled Sign out. It is a disclosure (a button that
+ * shows a panel of ordinary links), so Tab moves through it and leaving it closes it.
  */
 function ProfileMenu({ profile, onSignOut }: { profile: Profile | null; onSignOut: () => Promise<void> }) {
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
   const [open, setOpen] = useState(false);
   const name = profile?.full_name || menuCopy.open;
 
@@ -190,12 +155,18 @@ function ProfileMenu({ profile, onSignOut }: { profile: Profile | null; onSignOu
   }, [open]);
 
   return (
-    <div className="ws-profile-menu" ref={container}>
+    <div
+      className="ws-profile-menu"
+      ref={container}
+      onBlur={(event) => {
+        if (!container.current?.contains(event.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
       <button
         ref={trigger}
         type="button"
         className="ws-topbar-user"
-        aria-haspopup="menu"
+        aria-controls={panelId}
         aria-expanded={open}
         aria-label={name === menuCopy.open ? name : `${menuCopy.open}: ${name}`}
         onClick={() => setOpen((value) => !value)}
@@ -205,18 +176,22 @@ function ProfileMenu({ profile, onSignOut }: { profile: Profile | null; onSignOu
         <CaretDown size={13} aria-hidden="true" />
       </button>
       {open ? (
-        <div className="ws-profile-panel" role="menu" aria-label={menuCopy.open}>
+        <div className="ws-profile-panel" id={panelId}>
           <div className="ws-profile-identity">
             <strong>{profile?.full_name || shellCopy.memberFallback}</strong>
             <span>{profile?.email || shellCopy.emailFallback}</span>
           </div>
           {profileNavigation.map(({ href, label, icon: Icon }) => (
-            <Link key={href} role="menuitem" href={href} onClick={() => setOpen(false)}>
+            <Link key={href} href={href} onClick={() => setOpen(false)}>
               <Icon size={16} aria-hidden="true" /> {label}
             </Link>
           ))}
+          {/* The top bar hides "Add a role" on small screens, so it lives here there. */}
+          <Link href="/roles/new" className="ws-profile-narrow-only" onClick={() => setOpen(false)}>
+            <Plus size={16} aria-hidden="true" /> {shellCopy.roleSwitcher.addRole}
+          </Link>
           <hr />
-          <button role="menuitem" type="button" className="ws-signout" onClick={() => void onSignOut()}>
+          <button type="button" className="ws-signout" onClick={() => void onSignOut()}>
             {menuCopy.signOut}
           </button>
         </div>

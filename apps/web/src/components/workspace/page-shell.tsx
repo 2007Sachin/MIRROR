@@ -83,11 +83,12 @@ export function usePageData<T>(load: () => Promise<T>, failureMessage: string, d
   return { state, data, error, reload: run, setData } as const;
 }
 
-export function PageShell({ children }: { children: ReactNode }) {
+/** `readingRoom` opts a screen into the Reading Room visual system (redesign P3+). */
+export function PageShell({ children, readingRoom = false }: { children: ReactNode; readingRoom?: boolean }) {
   const profile = useProfile();
   return (
     <AppShell profile={profile}>
-      <div className="dh">{children}</div>
+      <div className={readingRoom ? "dh dh-page-layout reading-room" : "dh dh-page-layout"}>{children}</div>
     </AppShell>
   );
 }

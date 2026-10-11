@@ -25,11 +25,55 @@
     "confidence_note": "Synthetic fixture."
   },
   "claims_audit": {
-    "held": [],
-    "partially_held": [],
+    "held": [
+      {
+        "id": "00000000-0000-4000-8000-000000000501",
+        "claim_text": "Explained the reporting tool I built for my team",
+        "source": "SPOKEN",
+        "status": "CORROBORATED",
+        "explanation": "This came through clearly in your conversation.",
+        "confidence": 0.8,
+        "evidence": [
+          {
+            "turn_id": "00000000-0000-4000-8000-0000000fa115",
+            "timecode_ms": 74000,
+            "quote": "QA-FIXTURE-QUOTE-HELD",
+            "direction": "SUPPORTS"
+          }
+        ]
+      }
+    ],
+    "partially_held": [
+      {
+        "id": "00000000-0000-4000-8000-000000000502",
+        "claim_text": "Led the QA fixture migration (synthetic)",
+        "source": "RESUME",
+        "status": "PARTIALLY_HELD",
+        "explanation": "Parts of this came through clearly, and a few details could use a little more.",
+        "confidence": 0.5,
+        "evidence": [
+          {
+            "turn_id": null,
+            "timecode_ms": null,
+            "quote": "QA-FIXTURE-RESUME-LINE",
+            "direction": "CONTEXT_ONLY"
+          }
+        ]
+      }
+    ],
     "walked_back": [],
     "contradicted": [],
-    "insufficient_evidence": [],
+    "insufficient_evidence": [
+      {
+        "id": "00000000-0000-4000-8000-000000000503",
+        "claim_text": "Writing requirements for analysts (synthetic)",
+        "source": "JD",
+        "status": "INSUFFICIENT_EVIDENCE",
+        "explanation": "There wasn't quite enough to say yet about this one.",
+        "confidence": 0.2,
+        "evidence": []
+      }
+    ],
     "unverified": []
   },
   "skill_assessments": [

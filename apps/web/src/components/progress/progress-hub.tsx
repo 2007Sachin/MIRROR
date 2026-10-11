@@ -57,7 +57,7 @@ export function ProgressHub() {
   const { state, data, error, reload } = usePageData(() => mirrorApi.progressHub(), t.errors.load);
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       {state === "ready" && data ? <ProgressHubView roles={data.roles} /> : <HubHeader />}
       {state === "loading" ? <PageLoading /> : null}
       {state === "error" ? <PageAlert message={error} onRetry={reload} /> : null}

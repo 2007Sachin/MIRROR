@@ -14,8 +14,9 @@ COPY = read("lib", "copy.ts")
 
 def test_the_review_is_ordered_as_a_learning_loop() -> None:
     order = [REVIEW.index(anchor) for anchor in (
-        'id="review-landed"', 'id="review-strengthen"', 'aria-labelledby="review-next"',
-        'id="review-repeat"', 'id="review-answers"',
+        # Reading Room P6: summary and the one next practice first, then the learning loop.
+        'aria-labelledby="review-summary-title"', 'aria-labelledby="review-next"', 'id="review-landed"',
+        'id="review-strengthen"', 'id="review-came-through"', 'id="review-repeat"', 'id="review-answers"',
     )]
     assert order == sorted(order)
 

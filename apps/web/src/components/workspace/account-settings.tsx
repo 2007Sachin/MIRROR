@@ -92,7 +92,7 @@ export function AccountSettings() {
   }
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader eyebrow={t.eyebrow} title={t.title} intro={t.intro} />
 
       {state === "loading" ? <PageLoading /> : null}

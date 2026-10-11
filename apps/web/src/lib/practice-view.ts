@@ -74,8 +74,9 @@ export function setupHref(role: string, choice?: PracticeChoice, roleProfileId?:
   return extra ? `${base}&${extra}` : base;
 }
 
-export function briefHref(sessionId: string) {
-  return `/sessions/${sessionId}/brief`;
+/** A new practice opens straight on the room's pre-join, which now carries the brief (redesign P7). */
+export function prejoinHref(sessionId: string) {
+  return `/app/interview/${sessionId}`;
 }
 
 /** A practice that reached its review (ready, still being prepared, or needing another go). */

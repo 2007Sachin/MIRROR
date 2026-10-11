@@ -46,7 +46,7 @@ export function ReflectView() {
   const tiles = useMemo(() => activeFirst(data?.hub ?? [], data?.role?.role_profile_id ?? null), [data]);
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader eyebrow={t.eyebrow} title={t.title} intro={t.intro} />
       {state === "loading" ? <PageLoading /> : null}
       {state === "error" ? <PageAlert message={error} onRetry={reload} /> : null}

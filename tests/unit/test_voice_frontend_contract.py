@@ -33,7 +33,9 @@ def test_live_captions_are_interim_only_and_browser_capability_aware() -> None:
     assert "interimResults = true" in source
     assert "startLiveTranscription" in source
     assert "You · Live" in source
-    assert "confirmed transcript are saved for your review" in source
+    # Redesign P7: the disclosure verified against docs/privacy.md and voice_service storage.
+    assert "recorded and saved privately to your account, with a transcript" in source
+    assert "are not the interview record" in source
     assert "uploadVoiceTurn" in source
 
 

@@ -17,6 +17,7 @@
   "dashboard_diagnostic.json": "app.dashboard_models:DashboardDiagnostic",
   "review.json": "app.dashboard_summary:LatestReview",
   "report.json": "app.report_models:ReportResponse",
+  "report_practice_only.json": "app.report_models:ReportResponse",
   "dashboard_summary.json": "app.dashboard_summary:DashboardSummaryResponse",
   "session_create_request.json": "app.schemas:SessionCreate",
   "plan.json": "app.plan_service:Plan",

@@ -154,10 +154,10 @@ export const landing = {
 } as const;
 
 export const report = {
-  title: (role: string) => `Your reflection · ${role}`,
+  title: (role: string) => `Your review · ${role}`,
   backToSpace: "Your space",
-  navLabel: "Reflection navigation",
-  loadingLabel: "Loading your reflection",
+  navLabel: "Review navigation",
+  loadingLabel: "Loading your review",
   summary: { eyebrow: "Your summary", levelToday: "Your level today" },
   shorterNote:
     "From a shorter conversation, so a few areas say “not enough to say yet.”",
@@ -194,6 +194,23 @@ export const report = {
     noQuotes: "No matching moments were captured for this one.",
     sourceDocument: "Your resume or documents",
     interviewTurn: "Your conversation",
+    /** Where each item came from: what the person provided, said, or what Mirror wrote. */
+    sources: {
+      RESUME: "From your resume or documents",
+      PROJECT: "From your resume or documents",
+      JD: "From the job description",
+      SPOKEN: "From your conversation",
+    } as Record<string, string>,
+    directions: {
+      SUPPORTS: "Backs this up",
+      WEAKENS: "Raises a question",
+      CONTEXT_ONLY: "Adds context",
+    } as Record<string, string>,
+    mirrorNote: "Mirror's note",
+    noTime: "Time not recorded",
+    legend: "Quotes are shown as you said or wrote them. Mirror's notes are marked separately.",
+    counts: (clear: number, stronger: number, revisit: number) =>
+      [clear ? `${clear} came through clearly` : null, stronger ? `${stronger} could be stronger` : null, revisit ? `${revisit} worth revisiting` : null].filter(Boolean).join(" · "),
     groups: {
       held: "Came through clearly",
       partially_held: "Mostly came through",
@@ -269,14 +286,14 @@ export const report = {
     ],
   },
   trust: {
-    title: "What this reflection means, and what it doesn't",
+    title: "What this review means, and what it doesn't",
     points: [
-      "This reflects this one conversation.",
+      "This review covers this one conversation.",
       "AI can make mistakes. If something doesn't sound right, you're welcome to tell us.",
       "Anything that didn't come up is never guessed.",
-      "This is a practice reflection, not a hiring decision.",
+      "This is a practice review, not a hiring decision.",
     ],
-    outcomeNotValidated: "We're still learning how well these reflections match real interview outcomes.",
+    outcomeNotValidated: "We're still learning how well these reviews match real interview outcomes.",
     outcomeOther: "Outcome check:",
   },
   closing: {
@@ -285,16 +302,16 @@ export const report = {
   },
   completed: "Completed",
   states: {
-    processingTitle: "Reflecting on your answers",
+    processingTitle: "Preparing your review",
     processingBody: "Mirror is looking at what you shared and how it connects to the role. Thank you for your patience.",
     returnToSpace: "Return to your space",
-    failedTitle: "We couldn't finish your reflection just now",
-    unavailableTitle: "Your reflection isn't available right now",
+    failedTitle: "We couldn't finish your review just now",
+    unavailableTitle: "Your review isn't available right now",
     savedRetry:
-      "Your interview has been saved. Mirror couldn't finish reflecting on your answers, so it can be tried again without repeating the conversation.",
-    longWait: "Your reflection is taking a little longer than expected. Please check back shortly.",
-    notFound: "We couldn't find that reflection.",
-    loadFailed: "We couldn't load your reflection just now. Please check your connection and try again.",
+      "Your interview has been saved. Mirror couldn't finish preparing your review, so it can be tried again without repeating the conversation.",
+    longWait: "Your review is taking a little longer than expected. Please check back shortly.",
+    notFound: "We couldn't find that review.",
+    loadFailed: "We couldn't load your review just now. Please check your connection and try again.",
     retryFailed: "We couldn't try that again just now. Please try again in a moment.",
     retry: "Try again",
     retrying: "Trying again…",
@@ -334,8 +351,8 @@ export const loading = {
   signUp: { label: "Loading", note: "Opening sign up." },
   onboarding: { label: "Getting ready", note: "Bringing back where you left off." },
   space: { label: "Loading", note: "Getting your space ready." },
-  report: { label: "Loading", note: "Opening your reflection." },
-  reflecting: { label: "Reflecting", note: "Looking at what you shared. Thank you for your patience." },
+  report: { label: "Loading", note: "Opening your review." },
+  reflecting: { label: "Preparing", note: "Looking at what you shared. Thank you for your patience." },
   room: { label: "Getting ready", note: "Preparing your room." },
 } as const;
 

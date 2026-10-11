@@ -59,7 +59,7 @@ export function InterviewsPage({ roleProfileId }: { roleProfileId: string }) {
   );
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader eyebrow={rolesCopy.eyebrow} title={t.title} intro={t.intro} back={{ href: "/roles", label: rolesCopy.detail.back }} />
       <RoleTabs roleProfileId={roleProfileId} current="interviews" />
 

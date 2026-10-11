@@ -144,7 +144,7 @@ export function StoryEditor({ storyId }: { storyId: string }) {
   }
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader eyebrow={t.eyebrow} title={data?.title ?? t.title} back={{ href: "/stories", label: t.back }} />
       {state === "loading" ? <PageLoading /> : null}
       {state === "error" ? <PageAlert message={error} onRetry={reload} /> : null}
@@ -307,7 +307,7 @@ export function NewStory() {
   const next = done && saved ? storyActions(saved)[0] : null;
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader eyebrow={t.eyebrow} title={theme ? g.titleFor(theme) : g.title} intro={g.intro} back={{ href: "/stories", label: t.back }} />
       {why ? <p className="sg-why">{why}</p> : null}
       {roleProfileId ? (

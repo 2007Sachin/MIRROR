@@ -70,6 +70,85 @@
   --dur-fast: 140ms;
   --dur-base: 240ms;
   --dur-slow: 420ms;
+
+  /* Reading Room tokens (redesign P1; spec: design/redesign-hybrid-glass/DESIGN_SYSTEM.md
+     on branch redesign/hybrid-glass-prototypes). Defined only: nothing consumes
+     them until later phases migrate each screen. Named by role, never by hue.
+     Roles that already have a token (--line, --line-strong, --success, --danger,
+     --danger-soft) keep the existing one. Text colours are --fg-* because
+     --text-* is the type scale. */
+  --canvas: #f4f1ea;
+  --canvas-sunken: #eae6dc;
+  --surface: #fffdf8;
+  --surface-fallback: #f7f4ee;
+  --fg-primary: #1e2124;
+  --fg-secondary: #474c52;
+  --fg-muted: #62676d; /* solid surfaces only, never on glass */
+  --border-control: #7e8387;
+
+  --accent-50: #e3efec;
+  --accent-100: #cfe3de;
+  --accent-500: #3a8578; /* non-text marks only */
+  --accent-600: #25685f;
+  --accent-700: #1d5650;
+  --provenance-50: #f2e9ef;
+  --provenance-600: #6e4462;
+  --focus-ring: var(--accent-700);
+
+  --success-soft: #e6efe4;
+  --warning: #875a14;
+  --warning-ink: #7a5112;
+  --warning-soft: #f6edda;
+  --info: #38596e;
+  --info-soft: #e5ecf0;
+
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --radius-glass: 20px;
+  --radius-pill: 999px;
+  --elevation-1: 0 1px 2px rgba(30, 33, 36, 0.06), 0 1px 0 rgba(30, 33, 36, 0.04);
+  --elevation-2: 0 8px 24px -8px rgba(30, 33, 36, 0.18), 0 2px 6px rgba(30, 33, 36, 0.06);
+  --elevation-3: 0 24px 64px -16px rgba(30, 33, 36, 0.28);
+
+  /* Glass is only for navigation, the interview dock, toasts and sheet chrome. */
+  --glass-bg: rgba(255, 253, 248, 0.8);
+  --glass-blur: blur(16px) saturate(140%);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px rgba(30, 33, 36, 0.1);
+}
+
+/* Reading Room scope (redesign P3). Screens migrate one at a time by adding .reading-room to
+   their root (PageShell readingRoom, or the page's own root outside the shell). Inside it the
+   legacy token names resolve to the Reading Room tokens, so shared primitives (.button-*,
+   .field, .dh-*, .ws-*) follow without per-file rewrites; screens not yet migrated are unchanged.
+   Content stays on solid surfaces; glass is reserved for the shell's navigation. */
+.reading-room {
+  --paper: var(--canvas);
+  --paper-raised: var(--surface);
+  --paper-sunken: var(--canvas-sunken);
+  --ink: var(--fg-primary);
+  --slate: var(--fg-secondary);
+  --silver: var(--fg-muted);
+  --action: var(--accent-600);
+  --action-hover: var(--accent-700);
+  --action-soft: var(--accent-50);
+  --pulse: var(--accent-600);
+  --pulse-hover: var(--accent-700);
+  --pulse-soft: var(--accent-50);
+  color: var(--fg-primary);
+}
+.reading-room .ws-panel { background: var(--surface); border-radius: var(--radius-panel); box-shadow: var(--elevation-1); }
+.reading-room :is(.button-primary, .button-secondary, .dh-primary-action, .field) { border-radius: var(--radius-control); }
+.reading-room :is(.button-primary, .button-secondary, .dh-primary-action) { min-height: 2.75rem; }
+.reading-room :focus-visible { outline-color: var(--focus-ring); }
+.reading-room :is(.dh-title, .ws-page-header h1) { text-wrap: balance; }
+.reading-room :is(.dh-header p, .dh-section-body, .ws-page-header > div > p:last-child) { max-width: 64ch; text-wrap: pretty; }
+
+/* Glass falls back to a solid surface without blur support or when people ask for less transparency. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --glass-bg: var(--surface-fallback); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-bg: var(--surface-fallback); --glass-blur: none; }
 }
 
 * { box-sizing: border-box; }
@@ -242,42 +321,51 @@ body:has(.app-shell) .site-header { display: none; }
 .interview-room-meta { align-items: center; color: #abb3aa; display: flex; font-family: var(--font-mono); font-size: .74rem; gap: 1.25rem; letter-spacing: .07em; text-transform: uppercase; }
 .interview-room-meta time { color: #eff2ed; font-variant-numeric: tabular-nums; }
 .interview-room-phase { border-right: 1px solid var(--room-line); padding-right: 1.2rem; }
-.interview-prejoin {
-  align-items: center; display: grid; gap: clamp(2rem, 6vw, 6rem); grid-column: 1; grid-row: 2 / 4;
-  grid-template-columns: minmax(20rem, 1.18fr) minmax(19rem, .82fr); margin: auto; max-width: 68rem;
-  padding: clamp(1.5rem, 4vw, 4rem); width: 100%;
-}
-.interview-prejoin-preview {
-  align-items: center; aspect-ratio: 16 / 10; background: radial-gradient(circle at 50% 44%, rgba(75, 125, 101, .18), transparent 32%), #121813;
-  border: 1px solid var(--room-line); border-radius: .9rem; display: flex; justify-content: center; position: relative;
-}
-.interview-prejoin-device {
-  align-items: center; background: rgba(8, 10, 8, .78); border: 1px solid var(--room-line); border-radius: 999px;
-  bottom: 1rem; color: #b4bcb2; display: flex; font-size: .72rem; gap: .5rem; left: 1rem; padding: .55rem .75rem; position: absolute;
-}
 .interview-device-dot { background: #62d4a7; border-radius: 50%; box-shadow: 0 0 0 4px rgba(98, 212, 167, .1); height: .42rem; width: .42rem; }
 .interview-device-dot.is-denied { background: #e17971; box-shadow: 0 0 0 4px rgba(225, 121, 113, .1); }
-.interview-voice-meter--preview { bottom: .75rem; height: 2rem; position: absolute; right: 1rem; }
-.interview-prejoin-copy .mono { color: var(--room-accent); font-size: .72rem; letter-spacing: .13em; margin: 0 0 1.1rem; text-transform: uppercase; }
-.interview-prejoin-copy h1 { font-size: clamp(2.8rem, 5vw, 4.7rem); font-weight: 520; letter-spacing: -.055em; line-height: .92; margin: 0; max-width: 9ch; }
-.interview-prejoin-copy > p:not(.mono):not(.interview-inline-error) { color: #aab2a8; font-size: 1rem; line-height: 1.65; margin: 1.5rem 0 0; max-width: 32rem; }
 .interview-join-button {
   align-items: center; background: #edf0eb; border: 1px solid #edf0eb; border-radius: .65rem; color: #10140f;
   display: flex; font-size: .86rem; font-weight: 650; gap: .6rem; justify-content: center; margin-top: 2rem; min-height: 3.25rem; padding: .7rem 1.15rem;
 }
 .interview-join-button:hover { background: #fff; }
 .interview-join-button:disabled { cursor: wait; opacity: .72; }
-.interview-mic-test-button {
-  align-items: center; border: 1px solid var(--room-line); border-radius: .65rem; color: var(--room-text);
-  display: flex; font-size: .82rem; gap: .55rem; justify-content: center; margin-top: 1.5rem; min-height: 3rem; padding: .65rem 1rem;
-}
-.interview-mic-test-button + .interview-join-button { margin-top: .65rem; }
-.interview-mic-test-button:hover { background: var(--room-raised); }
-.interview-mic-test-button:disabled { cursor: wait; opacity: .65; }
 .interview-text-entry-button { color: var(--room-muted); font-size: .76rem; margin-top: .8rem; text-decoration: underline; text-underline-offset: .2rem; }
-.interview-prejoin-copy small { color: #818a80; display: block; font-size: .74rem; line-height: 1.55; margin-top: 1rem; max-width: 28rem; }
 .interview-inline-error { border-left: 2px solid #d56d66; color: #eaa09a; font-size: .78rem; line-height: 1.5; margin: 1.2rem 0 0; padding-left: .75rem; }
 .interview-spinner { animation: interview-spin 850ms linear infinite; }
+
+/* Pre-join (redesign P7): the brief and the microphone check on a light Reading Room surface.
+   The room only turns dark once the conversation starts (the live room is P8). */
+body:has(.interview-room.is-prejoin) { overflow: auto; }
+.interview-room.is-prejoin { background: var(--canvas); color: var(--fg-primary); grid-template-rows: auto 1fr; height: auto; min-height: 100dvh; overflow: visible; }
+.interview-room.is-prejoin :focus-visible { outline-color: var(--focus-ring); }
+.interview-room.is-prejoin .interview-room-header { border-color: var(--line); }
+.interview-room.is-prejoin .interview-room-mark { background: var(--fg-primary); color: var(--surface); }
+.interview-room.is-prejoin :is(.interview-room-brand div span, .interview-room-meta) { color: var(--fg-secondary); }
+.interview-room.is-prejoin .interview-room-meta time { color: var(--fg-primary); }
+.interview-room.is-prejoin .interview-room-phase { border-color: var(--line); }
+.interview-prejoin { display: grid; padding: clamp(1rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem) 3rem; place-items: start center; }
+.prejoin-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: var(--elevation-1); display: grid; gap: var(--space-5); max-width: 40rem; min-width: 0; padding: clamp(1.5rem, 4vw, 2.5rem); width: 100%; }
+.prejoin-panel .mono { color: var(--fg-secondary); font-size: var(--text-xs); letter-spacing: .1em; margin: 0; overflow-wrap: anywhere; text-transform: uppercase; }
+.prejoin-panel h1 { font-size: var(--text-2xl); font-weight: 540; letter-spacing: -.035em; line-height: 1.05; margin: 0; }
+.prejoin-lede { color: var(--fg-secondary); margin: 0; }
+.prejoin-points { display: grid; gap: var(--space-3); list-style: none; margin: 0; padding: 0; }
+.prejoin-points li { color: var(--fg-secondary); display: grid; gap: var(--space-3); grid-template-columns: 1.25rem minmax(0, 1fr); line-height: 1.5; }
+.prejoin-points svg { color: var(--accent-700); margin-top: .15rem; }
+.prejoin-points strong { color: var(--fg-primary); }
+.prejoin-mic { align-items: center; background: var(--canvas-sunken); border-radius: var(--radius-panel); display: flex; flex-wrap: wrap; gap: var(--space-3); min-height: 3.25rem; padding: var(--space-3) var(--space-4); }
+.prejoin-mic p { font-size: var(--text-sm); font-weight: 600; margin: 0; }
+.interview-room.is-prejoin .interview-voice-meter--preview { margin-left: auto; position: static; }
+.interview-room.is-prejoin .interview-voice-meter i { background: var(--accent-500); }
+@media (prefers-reduced-motion: reduce) { .interview-voice-meter i { transition: none; } }
+.interview-room.is-prejoin .interview-device-dot { background: var(--accent-600); box-shadow: none; }
+.interview-room.is-prejoin .interview-device-dot.is-denied { background: var(--danger); }
+.interview-room.is-prejoin .interview-inline-error { border-color: var(--danger); color: var(--danger); font-size: var(--text-sm); margin: 0; }
+.prejoin-actions { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.interview-room.is-prejoin .interview-join-button { background: var(--accent-600); border-color: var(--accent-600); border-radius: var(--radius-control); color: var(--surface); margin-top: 0; min-height: 2.75rem; }
+.interview-room.is-prejoin .interview-join-button:hover { background: var(--accent-700); border-color: var(--accent-700); }
+.interview-room.is-prejoin .interview-text-entry-button { color: var(--accent-700); font-size: var(--text-sm); font-weight: 600; margin-top: 0; min-height: 2.75rem; padding: 0 var(--space-2); }
+.prejoin-panel small { color: var(--fg-secondary); font-size: var(--text-xs); line-height: 1.55; }
+@media (max-width: 640px) { .prejoin-actions .interview-join-button { width: 100%; } }
 @keyframes interview-spin { to { transform: rotate(360deg); } }
 .interview-call-layout {
   display: grid; gap: 1rem; grid-row: 2; grid-template-columns: minmax(0, 1fr) minmax(19rem, 22vw);
@@ -308,7 +396,6 @@ body:has(.app-shell) .site-header { display: none; }
 .interview-presence i { border: 1px solid rgba(108, 199, 163, .18); border-radius: 50%; inset: -.45rem; position: absolute; }
 .interview-presence i:nth-of-type(2) { inset: -1rem; opacity: .55; }
 .interview-presence i:nth-of-type(3) { inset: -1.65rem; opacity: .28; }
-.interview-presence--preview { height: clamp(8rem, 16vw, 11rem); width: clamp(8rem, 16vw, 11rem); }
 .interview-room--interviewer_speaking .interview-presence i { animation: interview-presence-pulse 2.1s ease-in-out infinite; }
 .interview-room--interviewer_speaking .interview-presence i:nth-of-type(2) { animation-delay: 180ms; }
 .interview-room--interviewer_speaking .interview-presence i:nth-of-type(3) { animation-delay: 360ms; }
@@ -405,7 +492,6 @@ body:has(.app-shell) .site-header { display: none; }
   .interview-call-layout { gap: .75rem; grid-template-columns: 1fr; padding: .75rem; }
   .interview-stage { gap: .75rem; grid-template-rows: minmax(0, 1fr) 9.25rem; }
   .interview-transcript { display: none; }
-  .interview-prejoin { gap: 2.5rem; grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 640px) {
   body:has(.interview-room) { overflow: hidden; }
@@ -413,10 +499,6 @@ body:has(.app-shell) .site-header { display: none; }
   .interview-room-header { padding-inline: .85rem; }
   .interview-room-brand div span, .interview-room-phase { display: none; }
   .interview-room-meta { gap: .6rem; }
-  .interview-prejoin { display: flex; flex-direction: column; grid-row: 2 / 4; justify-content: center; padding: 1rem 1.25rem 2rem; }
-  .interview-prejoin-preview { aspect-ratio: 4 / 3; max-height: 18rem; width: 100%; }
-  .interview-prejoin-copy { width: 100%; }
-  .interview-prejoin-copy h1 { font-size: 2.7rem; }
   .interview-join-button { width: 100%; }
   .interview-complete > div { flex-direction: column; }
   .interview-call-layout { gap: .55rem; padding: .55rem; }
