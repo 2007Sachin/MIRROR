@@ -70,6 +70,58 @@
   --dur-fast: 140ms;
   --dur-base: 240ms;
   --dur-slow: 420ms;
+
+  /* Reading Room tokens (redesign P1; spec: design/redesign-hybrid-glass/DESIGN_SYSTEM.md
+     on branch redesign/hybrid-glass-prototypes). Defined only: nothing consumes
+     them until later phases migrate each screen. Named by role, never by hue.
+     Roles that already have a token (--line, --line-strong, --success, --danger,
+     --danger-soft) keep the existing one. Text colours are --fg-* because
+     --text-* is the type scale. */
+  --canvas: #f4f1ea;
+  --canvas-sunken: #eae6dc;
+  --surface: #fffdf8;
+  --surface-fallback: #f7f4ee;
+  --fg-primary: #1e2124;
+  --fg-secondary: #474c52;
+  --fg-muted: #62676d; /* solid surfaces only, never on glass */
+  --border-control: #7e8387;
+
+  --accent-50: #e3efec;
+  --accent-100: #cfe3de;
+  --accent-500: #3a8578; /* non-text marks only */
+  --accent-600: #25685f;
+  --accent-700: #1d5650;
+  --provenance-50: #f2e9ef;
+  --provenance-600: #6e4462;
+  --focus-ring: var(--accent-700);
+
+  --success-soft: #e6efe4;
+  --warning: #875a14;
+  --warning-ink: #7a5112;
+  --warning-soft: #f6edda;
+  --info: #38596e;
+  --info-soft: #e5ecf0;
+
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --radius-glass: 20px;
+  --radius-pill: 999px;
+  --elevation-1: 0 1px 2px rgba(30, 33, 36, 0.06), 0 1px 0 rgba(30, 33, 36, 0.04);
+  --elevation-2: 0 8px 24px -8px rgba(30, 33, 36, 0.18), 0 2px 6px rgba(30, 33, 36, 0.06);
+  --elevation-3: 0 24px 64px -16px rgba(30, 33, 36, 0.28);
+
+  /* Glass is only for navigation, the interview dock, toasts and sheet chrome. */
+  --glass-bg: rgba(255, 253, 248, 0.8);
+  --glass-blur: blur(16px) saturate(140%);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px rgba(30, 33, 36, 0.1);
+}
+
+/* Glass falls back to a solid surface without blur support or when people ask for less transparency. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --glass-bg: var(--surface-fallback); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-bg: var(--surface-fallback); --glass-blur: none; }
 }
 
 * { box-sizing: border-box; }
