@@ -22,6 +22,9 @@ API = (WEB / "lib" / "api.ts").read_text(encoding="utf-8")
 ASSESSMENT_REPOSITORY = (
     ROOT / "apps" / "api" / "app" / "assessment_pipeline_repository.py"
 ).read_text(encoding="utf-8")
+BROWSER_JOURNEY = (
+    ROOT / "scripts" / "qa" / "browser" / "tests" / "critical-path.mjs"
+).read_text(encoding="utf-8")
 
 
 def home_copy() -> str:
@@ -167,7 +170,8 @@ def test_home_qa_fixture_is_local_only_and_does_not_alter_dashboard_auth() -> No
 def test_role_switching_is_a_view_choice_kept_in_the_address() -> None:
     assert "window.history.replaceState" in DASHBOARD and "?role=" in DASHBOARD
     assert "role_profile_id=" in API and "data.roles.length < 2" in SECTIONS
-    assert "aria-label={t.roleLabel}" in SECTIONS  # a real, keyboard-operable select
+    assert "onChange={(event) => onSelect(event.target.value)}" in SECTIONS
+    assert "aria-label={t.roleLabel}" in SECTIONS
 
 
 def test_development_mapper_uses_four_plain_language_states() -> None:
@@ -222,8 +226,8 @@ def test_home_surfaces_an_interview_within_two_days_without_competing_with_the_p
     assert "upcoming_interview: UpcomingInterview | None = None" in HOME_SERVICE
     assert "timing(e.scheduled_for, now) == Timing.SOON" in HOME_SERVICE
     assert "upcoming_interview?: HomeUpcomingInterview | null;" in API
-    stack = SECTIONS[SECTIONS.index('<div className="hm-stack">'):]
-    assert stack.index("<UpcomingInterview") < stack.index("<Primary ")
+    layout = SECTIONS[SECTIONS.index('<div className="hm-layout">'):]
+    assert layout.index("<Primary ") < layout.index("<UpcomingInterview")
     assert '<aside className="hm-upcoming" aria-label={t.upcoming.label}>' in SECTIONS
     assert 'className="hm-text-action" href={briefHref(event)}' in SECTIONS  # a text link, never a second primary button
     assert "return `/roles/${event.role_profile_id}/interviews/${event.event_id}`;" in HOME_VIEW
@@ -231,3 +235,37 @@ def test_home_surfaces_an_interview_within_two_days_without_competing_with_the_p
     assert "Read your brief" in copy and "Interview coming up" in copy
     fixtures = (WEB / "lib" / "home-qa-fixtures.ts").read_text(encoding="utf-8")
     assert 'id: "upcoming-interview"' in fixtures and "upcoming_interview: {" in fixtures
+
+
+def test_home_p5_composes_one_focus_slip_with_sticky_context_rail() -> None:
+    assert 'className="hm-layout"' in SECTIONS
+    assert '<div className="hm-main" aria-label="Dashboard focus">' in SECTIONS
+    assert '<aside className="hm-rail" aria-label="Dashboard context">' in SECTIONS
+    assert "hm-focus-slip" in SECTIONS
+    assert ".hm-layout" in (WEB / "styles" / "home.css").read_text(encoding="utf-8")
+    css = (WEB / "styles" / "home.css").read_text(encoding="utf-8")
+    assert "grid-template-columns: minmax(0, 1fr) minmax(17rem, 20rem)" in css
+    assert ".hm-rail" in css and "position: sticky" in css and "top: 5rem" in css
+    assert "@media (max-width: 1020px)" in css and "position: static" in css
+
+
+def test_home_p5_keeps_secondary_surfaces_out_of_the_primary_action_lane() -> None:
+    layout = SECTIONS[SECTIONS.index('<div className="hm-layout">'):]
+    assert layout.index("<Primary ") < layout.index('<aside className="hm-rail"')
+    assert layout.index("<Primary ") < layout.index("<OtherRole ")
+    assert layout.index('<aside className="hm-rail"') < layout.index("<UpcomingInterview ")
+    assert "<Preparation " in layout and "<Activity " in layout
+    assert 'label="hm-other" dominant={false}' in SECTIONS
+    assert 'className="hm-secondary-action" href={continueHref(practice.session_id)}' in SECTIONS
+    assert 'className="hm-primary-action" href={continueHref(practice.session_id)}' not in SECTIONS.split("function OtherRole")[1]
+    css = (WEB / "styles" / "home.css").read_text(encoding="utf-8")
+    assert ".hm-prep { display: grid" in css and "grid-template-columns: 1fr" in css
+    assert ".hm-activity li { align-items: start" in css
+
+
+def test_home_p5_browser_journey_covers_tablet_and_active_practice() -> None:
+    assert 'setViewportSize({ width: 820, height: 1180 })' in BROWSER_JOURNEY
+    assert '"tablet-05-home.png"' in BROWSER_JOURNEY
+    assert 'step("home-shows-active-practice"' in BROWSER_JOURNEY
+    assert 'overflow("home-active-practice", true)' in BROWSER_JOURNEY
+    assert '"tablet-09-home-shows-active-practice.png"' in BROWSER_JOURNEY

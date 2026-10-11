@@ -182,8 +182,8 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
   // 3. Home: greeting, role/target context, one clear primary action.
   await step("home", async () => {
     await heading(/, QA$/, 1).waitFor();
-    await page.getByText(`Preparing for: ${ROLE}`).waitFor();
-    await page.locator(".hm-role strong", { hasText: ROLE }).waitFor();
+    await page.locator(".hm-role-card .dh-section-label", { hasText: "Preparing for:" }).waitFor();
+    await page.locator(".hm-role-card strong", { hasText: ROLE }).waitFor();
     await heading(`Start your first ${ROLE} practice`, 2).waitFor();
     await page.getByRole("link", { name: `Start ${ROLE} practice` }).waitFor();
     await page.getByText(QA_NAME).first().waitFor({ state: "attached" }); // profile loaded from /api/v1/me (name sits in a menu on narrow screens)
@@ -196,6 +196,9 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
         await overflow(`home-${width}`, true);
         await page.screenshot({ path: path.join(outDir, `${viewport.name}-05-home-${width}.png`) }).catch(() => undefined);
       }
+      await page.setViewportSize({ width: 820, height: 1180 });
+      await overflow("home-tablet", true);
+      await page.screenshot({ path: path.join(outDir, "tablet-05-home.png"), fullPage: true });
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
     }
   });
@@ -228,7 +231,25 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.getByText("5-minute drill · Explain a project").waitFor();
     await page.getByRole("link", { name: /Begin the conversation/ }).waitFor();
     await overflow("brief");
-    await page.getByRole("link", { name: /Begin the conversation/ }).click();
+  });
+
+  await step("home-shows-active-practice", async () => {
+    await page.goto(`${baseUrl}/dashboard`);
+    await heading(/, QA$/, 1).waitFor();
+    const activePracticeLink = page.getByRole("link", { name: /(?:Begin|Continue) practice/ });
+    await activePracticeLink.waitFor();
+    await page.getByText("Not started yet").waitFor();
+    await overflow("home-active-practice", true);
+    if (viewport.name === "desktop") {
+      await page.setViewportSize({ width: 820, height: 1180 });
+      await overflow("home-active-practice-tablet", true);
+      await page.screenshot({ path: path.join(outDir, "tablet-09-home-shows-active-practice.png"), fullPage: true });
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    }
+  });
+
+  await step("resume-active-practice", async () => {
+    await page.getByRole("link", { name: /(?:Begin|Continue) practice/ }).click();
     await page.waitForURL(/\/app\/interview\/[^/]+$/);
   });
 
