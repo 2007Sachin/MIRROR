@@ -177,6 +177,11 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const [resuming, setResuming] = useState(false);
   const [roomLoaded, setRoomLoaded] = useState(false);
   const prejoinActionRef = useRef<HTMLButtonElement | null>(null);
+  const stageRef = useRef<HTMLElement | null>(null);
+  const joinFocusDoneRef = useRef(false);
+  const leaveButtonRef = useRef<HTMLButtonElement | null>(null);
+  const typedAnswerRef = useRef<HTMLTextAreaElement | null>(null);
+  const stepAwayDialogRef = useRef<HTMLDivElement | null>(null);
   const [remaining, setRemaining] = useState(0);
   const [question, setQuestion] = useState("");
   const [turnId, setTurnId] = useState<string | null>(null);
@@ -405,6 +410,42 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     if (permission !== "prompt" && !joinedRef.current) prejoinActionRef.current?.focus();
   }, [permission]);
+
+  // Joining by voice unmounts the button that had focus; land on the conversation once the
+  // question is there (typing focuses its answer box instead).
+  useEffect(() => {
+    if (!joined || textOnlyRef.current || !question || joinFocusDoneRef.current) return;
+    joinFocusDoneRef.current = true;
+    stageRef.current?.focus({ preventScroll: true });
+  }, [joined, question]);
+
+  // The step-away sheet takes focus when it opens; Escape steps back (confirm -> menu -> close).
+  // The step-away sheet takes focus when it opens. Escape only moves back (confirm -> menu) or
+  // to "Stay in the conversation"; resuming or ending always takes a deliberate press.
+  useEffect(() => {
+    const dialog = stepAwayDialogRef.current;
+    if (stepAway === "closed" || !dialog) return;
+    (dialog.querySelector<HTMLButtonElement>("button:not(:disabled)") ?? dialog).focus();
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || savingDraft) return;
+      if (stepAway === "confirm") setStepAway("menu");
+      else dialog.querySelector<HTMLButtonElement>("button.is-quiet")?.focus();
+    };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [stepAway, savingDraft]);
+  const dialogOpen = stepAway !== "closed";
+  // autoFocus misses the answer box when it mounts disabled (while joining), so focus it once each
+  // question is ready to answer in typing mode.
+  const typingReady = joined && (showTextFallback || textOnlyRef.current) && roomState !== "PROCESSING" && roomState !== "CONNECTING";
+  useEffect(() => {
+    if (typingReady && !dialogOpen) typedAnswerRef.current?.focus({ preventScroll: true });
+    // Re-run per question only; dialogOpen is read, not tracked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typingReady, question]);
+  useEffect(() => {
+    if (!dialogOpen && joinedRef.current) leaveButtonRef.current?.focus({ preventScroll: true });
+  }, [dialogOpen]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -1073,8 +1114,8 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const processing = roomState === "CONNECTING" || roomState === "CHECKING_MIC" || roomState === "PROCESSING";
 
   return (
-    <main className={`interview-room interview-room--${roomState.toLowerCase()}${!joined && roomState !== "COMPLETE" ? " is-prejoin reading-room" : ""}`}>
-      <header className="interview-room-header">
+    <main className={`interview-room interview-room--${roomState.toLowerCase()} reading-room${!joined && roomState !== "COMPLETE" ? " is-prejoin" : ""}`}>
+      <header className="interview-room-header" inert={dialogOpen}>
         <div className="interview-room-brand">
           <span className="interview-room-mark">M</span>
           <div>
@@ -1184,8 +1225,8 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
         </section>
       ) : (
         <>
-          <div className="interview-call-layout">
-            <section className="interview-stage" aria-label="Interview participants">
+          <div className="interview-call-layout" inert={dialogOpen}>
+            <section ref={stageRef} tabIndex={-1} className="interview-stage" aria-label="Interview participants">
               <article className="interview-participant interview-participant--mirror">
                 <div className="interview-participant-label">
                   <span>Mirror</span>
@@ -1204,7 +1245,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                       ? "Mirror is speaking"
                       : greeting ? "Welcome" : "Current question"}
                   </span>
-                  {welcomeLine ? <p className="interview-greeting" role="status">{welcomeLine}</p> : null}
+                  {welcomeLine ? <p className="interview-greeting">{welcomeLine}</p> : null}
                   {greeting ? <p className="interview-greeting">{greeting}</p> : null}
                   <h1 className="display">{questionBody || "Preparing the next question…"}</h1>
                 </div>
@@ -1231,10 +1272,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
 
             <aside className="interview-transcript" aria-label="Conversation transcript">
               <div className="interview-transcript-heading">
-                <div>
-                  <span className="mono">Conversation</span>
-                  <h2 className="display">Conversation</h2>
-                </div>
+                <h2 className="display">Conversation</h2>
                 <span className={`interview-live-dot ${!captionsEnabled || captionSupport !== "available" ? "is-off" : ""}`}>
                   {captionSupport === "available"
                     ? captionsEnabled ? "Captions on" : "Captions off"
@@ -1251,13 +1289,13 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                   <p className="interview-transcript-empty">The conversation will appear here as it unfolds.</p>
                 ) : null}
                 {liveCaption && captionsEnabled ? (
-                  <article className="interview-transcript-turn is-candidate is-live" aria-live="polite">
+                  <article className="interview-transcript-turn is-candidate is-live">
                     <span>You · Live</span>
                     <p>{liveCaption}</p>
                   </article>
                 ) : null}
                 {roomState === "PROCESSING" ? (
-                  <div className="interview-thinking" role="status">
+                  <div className="interview-thinking" aria-hidden="true">
                     <i /><i /><i /> Mirror is considering your answer
                   </div>
                 ) : null}
@@ -1266,12 +1304,13 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
           </div>
 
           {(showTextFallback || textOnlyRef.current) ? (
-            <form className="interview-text-composer" onSubmit={submitTextFallback}>
+            <form className="interview-text-composer" onSubmit={submitTextFallback} inert={dialogOpen}>
               <div>
                 <label htmlFor="typed-answer">Type your answer</label>
                 <span>{textRetryPending ? "Retry the same answer to continue." : "Voice pauses while you type."}</span>
               </div>
               <textarea
+                ref={typedAnswerRef}
                 id="typed-answer"
                 value={typedAnswer}
                 onChange={(event) => setTypedAnswer(event.target.value)}
@@ -1289,13 +1328,13 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
           ) : null}
 
           {error ? (
-            <div className="interview-error-banner" role="alert">
+            <div className="interview-error-banner" role="alert" inert={dialogOpen}>
               <span><strong>{errorKind === "NETWORK" ? "Connection interrupted. " : errorKind === "MIC" ? "Microphone unavailable. " : ""}</strong>{error}</span>
               {!processing && !closing && !textRetryPending ? <button type="button" onClick={resumeConversation}>Continue</button> : null}
             </div>
           ) : null}
 
-          <footer className="interview-controls" aria-label="Interview controls">
+          <footer className="interview-controls" aria-label="Interview controls" inert={dialogOpen}>
             <div className="interview-call-status" aria-live="polite">
               <span className={`interview-status-dot is-${roomState.toLowerCase()}`} />
               <div>
@@ -1361,7 +1400,9 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
             ) : null}
             <button
               type="button"
+              ref={leaveButtonRef}
               className="interview-leave-button"
+              aria-label={voiceRoom.stepAway.button /* the text label is hidden on small screens */}
               onClick={openStepAway}
               disabled={processing || roomState === "CANDIDATE_SPEAKING" || closing}
               title={roomState === "CANDIDATE_SPEAKING" ? "Pause briefly so Mirror can save your final answer" : undefined}
@@ -1374,7 +1415,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       )}
       {stepAway !== "closed" ? (
         <div className="interview-dialog-backdrop" role="presentation">
-          <div className="interview-dialog" role="dialog" aria-modal="true" aria-labelledby="step-away-title">
+          <div ref={stepAwayDialogRef} tabIndex={-1} className="interview-dialog" role="dialog" aria-modal="true" aria-labelledby="step-away-title">
             {stepAway === "menu" ? (
               <>
                 <h2 id="step-away-title">{voiceRoom.stepAway.title}</h2>
@@ -1396,11 +1437,11 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                 <h2 id="step-away-title">{voiceRoom.stepAway.end}</h2>
                 <p>{voiceRoom.endConfirm.body}</p>
                 <div className="interview-dialog-actions">
-                  <button type="button" className="is-primary" onClick={() => void endInterview()}>
-                    {voiceRoom.endConfirm.confirm}
-                  </button>
-                  <button type="button" className="is-quiet" onClick={() => setStepAway("menu")}>
+                  <button type="button" className="is-primary" onClick={() => setStepAway("menu")}>
                     {voiceRoom.endConfirm.cancel}
+                  </button>
+                  <button type="button" onClick={() => void endInterview()}>
+                    {voiceRoom.endConfirm.confirm}
                   </button>
                 </div>
               </>
