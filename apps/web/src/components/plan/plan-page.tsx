@@ -60,7 +60,7 @@ export function PlanPage({ roleProfileId, initialTargetId }: { roleProfileId: st
   }
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={t.eyebrow}
         title={plan?.role ? t.title(plan.role.target_role) : t.titleGeneral}

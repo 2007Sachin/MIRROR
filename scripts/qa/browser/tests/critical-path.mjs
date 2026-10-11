@@ -311,8 +311,8 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await overflow("home-after-practice");
   });
 
-  // 5b. Reading Room screens whose data the mock serves: each renders a heading and never scrolls sideways.
-  for (const route of ["/help", "/roles", "/settings"]) {
+  // 5b. Reading Room screens whose data the mock serves (the mock has no GET /api/v1/roles list): each renders a heading and never scrolls sideways.
+  for (const route of ["/help", "/settings"]) {
     await step(`reading-room${route.replace("/", "-")}`, async () => {
       await page.goto(`${baseUrl}${route}`);
       await page.locator(".reading-room h1").first().waitFor();

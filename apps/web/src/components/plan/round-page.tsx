@@ -98,7 +98,7 @@ export function RoundPage({ roleProfileId, roundKey, targetId }: { roleProfileId
   const title = roundLabel(roundKey) ?? t.notFoundTitle;
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       {state.kind === "ready" ? (
         <header className="dh-page-header">
           <Link className="dh-back-link" href={`${back.href}#round-${roundKey}`}>

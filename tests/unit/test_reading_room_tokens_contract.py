@@ -78,6 +78,11 @@ MIGRATED = {
     "components/roles/roles-page.tsx", "components/roles/role-detail.tsx", "components/roles/pressure-test-page.tsx",
     "components/interviews/interviews-page.tsx", "components/interviews/interview-brief-page.tsx",
     "components/onboarding/new-role-flow.tsx", "components/stories/stories-page.tsx", "components/stories/story-editor.tsx",
+    # P3B: Plan, Progress, Reflect, Practice
+    "components/plan/plan-page.tsx", "components/plan/round-page.tsx",
+    "components/progress/progress-hub.tsx", "components/progress/role-progress.tsx", "components/progress/dimension-detail.tsx",
+    "components/progress/dimension-answers.tsx", "components/progress/answer-detail.tsx",
+    "app/reflect/reflect-view.tsx", "components/practice/practice-page.tsx", "components/practice/start-practice.tsx",
 }
 
 

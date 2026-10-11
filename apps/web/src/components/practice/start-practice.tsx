@@ -138,7 +138,7 @@ export function StartPractice() {
   }
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={t.eyebrow}
         title={step === 1 ? t.roleStep.title : t.focusStep.title}

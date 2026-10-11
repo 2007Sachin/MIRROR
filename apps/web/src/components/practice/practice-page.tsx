@@ -78,7 +78,7 @@ export function PracticePage() {
   const roleProfileId = data?.role?.role_profile_id ?? null;
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={t.eyebrow}
         title={t.title}
