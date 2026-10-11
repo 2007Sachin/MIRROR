@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<title>Your space · Mirror (prototype)</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+  .dash { max-width: 1240px; margin: 0 auto; padding: var(--s12) var(--s6) var(--s18); display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--s12) var(--s16); align-items: start; }
+  .dash-main { display: grid; gap: var(--s12); min-width: 0; }
+  .intro { display: grid; gap: var(--s3); }
+  .intro .body { color: var(--text-secondary); font-size: 1.0625rem; }
+
+  /* Focus slip: the one thing to do now */
+  .slip { display: grid; grid-template-columns: minmax(0, 1fr) 200px; overflow: hidden; }
+  .slip-main { padding: var(--s8); display: grid; gap: var(--s4); align-content: start; }
+  .slip .h2 { font-size: 1.375rem; line-height: 1.2; }
+  .slip-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); justify-content: space-between; }
+  .slip-meta { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s5); color: var(--text-secondary); font-size: .875rem; }
+  .slip-meta span { display: inline-flex; align-items: center; gap: 6px; }
+  .slip-meta svg { width: 16px; height: 16px; }
+  .slip-actions { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s3); align-items: center; margin-top: var(--s2); }
+  .slip-progress { display: grid; gap: 6px; max-width: 420px; }
+
+  /* Lifecycle track: Practise → Review → Next practice */
+  .track { list-style: none; margin: 0; padding: var(--s8) var(--s6); background: var(--bg-sunken); border-left: 1px solid var(--line); display: grid; align-content: center; }
+  .track li { position: relative; display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding-bottom: var(--s5); font-size: .8125rem; color: var(--text-secondary); }
+  .track li:last-child { padding-bottom: 0; }
+  .track li > * { grid-column: 2; }
+  .track li::before { content: ""; width: 12px; height: 12px; margin: 4px 5px; border-radius: 50%; border: 1.5px solid var(--border-control); background: var(--bg-sunken); position: relative; z-index: 1; }
+  .track li:not(:last-child)::after { content: ""; position: absolute; left: 10.25px; top: 18px; bottom: 0; width: 1.5px; background: var(--line-strong); }
+  .track li[data-step="done"]::before { background: var(--accent-600); border-color: var(--accent-600); }
+  .track li[data-step="done"]::after { background: var(--accent-500); }
+  .track li[data-step="now"] { color: var(--text-primary); font-weight: 600; }
+  .track li[data-step="now"]::before { border: 2px solid var(--accent-700); background: var(--surface); box-shadow: 0 0 0 4px var(--accent-50); }
+  .track small { display: block; font-weight: 420; color: var(--text-secondary); }
+
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s4); margin-bottom: var(--s3); }
+  .insight { display: grid; gap: 2px; }
+  .insight .h3 { font-size: 1rem; }
+  .row-meta { font-size: .8125rem; color: var(--text-secondary); }
+  .row-end { display: inline-flex; align-items: center; gap: var(--s2); font-size: .8125rem; color: var(--accent-700); font-weight: 560; }
+  .row-end svg { width: 18px; height: 18px; }
+
+  /* Rail */
+  .rail { position: sticky; top: calc(var(--nav-h) + var(--s8)); display: grid; gap: var(--s6); }
+  .rail-block { padding: var(--s5); display: grid; gap: var(--s3); }
+  .upcoming { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); padding: var(--s5); display: grid; gap: var(--s3); }
+  .upcoming-date { display: flex; gap: var(--s3); align-items: center; }
+  .datebox { width: 52px; height: 56px; flex: none; border-radius: 10px; background: var(--bg-sunken); color: var(--text-primary); display: grid; place-content: center; text-align: center; line-height: 1.05; }
+  .datebox b { font: 600 1.375rem/1 var(--font-display); display: block; }
+  .datebox span { font: 500 .6875rem/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+  .prep .row-link { padding: var(--s3) var(--s1); }
+  .prep .rows > li:first-child { border-top: 0; }
+  .prep .rows > li:last-child { border-bottom: 0; }
+
+  .steps { list-style: none; margin: var(--s2) 0 0; padding: 0; counter-reset: s; max-width: 520px; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 32px 1fr; gap: var(--s3); padding: var(--s4) 0; border-top: 1px solid var(--line); }
+  .steps li::before { content: counter(s); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--bg-sunken); font: 600 .8125rem/1 var(--font-mono); }
+  .steps span { color: var(--text-secondary); font-size: .875rem; }
+
+  .loading-block { display: grid; gap: var(--s3); }
+  .loading-note { display: inline-flex; align-items: center; gap: var(--s2); color: var(--text-secondary); margin: 0; }
+
+  .pulse-line .dot { color: var(--accent-500); animation: breathe 1.8s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .35; } }
+
+  @media (max-width: 1080px) { .dash { grid-template-columns: 1fr; } .rail { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 820px) {
+    .dash { padding: var(--s8) var(--s4) var(--s12); gap: var(--s10); }
+    .slip { grid-template-columns: 1fr; }
+    .slip-main { padding: var(--s6) var(--s5); }
+    .track { border-left: 0; border-top: 1px solid var(--line); padding: var(--s5); grid-auto-flow: column; grid-template-columns: repeat(3, 1fr); }
+    .track li { grid-template-columns: 1fr; padding-bottom: 0; gap: 6px; }
+    .track li::before { margin: 0; }
+    .track li > * { grid-column: 1; }
+    .track li:not(:last-child)::after { left: 16px; right: -8px; top: 5px; bottom: auto; width: auto; height: 1.5px; }
+    .track small { display: none; }
+    .rail { grid-template-columns: 1fr; }
+    .slip-actions .btn-primary { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body class="has-tabbar">
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="topnav glass">
+  <div class="topnav-inner">
+    <a class="brand" href="dashboard.html"><svg class="brand-mark" aria-hidden="true"><use href="icons.svg#mark"/></svg>Mirror</a>
+    <nav aria-label="Main">
+      <ul class="navlinks">
+        <li><a href="dashboard.html" aria-current="page">Home</a></li>
+        <li><a href="#">My plan</a></li>
+        <li><a href="#">My stories</a></li>
+        <li><a href="#">Practice</a></li>
+        <li><a href="#">Reflect</a></li>
+      </ul>
+    </nav>
+    <div class="nav-end">
+      <button class="role-pill" type="button" aria-haspopup="listbox"><span class="role-full">Associate Product Manager ·</span> Northwind <svg width="14" height="14" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></button>
+      <button class="avatar" type="button" aria-label="Your profile menu">AR</button>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="dash enter" tabindex="-1">
+  <div class="dash-main">
+
+    <!-- LOADING -->
+    <section data-state="loading" aria-busy="true" class="loading-block">
+      <p class="loading-note" role="status"><span class="spinner" aria-hidden="true"></span> Getting your space ready.</p>
+      <div class="placeholder" style="height:44px;width:60%"></div>
+      <div class="placeholder" style="height:20px;width:80%"></div>
+      <div class="placeholder" style="height:220px;margin-top:var(--s6)"></div>
+      <div class="placeholder" style="height:56px"></div>
+      <div class="placeholder" style="height:56px"></div>
+    </section>
+
+    <!-- ERROR -->
+    <section data-state="error" class="intro">
+      <p class="label">Your space</p>
+      <h1 class="h1">Welcome back, Aisha.</h1>
+      <div class="alert alert-danger" role="alert">
+        <svg aria-hidden="true"><use href="icons.svg#wifi-off"/></svg>
+        <p><strong>Your space didn't load</strong>Nothing you've saved is lost. Check your connection, then try loading it again.</p>
+        <button class="btn btn-secondary" type="button" data-goto="ready"><svg aria-hidden="true"><use href="icons.svg#refresh"/></svg>Reload</button>
+      </div>
+    </section>
+
+    <!-- EMPTY: NO_ROLE -->
+    <section data-state="empty" class="intro">
+      <p class="label">Your space</p>
+      <h1 class="h1">Choose a role to start preparing.</h1>
+      <p class="body">A role gives your practice a clear shape. Mirror uses the job description and your resume to plan the conversation.</p>
+      <ol class="steps" aria-label="What happens next">
+        <li><div><strong>Add the role</strong><br><span>Paste the job description, or a link to it.</span></div></li>
+        <li><div><strong>Check your experience</strong><br><span>Mirror reads your resume so questions are about your own work.</span></div></li>
+        <li><div><strong>Have the conversation</strong><br><span>A practice interview by voice or typing, then your review.</span></div></li>
+      </ol>
+      <div class="slip-actions"><a class="btn btn-primary" href="#"><svg aria-hidden="true"><use href="icons.svg#plus"/></svg>Add a role</a></div>
+    </section>
+
+    <!-- HEADLINE for populated states -->
+    <section class="intro" data-state="ready active processing retry recommended">
+      <p class="label">Associate Product Manager · Northwind Health</p>
+      <h1 class="h1" data-state="ready">Your review is ready.</h1>
+      <h1 class="h1" data-state="active">Continue where you left off.</h1>
+      <h1 class="h1" data-state="processing">Preparing your review.</h1>
+      <h1 class="h1" data-state="retry">Your review didn't finish.</h1>
+      <h1 class="h1" data-state="recommended">Good to see you, Aisha.</h1>
+    </section>
+
+    <!-- FOCUS SLIP: one primary action -->
+    <article class="panel slip" data-state="ready active processing retry recommended" aria-label="What to do now">
+      <div class="slip-main">
+        <!-- ready -->
+        <div class="slip-head" data-state="ready"><p class="label">Full interview · Today, 2 hours ago</p><span class="tag tag-status"><svg width="14" height="14" aria-hidden="true"><use href="icons.svg#check"/></svg>Ready</span></div>
+        <h2 class="h2" data-state="ready">See what came through clearly, and what to work on next.</h2>
+        <div class="slip-meta" data-state="ready"><span><svg aria-hidden="true"><use href="icons.svg#chat"/></svg>Completed 4 questions</span><span><svg aria-hidden="true"><use href="icons.svg#clock"/></svg>32 minutes</span></div>
+        <div class="slip-actions" data-state="ready"><a class="btn btn-primary" href="results.html">View review <svg aria-hidden="true"><use href="icons.svg#arrow"/></svg></a></div>
+
+        <!-- active -->
+        <div class="slip-head" data-state="active"><p class="label">Focused practice · Product sense</p><span class="tag tag-neutral"><span class="dot" aria-hidden="true"></span>In progress</span></div>
+        <h2 class="h2" data-state="active">Question 3 of 4</h2>
+        <div class="slip-progress" data-state="active"><progress class="bar" max="4" value="2.5" aria-label="Practice progress: question 3 of 4"></progress><span class="small secondary">Last active yesterday at 19:40 · Your answers so far are saved.</span></div>
+        <div class="slip-actions" data-state="active"><a class="btn btn-primary" href="interview.html?state=listening">Continue practice <svg aria-hidden="true"><use href="icons.svg#arrow"/></svg></a><button class="btn btn-quiet" type="button" data-open="end-sheet">End this practice</button></div>
+
+        <!-- processing -->
+        <div class="slip-head" data-state="processing"><p class="label">Full interview · Finished 3 minutes ago</p><span class="tag tag-neutral pulse-line"><span class="dot" aria-hidden="true"></span>Preparing</span></div>
+        <h2 class="h2" data-state="processing">This usually takes a minute or two.</h2><p class="sr-only" role="status" data-state="processing">Preparing your review.</p>
+        <p class="body secondary" data-state="processing">You can leave this page. It will be here when you come back.</p>
+
+        <!-- retry -->
+        <div class="slip-head" data-state="retry"><p class="label">Full interview · Today</p><span class="tag tag-warning"><svg width="14" height="14" aria-hidden="true"><use href="icons.svg#alert"/></svg>Needs another try</span></div>
+        <h2 class="h2" data-state="retry">Your conversation is saved.</h2>
+        <p class="body secondary" data-state="retry">Mirror can try again without repeating it. Nothing you said is lost.</p>
+        <div class="slip-actions" data-state="retry"><button class="btn btn-primary" type="button" id="retry-btn"><svg aria-hidden="true"><use href="icons.svg#refresh"/></svg><span>Try again</span></button></div>
+
+        <!-- recommended -->
+        <div class="slip-head" data-state="recommended"><p class="label">Up next · About 15 minutes</p><span class="tag tag-status">Focused practice</span></div>
+        <h2 class="h2" data-state="recommended">Practise explaining a project.</h2>
+        <p class="body secondary" data-state="recommended">In your last conversation, the outcome of the onboarding redesign came through, but what you led yourself was less clear. A short round on one project gives that room.</p>
+        <div class="slip-actions" data-state="recommended"><a class="btn btn-primary" href="interview.html?state=prejoin">Begin practice <svg aria-hidden="true"><use href="icons.svg#arrow"/></svg></a><a class="btn btn-quiet" href="results.html">See the answers behind this</a></div>
+      </div>
+
+      <ol class="track" aria-label="Where you are">
+        <li data-step="done"><span>Practise <span class="sr-only">(done)</span></span><small>4 questions</small></li>
+        <li data-step="now" aria-current="step"><span data-state="ready processing retry">Review <span class="sr-only">(current)</span></span><span data-state="active">In progress <span class="sr-only">(current)</span></span><span data-state="recommended">Next practice <span class="sr-only">(current)</span></span><small data-state="ready">Ready to read</small><small data-state="processing">Preparing</small><small data-state="retry">Saved</small></li>
+        <li><span>Next practice</span><small>Explaining a project</small></li>
+      </ol>
+    </article>
+
+    <!-- SINCE LAST PRACTICE -->
+    <section aria-labelledby="since-h" data-state="ready recommended">
+      <div class="section-head"><h2 class="h3" id="since-h">Since your last practice</h2><a class="small" href="#">All of Reflect</a></div>
+      <ul class="rows">
+        <li><a class="row-link" href="results.html#came-through">
+          <span class="insight"><span class="h3">Describing what you led</span><span class="row-meta">Clearer than last time: you named your own decisions in two of three project answers.</span></span>
+          <svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+        <li><a class="row-link" href="results.html#came-through">
+          <span class="insight"><span class="h3">Explaining your results</span><span class="row-meta">Not enough to say yet: one more conversation will give a clearer picture.</span></span>
+          <svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+      </ul>
+    </section>
+
+    <!-- RECENT -->
+    <section aria-labelledby="recent-h" data-state="ready active processing retry recommended">
+      <div class="section-head"><h2 class="h3" id="recent-h">Recent activity</h2></div>
+      <ul class="rows">
+        <li><a class="row-link" href="results.html"><span class="insight"><span>Full interview · 4 questions</span><span class="row-meta mono">Today</span></span><span class="row-end">Open<svg aria-hidden="true"><use href="icons.svg#chev"/></svg></span></a></li>
+        <li><a class="row-link" href="#"><span class="insight"><span>Story added · “Onboarding redesign at Brightpath”</span><span class="row-meta mono">8 Oct</span></span><span class="row-end">Open<svg aria-hidden="true"><use href="icons.svg#chev"/></svg></span></a></li>
+        <li><a class="row-link" href="#"><span class="insight"><span>Quick drill · Prioritisation</span><span class="row-meta mono">5 Oct</span></span><span class="row-end">Open<svg aria-hidden="true"><use href="icons.svg#chev"/></svg></span></a></li>
+      </ul>
+    </section>
+  </div>
+
+  <!-- RAIL -->
+  <aside class="rail" aria-label="Your preparation" data-state="ready active processing retry recommended">
+    <section class="upcoming" aria-labelledby="up-h">
+      <p class="label" id="up-h">Interview coming up</p>
+      <div class="upcoming-date"><div class="datebox" aria-hidden="true"><b>12</b><span>Oct</span></div>
+        <p class="small" style="margin:0">Your <strong>Product sense</strong> interview for Associate Product Manager is tomorrow at 10:30.</p></div>
+      <a class="small" href="#">Read your brief</a>
+    </section>
+    <section class="well rail-block prep" aria-labelledby="prep-h">
+      <p class="label" id="prep-h">Your preparation</p>
+      <ul class="rows">
+        <li><a class="row-link" href="#"><span class="insight"><span class="h3">My plan</span><span class="row-meta">3 of 5 rounds ready</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+        <li><a class="row-link" href="#"><span class="insight"><span class="h3">My stories</span><span class="row-meta">6 stories · 2 need an outcome</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+        <li><a class="row-link" href="#"><span class="insight"><span class="h3">Practice</span><span class="row-meta">4 conversations this month</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+      </ul>
+    </section>
+  </aside>
+</main>
+
+<nav class="tabbar glass" aria-label="Main (mobile)">
+  <a href="dashboard.html" aria-current="page"><svg aria-hidden="true"><use href="icons.svg#home"/></svg>Home</a>
+  <a href="#"><svg aria-hidden="true"><use href="icons.svg#map"/></svg>Plan</a>
+  <a href="#"><svg aria-hidden="true"><use href="icons.svg#book"/></svg>Stories</a>
+  <a href="#"><svg aria-hidden="true"><use href="icons.svg#practice"/></svg>Practice</a>
+  <a href="#"><svg aria-hidden="true"><use href="icons.svg#reflect"/></svg>Reflect</a>
+</nav>
+
+<dialog class="sheet" id="end-sheet" aria-labelledby="end-title">
+  <div class="sheet-frame glass"><div class="sheet-body" style="display:grid;gap:var(--s4)">
+    <h2 class="h2" id="end-title">End this practice?</h2>
+    <p class="body secondary">Your review will be based on what you've talked about so far, so it may say “not enough to say yet” in a few places.</p>
+    <div class="slip-actions" style="justify-content:flex-end"><button class="btn btn-quiet" type="button" data-close>Not yet</button><button class="btn btn-secondary" type="button" data-close data-goto="processing">End and prepare my review</button></div>
+  </div></div>
+</dialog>
+
+<p class="sr-only" role="status" id="live"></p>
+<script>
+  window.PROTO = {
+    initial: "ready",
+    states: [["ready","Review ready"],["recommended","Returning · next step"],["active","Practice in progress"],["processing","Preparing review"],["retry","Review didn't finish"],["empty","Empty · no role yet"],["loading","Loading"],["error","Couldn't load"]],
+  };
+  document.getElementById("retry-btn").addEventListener("click", (event) => {
+    const btn = event.currentTarget;
+    btn.setAttribute("aria-busy", "true"); btn.querySelector("span").textContent = "Trying again…"; document.getElementById("live").textContent = "Trying again…";
+    setTimeout(() => { btn.removeAttribute("aria-busy"); btn.querySelector("span").textContent = "Try again"; window.protoApply("processing", true); }, 1200);
+  });
+</script>
+<script src="proto.js"></script>
+</body>
+</html>

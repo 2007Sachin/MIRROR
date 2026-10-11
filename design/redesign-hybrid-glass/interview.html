@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<title>Interview room · Mirror (prototype)</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body { overflow: hidden; }
+  .room { height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
+
+  /* Top strip (glass): role, phase, timer — nothing evaluative */
+  .strip { position: relative; z-index: 20; margin: var(--s3) var(--s3) 0; border-radius: 16px; min-height: 56px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: var(--s6); align-items: center; padding: var(--s2) var(--s4); }
+  .strip-role { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
+  .strip-role span { font-weight: 600; font-size: .875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .phases { display: grid; gap: 6px; justify-items: center; }
+  .phase-bar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: 320px; list-style: none; margin: 0; padding: 0; }
+  .phase-bar li { height: 4px; border-radius: 2px; background: #B9BBBB; }
+  .phase-bar li.done { background: var(--accent-500); }
+  .phase-bar li.now { background: var(--accent-700); }
+  .phase-name { margin: 0; font: 500 .75rem/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); }
+  .phase-name b { color: var(--text-primary); font-weight: 600; }
+  .strip-end { display: flex; align-items: center; justify-content: flex-end; gap: var(--s3); }
+  .timer { font: 500 .875rem/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-primary); display: inline-flex; gap: 6px; align-items: center; }
+  .timer svg { width: 16px; height: 16px; color: var(--text-secondary); }
+  .icon-btn { width: 44px; height: 44px; border-radius: 12px; display: inline-grid; place-items: center; background: transparent; border: 1px solid transparent; cursor: pointer; color: var(--text-primary); transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+  .icon-btn:hover { background: rgba(30,33,36,.06); }
+  .icon-btn svg { width: 20px; height: 20px; }
+  .icon-btn[aria-pressed="true"] { background: var(--accent-50); color: var(--accent-700); border-color: rgba(29,86,80,.25); }
+  .rail-toggle { display: none !important; }
+
+  /* Stage */
+  .stage { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--s6); padding: var(--s6) var(--s6) 0; max-width: 1320px; width: 100%; margin: 0 auto; }
+  .main-col { min-height: 0; display: grid; gap: var(--s5); align-content: start; padding-bottom: 140px; overflow: auto; }
+
+  .presence { display: flex; align-items: center; gap: var(--s3); min-height: 40px; }
+  .presence-text { font-weight: 600; }
+  .presence-sub { color: var(--text-secondary); font-size: .875rem; }
+  .meter { display: inline-flex; align-items: center; gap: 3px; height: 28px; padding: 0 10px; border-radius: var(--r-pill); background: var(--surface); border: 1px solid var(--line); flex: none; }
+  .meter i { display: block; width: 3px; height: 4px; border-radius: 2px; background: var(--accent-500); transition: height 90ms linear; }
+  .meter.idle i { background: var(--border-control); }
+
+  .qpanel { padding: var(--s10) var(--s10) var(--s8); display: grid; gap: var(--s5); }
+  .qpanel .question { max-width: 34ch; }
+  .q-foot { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s5); align-items: center; color: var(--text-secondary); font-size: .8125rem; }
+  .q-in { animation: q-in var(--t-base) var(--ease); }
+  @keyframes q-in { from { opacity: 0; transform: translateY(6px); } }
+
+  .caption { padding: var(--s4) var(--s5); border-radius: var(--r-panel); background: var(--bg-sunken); border: 1px solid var(--line); display: grid; gap: var(--s2); }
+  .welcome { margin: 0; font-size: 1.0625rem; color: var(--text-secondary); }
+  .caption p { margin: 0; }
+  .caption p:not(.label, .note) { font-size: 1.0625rem; }
+  .caption .note { font-size: .75rem; color: var(--text-secondary); }
+
+  /* Transcript rail (solid sunken) */
+  .rail { min-height: 0; display: grid; grid-template-rows: auto 1fr; background: var(--bg-sunken); border-radius: var(--r-panel) var(--r-panel) 0 0; overflow: hidden; }
+  .rail-head { padding: var(--s4) var(--s5); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
+  .rail-head h2 { margin: 0; }
+  .turns { list-style: none; margin: 0; padding: var(--s4) var(--s5) 140px; overflow: auto; display: grid; gap: var(--s4); align-content: start; }
+  .turn { display: grid; gap: 4px; }
+  .turn .who { display: flex; justify-content: space-between; font: 500 .75rem/1.3 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
+  .turn p { margin: 0; font-size: .875rem; line-height: 1.55; }
+  .turn.you p { background: var(--surface); padding: var(--s3); border-radius: 10px; border: 1px solid var(--line); }
+
+  /* Floating control dock (glass) */
+  .dock { position: fixed; z-index: 25; left: 50%; bottom: calc(var(--s5) + env(safe-area-inset-bottom)); transform: translateX(-50%); border-radius: var(--r-glass); padding: 8px; display: flex; align-items: center; gap: 4px; }
+  .dock .sep { width: 1px; height: 28px; background: var(--line-strong); margin: 0 6px; }
+  .dock .btn { min-height: 48px; }
+  .tip { position: relative; }
+  .tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translate(-50%, 4px); white-space: nowrap; background: var(--text-primary); color: var(--surface); font-size: .75rem; padding: 5px 8px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+  .tip:hover::after, .tip:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+  .tips-off .tip::after { opacity: 0 !important; }
+  body:is([data-view=prejoin],[data-view=miccheck],[data-view=micblocked],[data-view=complete],[data-view=elsewhere]) .strip { box-shadow: var(--glass-edge), var(--e1); }
+  body[data-view=typing] .main-col, body[data-view=typedretry] .main-col { padding-bottom: 320px; }
+  .away-step[hidden] { display: none !important; }
+
+  /* Composer sheet (glass chrome, solid field) */
+  .composer { position: fixed; z-index: 26; left: 50%; bottom: calc(var(--s5) + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(720px, calc(100% - 24px)); border-radius: var(--r-glass); padding: 8px; }
+  .composer-inner { background: var(--surface); border-radius: 14px; padding: var(--s4); display: grid; gap: var(--s3); }
+  .composer textarea { width: 100%; min-height: 112px; resize: vertical; border: 1px solid var(--border-control); border-radius: var(--r-control); padding: var(--s3); font: inherit; color: inherit; background: #fff; }
+  .composer textarea:focus-visible { outline: 2px solid var(--accent-700); outline-offset: 1px; border-color: var(--accent-700); }
+  .composer-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+
+  /* Centered moments: pre-join, complete */
+  .center { min-height: 0; overflow: auto; display: grid; place-items: center; padding: var(--s8) var(--s4) var(--s16); }
+  .moment { width: min(620px, 100%); padding: var(--s10); display: grid; gap: var(--s5); }
+  .moment ul { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--s3); }
+  .moment li { display: grid; grid-template-columns: 22px 1fr; gap: var(--s3); color: var(--text-secondary); }
+  .moment li svg { width: 20px; height: 20px; color: var(--accent-700); margin-top: 2px; }
+  .mic-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); padding: var(--s4); border-radius: var(--r-panel); background: var(--bg-sunken); }
+  .actions { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; }
+
+  @media (max-width: 1024px) {
+    .stage { grid-template-columns: 1fr; padding: var(--s4) var(--s4) 0; }
+    .rail { display: none; }
+    .rail-toggle { display: inline-grid !important; }
+    .rail-toggle[hidden] { display: none !important; }
+  }
+  @media (max-width: 720px) {
+    .strip { grid-template-columns: minmax(0, 1fr) auto; gap: var(--s2) var(--s3); margin: var(--s2) var(--s2) 0; padding: var(--s2) var(--s3); }
+    .phases { grid-column: 1 / -1; grid-row: 2; justify-items: start; }
+    .phase-bar { width: 100%; }
+    .strip-role .brand-mark { display: none; }
+    .qpanel { padding: var(--s6) var(--s5); }
+    .moment { padding: var(--s6) var(--s5); }
+    .dock { left: var(--s2); right: var(--s2); transform: none; justify-content: space-between; flex-wrap: wrap; }
+    .dock .sep { display: none; }
+    .dock .btn-primary { order: -1; flex: 1 1 100%; }
+    .main-col { padding-bottom: 190px; }
+    .composer-foot .actions { width: 100%; }
+    .composer-foot .btn-primary { flex: 1; }
+  }
+  @media (max-width: 480px) { .strip-mode { display: none; } }
+  /* Short viewports / high zoom: floating chrome joins the page flow so it never hides focused content. */
+  @media (max-height: 560px) {
+    body { overflow: auto; }
+    .room { height: auto; min-height: 100dvh; }
+    .stage, .main-col, .rail, .turns, .center { overflow: visible; }
+    .main-col, body[data-view] .main-col { padding-bottom: var(--s6); }
+    .dock, .composer { position: sticky; bottom: 0; left: auto; transform: none; margin: var(--s3) auto; max-width: calc(100% - 16px); }
+    .dock { width: fit-content; }
+  }
+  @media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="room">
+  <header class="strip glass">
+    <div class="strip-role"><svg class="brand-mark" width="22" height="22" aria-hidden="true"><use href="icons.svg#mark"/></svg><span><span class="strip-mode">Full interview · </span>Associate Product Manager</span></div>
+    <div class="phases" data-state="speaking listening answering considering typing connection welcome retryvoice typedretry offline">
+      <ol class="phase-bar" aria-hidden="true"><li class="done"></li><li class="done"></li><li class="done"></li><li class="done"></li><li class="now"></li><li></li><li></li></ol>
+      <p class="phase-name"><span class="sr-only">Current part: </span><b>Deep dive</b> · 5 of 7</p>
+    </div>
+    <div data-state="prejoin miccheck micblocked complete elsewhere"></div>
+    <div class="strip-end">
+      <span class="timer" data-state="speaking listening answering considering typing connection welcome retryvoice typedretry offline"><svg aria-hidden="true"><use href="icons.svg#clock"/></svg><span id="timer">18:42</span><span class="sr-only"> remaining</span></span>
+      <button class="icon-btn rail-toggle" type="button" aria-label="Show the conversation so far" data-open="rail-sheet" data-state="speaking listening answering considering typing connection welcome retryvoice typedretry offline"><svg aria-hidden="true"><use href="icons.svg#list"/></svg></button>
+    </div>
+  </header>
+
+  <!-- PRE-JOIN (absorbs the separate "Before we begin" page) -->
+  <main class="center" data-state="prejoin miccheck micblocked" id="main">
+    <section class="panel moment" aria-labelledby="pj-title">
+      <p class="label">Full interview · Associate Product Manager</p>
+      <h1 class="h1" id="pj-title">Ready when you are.</h1>
+      <ul>
+        <li><svg aria-hidden="true"><use href="icons.svg#clock"/></svg><span>About 35 minutes, in seven parts. You can step away and come back.</span></li>
+        <li><svg aria-hidden="true"><use href="icons.svg#chat"/></svg><span>Mirror asks about your own work. Take a pause whenever you need one.</span></li>
+        <li><svg aria-hidden="true"><use href="icons.svg#keyboard"/></svg><span>You can type any answer instead of speaking.</span></li>
+        <li><svg aria-hidden="true"><use href="icons.svg#mic"/></svg><span>Your spoken answers are recorded and saved privately to your account, with a transcript, so Mirror can prepare your review.</span></li>
+      </ul>
+
+      <div class="alert alert-warning" role="alert" data-state="micblocked">
+        <svg aria-hidden="true"><use href="icons.svg#mic-off"/></svg>
+        <p><strong>Microphone access is blocked</strong>Allow it from the address bar, or continue with typing. Your answers count the same either way.</p>
+      </div>
+
+      <div class="mic-row" data-state="prejoin miccheck">
+        <span class="meter idle" id="pj-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span role="status" class="small"><span data-state="prejoin">Check your microphone before you start.</span><span data-state="miccheck"><strong>We can hear you.</strong> Default microphone · Built-in</span></span>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" type="button" data-goto="miccheck" data-state="prejoin"><svg aria-hidden="true"><use href="icons.svg#mic"/></svg>Check microphone</button>
+        <button class="btn btn-primary" type="button" data-goto="speaking" data-state="miccheck">Start interview <svg aria-hidden="true"><use href="icons.svg#arrow"/></svg></button>
+        <button class="btn btn-quiet" type="button" data-goto="typing" data-state="prejoin miccheck">Continue with typing</button>
+        <button class="btn btn-primary" type="button" data-goto="typing" data-state="micblocked"><svg aria-hidden="true"><use href="icons.svg#keyboard"/></svg>Continue with typing</button>
+        <button class="btn btn-quiet" type="button" data-goto="miccheck" data-state="micblocked">Try the microphone again</button>
+      </div>
+      <p class="small secondary" style="margin:0">Live captions use your browser's speech service. They help you follow along and are not the interview record.</p>
+    </section>
+  </main>
+
+  <!-- LIVE ROOM -->
+  <div class="stage" data-state="speaking listening answering considering typing connection welcome retryvoice typedretry offline">
+    <main class="main-col" id="main-live">
+      <h1 class="sr-only">Interview room</h1>
+      <div class="alert alert-info" role="status" data-state="connection">
+        <svg aria-hidden="true"><use href="icons.svg#wifi-off"/></svg>
+        <p><strong>Connection interrupted</strong>Your completed answers are saved. Mirror will pick up from this question.</p>
+        <button class="btn btn-secondary" type="button" data-goto="listening">Continue</button>
+      </div>
+
+      <div class="alert alert-info" role="status" data-state="offline">
+        <svg aria-hidden="true"><use href="icons.svg#wifi-off"/></svg>
+        <p><strong>You're offline</strong>Your connection dropped. Your conversation is saved, and you can continue whenever you're ready.</p>
+        <button class="btn btn-secondary" type="button" data-goto="listening">Continue</button>
+      </div>
+      <div class="alert alert-warning" role="status" data-state="retryvoice">
+        <svg aria-hidden="true"><use href="icons.svg#alert"/></svg>
+        <p>Mirror's voice isn't available for this question. You can read it above and answer as usual.</p><span></span>
+      </div>
+
+      <div class="presence" role="status">
+        <span class="meter" id="live-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span><span class="presence-text" data-state="speaking">Mirror is speaking</span><span class="presence-text" data-state="listening welcome retryvoice">Listening</span><span class="presence-text" data-state="answering">You are speaking</span><span class="presence-text" data-state="considering">Mirror is considering your answer</span><span class="presence-text" data-state="typing typedretry">Voice paused while you type</span><span class="presence-text" data-state="connection offline">Paused</span><span class="presence-sub" data-state="listening"> · Take your time. Answer when you're ready.</span></span>
+      </div>
+
+      <section class="panel qpanel q-in" aria-labelledby="q-label">
+        <p class="label" id="q-label"><span data-state="welcome">Welcome back</span><span data-state="speaking listening answering considering typing connection retryvoice typedretry offline">Current question</span></p>
+        <p class="welcome" data-state="welcome">Welcome back, Aisha. We were talking about your Brightpath project. Here's where we left off.</p>
+        <h2 class="question">You said the onboarding redesign at Brightpath brought drop-off down. Walk me through how you decided which part of the flow to change first.</h2>
+        <div class="q-foot"><span>Follow-up on your Brightpath project</span><button class="btn btn-quiet" type="button" style="min-height:36px;padding:0 8px"><svg aria-hidden="true"><use href="icons.svg#replay"/></svg><span data-state="speaking listening answering considering typing connection welcome typedretry offline">Replay</span><span data-state="retryvoice">Retry voice</span></button></div>
+      </section>
+
+      <section class="caption" aria-label="Live caption" data-state="answering considering">
+        <p class="label">You · Live</p>
+        <p>We had funnel data showing most people left at the identity check, so I started by sitting in on five support calls to understand why—</p>
+        <p class="note">Captions are a guide only. Mirror listens to your full recorded answer.</p>
+      </section>
+    </main>
+
+    <aside class="rail" aria-label="Conversation so far">
+      <div class="rail-head"><h2 class="label">Conversation</h2><span class="small secondary mono">6 turns</span></div>
+      <ol class="turns" tabindex="0" aria-label="Conversation transcript">
+        <li class="turn"><span class="who"><span>Mirror</span><span>00:12</span></span><p>Welcome, Aisha. Let's start with a little about you. What drew you to product work?</p></li>
+        <li class="turn you"><span class="who"><span>You</span><span>00:40</span></span><p>I started in customer support at Brightpath and kept writing up patterns for the product team…</p></li>
+        <li class="turn"><span class="who"><span>Mirror</span><span>06:05</span></span><p>Tell me about a project you'd like to talk through in depth.</p></li>
+        <li class="turn you"><span class="who"><span>You</span><span>06:31</span></span><p>The onboarding redesign. Sign-up completion went from about 41% to 58% over a quarter.</p></li>
+        <li class="turn"><span class="who"><span>Mirror</span><span>12:10</span></span><p>Who else was involved, and which decisions were yours?</p></li>
+        <li class="turn you"><span class="who"><span>You</span><span>12:34</span></span><p>A designer, two engineers and me. I owned the problem framing and the order we shipped in.</p></li>
+      </ol>
+    </aside>
+  </div>
+
+  <!-- OPEN ELSEWHERE -->
+  <main class="center" data-state="elsewhere">
+    <section class="panel moment" aria-labelledby="else-title">
+      <p class="label">Full interview · Associate Product Manager</p>
+      <h1 class="h2" id="else-title">This conversation is open in another tab.</h1>
+      <p class="body secondary">You can continue there, or close it and continue here.</p>
+      <div class="actions"><button class="btn btn-primary" type="button" data-goto="welcome">Continue here</button></div>
+    </section>
+  </main>
+
+  <!-- COMPLETE -->
+  <main class="center" data-state="complete">
+    <section class="panel moment" aria-labelledby="done-title">
+      <span class="tag tag-status" style="justify-self:start"><svg width="14" height="14" aria-hidden="true"><use href="icons.svg#check"/></svg>Conversation saved</span>
+      <h1 class="h1" id="done-title">Interview complete.</h1>
+      <p class="body secondary">Your answers are safe. Mirror is preparing your review, usually within a minute or two. You can open it now and it will update when ready.</p>
+      <div class="actions"><a class="btn btn-primary" href="results.html?state=processing">View review <svg aria-hidden="true"><use href="icons.svg#arrow"/></svg></a><a class="btn btn-quiet" href="dashboard.html?state=processing">Return to Home</a></div>
+    </section>
+  </main>
+</div>
+
+<!-- Control dock -->
+<div class="dock glass" role="group" aria-label="Interview controls" data-state="speaking listening answering considering connection welcome retryvoice offline">
+  <button class="icon-btn tip" type="button" aria-pressed="false" data-tip="Mute microphone" aria-label="Mute microphone" id="mute"><svg aria-hidden="true"><use href="icons.svg#mic"/></svg></button>
+  <button class="icon-btn tip" type="button" data-tip="Type your answer" aria-label="Type your answer" data-goto="typing"><svg aria-hidden="true"><use href="icons.svg#keyboard"/></svg></button>
+  <button class="icon-btn tip" type="button" aria-pressed="true" data-tip="Captions" aria-label="Captions" id="cc"><svg aria-hidden="true"><use href="icons.svg#captions"/></svg></button>
+  <span class="sep" aria-hidden="true"></span>
+  <button class="btn btn-primary" type="button" data-goto="considering">I'm done answering</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button class="btn btn-quiet" type="button" data-open="away-sheet"><svg aria-hidden="true"><use href="icons.svg#door"/></svg>Step away</button>
+</div>
+
+<!-- Typing composer -->
+<form class="composer glass" data-state="typing typedretry" id="composer">
+  <div class="composer-inner">
+    <label class="h3" for="answer">Type your answer</label>
+    <textarea id="answer" placeholder="Start with the situation, then what you did.">We had funnel data showing most people left at the identity check. I sat in on five support calls first, because the numbers told us where, not why.</textarea>
+    <div class="alert alert-info" role="status" data-state="typedretry"><svg aria-hidden="true"><use href="icons.svg#refresh"/></svg><p>Your answer didn't reach Mirror. Nothing you typed is lost.</p><span></span></div>
+    <div class="composer-foot"><span class="small secondary" data-state="typing">Voice pauses while you type. Your draft is kept if the connection drops.</span><span class="small secondary" data-state="typedretry">Retry the same answer to continue.</span>
+      <span class="actions"><button class="btn btn-quiet" type="button" data-goto="listening" data-state="typing">Back to voice</button><button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="icons.svg#send"/></svg><span data-state="typing">Send answer</span><span data-state="typedretry">Retry answer</span></button></span></div>
+  </div>
+</form>
+
+<!-- Step away -->
+<dialog class="sheet" id="away-sheet" aria-labelledby="away-title">
+  <div class="sheet-frame glass"><div class="sheet-body" style="display:grid;gap:var(--s4)">
+    <div class="away-step" id="away-menu" style="display:grid;gap:var(--s4)">
+      <h2 class="h2" id="away-title">Need to step away?</h2>
+      <p class="body secondary">Your conversation is saved up to here. You can pick it back up whenever you like.</p>
+      <div style="display:grid;gap:var(--s2)">
+        <button class="btn btn-primary" type="button" id="save-later"><span>Save and continue later</span></button>
+        <button class="btn btn-secondary" type="button" id="to-confirm">End and get my review</button>
+        <button class="btn btn-quiet" type="button" data-close>Stay in the conversation</button>
+      </div>
+    </div>
+    <div class="away-step" id="away-confirm" hidden style="display:grid;gap:var(--s4)">
+      <h2 class="h2">End here?</h2>
+      <p class="body secondary">End here and get your review? It will be based on what we've talked about so far, so it may say “not enough to say yet” in a few places.</p>
+      <div class="actions" style="justify-content:flex-end"><button class="btn btn-quiet" type="button" id="back-menu">Not yet</button><a class="btn btn-primary" href="results.html?state=processing">End and get my review</a></div>
+    </div>
+  </div></div>
+</dialog>
+
+<!-- Transcript sheet (tablet / mobile) -->
+<dialog class="sheet side" id="rail-sheet" aria-labelledby="rail-title">
+  <div class="sheet-frame glass"><div class="sheet-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s4)"><h2 class="label" id="rail-title">Conversation so far</h2><button class="icon-btn" type="button" data-close aria-label="Close"><svg aria-hidden="true"><use href="icons.svg#x"/></svg></button></div>
+    <ol class="turns" id="rail-clone" style="padding:0"></ol>
+  </div></div>
+</dialog>
+
+<script>
+  document.getElementById("rail-clone").innerHTML = document.querySelector(".rail .turns").innerHTML;
+  document.getElementById("composer").addEventListener("submit", (e) => { e.preventDefault(); window.protoApply("considering", true); });
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let meterTimer, tick, seconds = 18 * 60 + 42;
+  function drive(meterId, active) {
+    clearInterval(meterTimer);
+    document.querySelectorAll(".meter i").forEach((bar) => bar.style.height = "4px");
+    const meter = document.getElementById(meterId);
+    meter.classList.toggle("idle", !active);
+    if (!active) return;
+    const bars = meter.querySelectorAll("i");
+    // ponytail: random stand-in for the real audio level; production drives this from the analyser node.
+    if (reduce) { bars.forEach((b, i) => b.style.height = [8, 12, 16, 18, 16, 12, 8][i] + "px"); return; }
+    meterTimer = setInterval(() => bars.forEach((b) => b.style.height = (4 + Math.random() * 18) + "px"), 110);
+  }
+  window.PROTO = {
+    initial: "listening",
+    states: [["prejoin","Pre-join"],["miccheck","Microphone checked"],["micblocked","Microphone blocked"],["welcome","Welcome back (resumed)"],["speaking","Mirror is speaking"],["listening","Listening"],["answering","You are speaking"],["considering","Considering answer"],["typing","Typing an answer"],["typedretry","Typed answer · retry"],["retryvoice","Voice unavailable · retry"],["connection","Connection interrupted"],["offline","Offline"],["elsewhere","Open in another tab"],["complete","Interview complete"]],
+    onState(state) {
+      if (state === "miccheck") drive("pj-meter", true);
+      else drive("live-meter", ["speaking", "answering"].includes(state));
+      if (state === "typing" || state === "typedretry") setTimeout(() => document.getElementById("answer").focus(), 50);
+      clearInterval(tick);
+      if (["speaking", "listening", "answering", "considering", "typing", "welcome", "retryvoice", "typedretry"].includes(state)) tick = setInterval(() => {
+        seconds = Math.max(0, seconds - 1);
+        document.getElementById("timer").textContent = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+      }, 1000);
+    },
+  };
+  for (const id of ["mute", "cc"]) document.getElementById(id).addEventListener("click", (e) => {
+    const b = e.currentTarget, on = b.getAttribute("aria-pressed") !== "true";
+    b.setAttribute("aria-pressed", String(on));
+    if (id === "mute") b.querySelector("use").setAttribute("href", on ? "icons.svg#mic-off" : "icons.svg#mic");
+  });
+  // Esc dismisses tooltips (WCAG 1.4.13) until the pointer or focus moves again.
+  addEventListener("keydown", (e) => { if (e.key === "Escape") document.body.classList.add("tips-off"); });
+  for (const ev of ["pointermove", "focusin"]) addEventListener(ev, () => document.body.classList.remove("tips-off"));
+  // Step away: menu -> confirm, plus a saving state for "continue later".
+  const menu = document.getElementById("away-menu"), confirmStep = document.getElementById("away-confirm");
+  const showStep = (confirm) => { menu.hidden = confirm; confirmStep.hidden = !confirm; };
+  document.getElementById("to-confirm").onclick = () => showStep(true);
+  document.getElementById("back-menu").onclick = () => showStep(false);
+  document.getElementById("away-sheet").addEventListener("close", () => showStep(false));
+  document.getElementById("save-later").onclick = (e) => {
+    const b = e.currentTarget; b.setAttribute("aria-busy", "true"); b.disabled = true; b.querySelector("span").textContent = "Saving your place…";
+    setTimeout(() => location.href = "dashboard.html?state=active", 900);
+  };
+</script>
+<script src="proto.js"></script>
+</body>
+</html>

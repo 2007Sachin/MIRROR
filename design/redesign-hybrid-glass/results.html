@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<title>Your review · Mirror (prototype)</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .page { max-width: 1240px; margin: 0 auto; padding: var(--s10) var(--s6) var(--s18); display: grid; grid-template-columns: 200px minmax(0, 760px); gap: var(--s12); justify-content: center; }
+  .content { display: grid; gap: var(--s16); min-width: 0; }
+  section[id] { scroll-margin-top: calc(var(--nav-h) + var(--s6)); }
+
+  /* Section index (glass, sticky) */
+  .index { position: sticky; top: calc(var(--nav-h) + var(--s8)); align-self: start; border-radius: 16px; padding: var(--s3); }
+  .index ol { list-style: none; margin: var(--s2) 0 0; padding: 0; display: grid; gap: 2px; }
+  .index a { display: flex; align-items: center; gap: var(--s2); min-height: 36px; padding: 0 10px; border-radius: 8px; color: var(--text-secondary); text-decoration: none; font-size: .875rem; font-weight: 520; transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+  .index a::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); transition: background var(--t-fast) var(--ease); }
+  .index a:hover { background: rgba(30,33,36,.05); color: var(--text-primary); }
+  .index a[aria-current] { color: var(--accent-700); background: var(--accent-50); }
+  .index a[aria-current]::before { background: var(--accent-700); }
+
+  .head { display: grid; gap: var(--s3); }
+  .scope { display: grid; grid-template-columns: auto 1fr; gap: var(--s3); align-items: start; color: var(--text-secondary); font-size: .8125rem; max-width: 64ch; }
+  .scope svg { width: 18px; height: 18px; color: var(--info); margin-top: 1px; }
+  .scope p { margin: 0; }
+
+  /* Summary: level today + one next action */
+  .summary { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); overflow: hidden; margin-top: var(--s6); }
+  .summary-main { padding: var(--s8); display: grid; gap: var(--s3); align-content: start; }
+  .level { font: 540 2.5rem/1 var(--font-display); letter-spacing: -.04em; margin: var(--s1) 0 var(--s2); }
+  .summary-next { padding: var(--s8); background: var(--accent-50); border-left: 1px solid rgba(29,86,80,.18); display: grid; gap: var(--s3); align-content: start; }
+  .summary-next .h3 { color: var(--accent-700); }
+
+  .sec-head { display: grid; gap: var(--s2); margin-bottom: var(--s6); }
+  .sec-head .body { color: var(--text-secondary); }
+
+  /* Readiness ranges — bands, not gauges */
+  .ranges { display: grid; gap: var(--s4); }
+  .range { padding: var(--s5) var(--s6); display: grid; grid-template-columns: 180px 1fr; gap: var(--s3) var(--s6); align-items: center; }
+  .range-name { display: grid; gap: 6px; }
+  .scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
+  .scale span { height: 10px; background: var(--bg-sunken); }
+  .scale span:first-child { border-radius: 5px 0 0 5px; } .scale span:last-child { border-radius: 0 5px 5px 0; }
+  .scale span.in { background: rgba(30,33,36,.7); }
+  .range-text { display: none; margin: 8px 0 0; font-size: .875rem; font-weight: 600; }
+  .ticks { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-top: 6px; font-size: .75rem; color: var(--text-secondary); }
+  .ticks b { color: var(--text-primary); font-weight: 600; }
+  .range-none { color: var(--text-secondary); margin: 0; }
+
+  /* What came through: ledger */
+  .legend { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0; padding: 0; list-style: none; }
+  .legend a { display: inline-flex; gap: 6px; align-items: center; min-height: 36px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--line-strong); color: var(--text-primary); text-decoration: none; font-size: .8125rem; transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+  .legend a:hover { border-color: var(--text-primary); background: var(--surface); }
+  .legend svg { width: 16px; height: 16px; }
+  .legend b { font-family: var(--font-mono); font-weight: 600; }
+  .group { margin-top: var(--s8); scroll-margin-top: calc(var(--nav-h) + 64px); }
+  .attempts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+  .attempts > div { border: 1px solid var(--line); border-radius: 10px; padding: var(--s3) var(--s4); background: var(--surface); }
+  .attempts p { margin: 4px 0 0; font-size: .875rem; }
+  .group-title { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s2); }
+  .group-title svg { width: 18px; height: 18px; flex: none; }
+  .ledger { list-style: none; margin: 0; padding: 0; }
+  .ledger > li { border-top: 1px solid var(--line); }
+  .ledger > li:last-child { border-bottom: 1px solid var(--line); }
+  details.item > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--s4); align-items: center; padding: var(--s4) var(--s2); border-radius: var(--r-control); transition: background var(--t-fast) var(--ease); }
+  details.item > summary::-webkit-details-marker { display: none; }
+  details.item > summary:hover { background: rgba(255,253,248,.85); }
+  details.item > summary .chev { width: 20px; height: 20px; color: var(--text-muted); transition: transform var(--t-base) var(--ease); }
+  details.item[open] > summary .chev { transform: rotate(180deg); }
+  .item-body { padding: 0 var(--s2) var(--s5); display: grid; gap: var(--s3); animation: fade-in var(--t-base) var(--ease); }
+  .quote { margin: 0; padding: var(--s4) var(--s5); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: var(--s2); }
+  .quote p { margin: 0; font-size: 1rem; }
+  .quote footer { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); align-items: center; font-size: .75rem; color: var(--text-secondary); }
+  .dir { display: inline-flex; gap: 4px; align-items: center; font-weight: 600; }
+  .dir svg { width: 14px; height: 14px; }
+  .note { margin: 0; color: var(--text-secondary); max-width: 64ch; }
+  .q-num { display: block; margin-bottom: 4px; }
+
+  .growth { padding: var(--s8); display: grid; gap: var(--s4); }
+  .exercise { background: var(--bg-sunken); border-radius: 10px; padding: var(--s4) var(--s5); display: grid; gap: 4px; }
+  .exercise p { margin: 0; }
+
+  .next-rows .row-link { padding: var(--s4) var(--s3); }
+  .row-meta { font-size: .8125rem; color: var(--text-secondary); }
+  .insight { display: grid; gap: 2px; }
+
+  .answer-meta { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); }
+  .answer-meta div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: var(--s4); }
+  .answer-meta p:last-child { margin: 4px 0 0; font-size: .875rem; }
+
+  .trust { padding: var(--s6); display: grid; gap: var(--s3); }
+  .trust ul { margin: 0; padding-left: 1.1em; display: grid; gap: var(--s2); color: var(--text-secondary); }
+
+  .state-center { display: grid; gap: var(--s4); padding: var(--s10); max-width: 620px; }
+  .state-actions { display: flex; gap: var(--s3); flex-wrap: wrap; }
+
+  @media (max-width: 1080px) {
+    .page { grid-template-columns: minmax(0, 1fr); padding-top: 0; gap: 0; }
+    .index { top: var(--nav-h); z-index: 20; margin: 0 calc(-1 * var(--s6)); border-radius: 0; padding: var(--s2) var(--s4); box-shadow: 0 1px 0 var(--line); }
+    .index .label { display: none; }
+    .index ol { margin: 0; display: flex; overflow-x: auto; scrollbar-width: none; gap: 4px; }
+    .index a { white-space: nowrap; }
+    .index a::before { display: none; }
+    .content { padding-top: var(--s8); }
+    .page > .spacer { display: none; }
+  }
+  @media (max-height: 560px) { .index { position: static; } }
+  @media (max-width: 820px) {
+    .page { padding: 0 var(--s4) var(--s12); }
+    .index { margin: 0 calc(-1 * var(--s4)); }
+    .content { gap: var(--s12); }
+    .summary { grid-template-columns: 1fr; }
+    .summary-main, .summary-next { padding: var(--s6) var(--s5); }
+    .summary-next { border-left: 0; border-top: 1px solid rgba(29,86,80,.18); }
+    .summary-next .btn-primary { justify-self: stretch !important; }
+    .range { grid-template-columns: 1fr; padding: var(--s5); }
+    .ticks { display: none; }
+    .range-text { display: block; }
+    .attempts { grid-template-columns: 1fr; }
+    .index ol { mask-image: linear-gradient(90deg, #000 85%, transparent); }
+    .answer-meta { grid-template-columns: 1fr; }
+    details.item > summary { grid-template-columns: minmax(0, 1fr) auto; }
+    details.item > summary .tag-source { grid-column: 1; grid-row: 2; justify-self: start; }
+    details.item > summary .chev { grid-row: 1 / span 2; grid-column: 2; }
+    .growth { padding: var(--s6) var(--s5); }
+    .state-center { padding: var(--s6) var(--s5); }
+  }
+</style>
+</head>
+<body class="has-tabbar">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topnav glass">
+  <div class="topnav-inner">
+    <a class="brand" href="dashboard.html"><svg class="brand-mark" aria-hidden="true"><use href="icons.svg#mark"/></svg>Mirror</a>
+    <nav aria-label="Main"><ul class="navlinks">
+      <li><a href="dashboard.html">Home</a></li><li><a href="#">My plan</a></li><li><a href="#">My stories</a></li><li><a href="#">Practice</a></li><li><a href="#" aria-current="page">Reflect</a></li>
+    </ul></nav>
+    <div class="nav-end"><button class="role-pill" type="button"><span class="role-full">Associate Product Manager ·</span> Northwind <svg width="14" height="14" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></button><button class="avatar" type="button" aria-label="Your profile menu">AR</button></div>
+  </div>
+</header>
+
+<!-- NON-READY STATES -->
+<main class="page" data-state="loading processing error" id="main-state" tabindex="-1">
+  <div class="spacer"></div>
+  <div class="content">
+    <section class="state-center" data-state="loading" aria-busy="true">
+      <p role="status" style="display:inline-flex;gap:10px;align-items:center;margin:0" class="secondary"><span class="spinner" aria-hidden="true"></span>Opening your review.</p>
+      <div class="placeholder" style="height:40px;width:70%"></div><div class="placeholder" style="height:220px"></div><div class="placeholder" style="height:120px"></div>
+    </section>
+
+    <section class="panel state-center" data-state="processing">
+      <span class="tag tag-neutral" style="justify-self:start"><span class="spinner" aria-hidden="true" style="width:12px;height:12px"></span>Usually a minute or two</span>
+      <h1 class="h1">Preparing your review</h1><p class="sr-only" role="status">Preparing your review.</p>
+      <p class="body secondary">Mirror is looking at what you shared and how it connects to the role. Thank you for your patience. You can leave this page; your review will be here when you come back.</p>
+      <div class="state-actions"><a class="btn btn-secondary" href="dashboard.html?state=processing">Return to your space</a></div>
+    </section>
+
+    <section class="panel state-center" data-state="error">
+      <h1 class="h1">We couldn't finish your review just now</h1>
+      <div class="alert alert-info"><svg aria-hidden="true"><use href="icons.svg#info"/></svg><p>Your interview has been saved. Mirror couldn't finish preparing your review, so it can be tried again without repeating the conversation.</p><span></span></div>
+      <div class="state-actions"><button class="btn btn-primary" type="button" data-goto="processing"><svg aria-hidden="true"><use href="icons.svg#refresh"/></svg>Try again</button><a class="btn btn-quiet" href="dashboard.html">Return to your space</a></div>
+    </section>
+  </div>
+</main>
+
+<!-- READY -->
+<div class="page" data-state="ready short">
+  <nav class="index glass" aria-label="Review navigation">
+    <p class="label">On this page</p>
+    <ol>
+      <li><a href="#summary">Summary</a></li>
+      <li><a href="#readiness">Readiness</a></li>
+      <li><a href="#came-through">Came through</a></li>
+      <li><a href="#next">What next</a></li>
+      <li><a href="#answers">Your answers</a></li>
+    </ol>
+  </nav>
+
+  <main class="content enter" id="main" tabindex="-1">
+    <section id="summary" class="head" aria-labelledby="title">
+      <p class="label">Associate Product Manager · Full interview · Today · 32 min</p>
+      <h1 class="h1" id="title">Your review</h1>
+      <div class="scope"><svg aria-hidden="true"><use href="icons.svg#info"/></svg><p>This feedback covers this round only; it is not an overall role-readiness result. Mirror-generated practice rubric—not an official employer rubric.</p></div>
+      <div class="alert alert-info" data-state="short" style="margin-top:var(--s2)"><svg aria-hidden="true"><use href="icons.svg#clock"/></svg><p>From a shorter conversation, so a few areas say “not enough to say yet.”</p><span></span></div>
+
+      <article class="panel summary">
+        <div class="summary-main">
+          <p class="label">Your level today</p>
+          <p class="level">Developing</p>
+          <p class="body">Your product thinking came through clearly, especially how you used support conversations to find the real problem. What you led yourself, and how you knew the results were yours, came through less clearly.</p>
+          <p class="small secondary" style="margin:0">Your level sums up this conversation. The ranges below show how sure Mirror can be.</p>
+        </div>
+        <div class="summary-next">
+          <p class="label" style="color:var(--accent-700)">Try this next</p>
+          <p class="h3">Practise explaining a project</p>
+          <p class="small" style="margin:0">A 15-minute focused round on one project, with room to say what you did and how you knew it worked.</p>
+          <a class="btn btn-primary" href="interview.html?state=prejoin" style="justify-self:start;margin-top:var(--s2)">Set up this practice <svg aria-hidden="true"><use href="icons.svg#arrow"/></svg></a>
+        </div>
+      </article>
+    </section>
+
+    <section id="readiness" aria-labelledby="ready-h">
+      <div class="sec-head"><p class="label">Readiness</p><h2 class="h2" id="ready-h">Two signals, kept separate.</h2><p class="body">These appear as ranges because one conversation can only show so much.</p></div>
+      <div class="ranges">
+        <div class="panel range">
+          <div class="range-name"><span class="h3">Role readiness</span><span class="tag tag-neutral" style="justify-self:start">A partial picture</span></div>
+          <div><div class="scale" role="img" aria-label="Role readiness: between Developing and Nearly ready"><span></span><span class="in"></span><span class="in"></span><span></span><span></span></div>
+            <div class="ticks" aria-hidden="true"><span>Not yet</span><span class="on"><b>Developing</b></span><span class="on"><b>Nearly ready</b></span><span>Ready</span><span>Strong</span></div><p class="range-text" aria-hidden="true">Developing to Nearly ready</p></div>
+        </div>
+        <div class="panel range">
+          <div class="range-name"><span class="h3">Interview readiness</span><span class="tag tag-neutral" style="justify-self:start" data-state="ready">A clear picture</span><span class="tag tag-neutral" style="justify-self:start" data-state="short">Not enough to say yet</span></div>
+          <div data-state="ready"><div class="scale" role="img" aria-label="Interview readiness: between Nearly ready and Ready"><span></span><span></span><span class="in"></span><span class="in"></span><span></span></div>
+            <div class="ticks" aria-hidden="true"><span>Not yet</span><span>Developing</span><span class="on"><b>Nearly ready</b></span><span class="on"><b>Ready</b></span><span>Strong</span></div><p class="range-text" aria-hidden="true">Nearly ready to Ready</p></div>
+          <p class="range-none" data-state="short">One more conversation will give a clearer picture.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="came-through" aria-labelledby="ct-h">
+      <div class="sec-head"><p class="label">What came through</p><h2 class="h2" id="ct-h">What you shared, and how it came through</h2><p class="body">This is a gentle look at your own words. It starts with what came through clearly.</p></div>
+
+      <ul class="legend" aria-label="Jump to a group"><li><a href="#g-clear"><svg aria-hidden="true"><use href="icons.svg#check"/></svg><b>3</b> came through clearly</a></li><li><a href="#g-mostly"><svg aria-hidden="true"><use href="icons.svg#half"/></svg><b>2</b> mostly</a></li><li><a href="#g-refined"><svg aria-hidden="true"><use href="icons.svg#refresh"/></svg><b>1</b> refined</a></li><li><a href="#g-revisit"><svg aria-hidden="true"><use href="icons.svg#alert"/></svg><b>1</b> worth revisiting</a></li><li><a href="#g-none"><svg aria-hidden="true"><use href="icons.svg#info"/></svg><b>1</b> not enough to say yet</a></li></ul>
+
+      <div class="group" id="g-clear">
+        <h3 class="group-title h3"><svg aria-hidden="true" style="color:var(--accent-700)"><use href="icons.svg#check"/></svg>Came through clearly</h3>
+        <ul class="ledger">
+          <li><details class="item" open><summary><span>You used support conversations to find why people left sign-up.</span><span class="tag tag-source">From your conversation</span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+            <div class="item-body">
+              <blockquote class="quote"><p>“The numbers told us where people left, not why. So I sat in on five support calls before we touched the design.”</p>
+                <footer><span class="mono">14:22</span><span class="dir" style="color:var(--accent-700)"><svg aria-hidden="true"><use href="icons.svg#check"/></svg>Backs this up</span><button class="btn btn-quiet" style="min-height:32px;padding:0 6px;font-size:.75rem" type="button" data-open="source-sheet">Where it came from</button></footer></blockquote>
+              <p class="note">You described a concrete step you took and why it mattered, in your own words.</p>
+            </div></details></li>
+          <li><details class="item"><summary><span>You put the identity check before the welcome tour.</span><span class="tag tag-source">From your conversation</span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+            <div class="item-body"><blockquote class="quote"><p>“The tour was annoying, but the ID step was where we were losing people, so that went first.”</p><footer><span class="mono">16:05</span><span class="dir" style="color:var(--accent-700)"><svg aria-hidden="true"><use href="icons.svg#check"/></svg>Backs this up</span></footer></blockquote></div></details></li>
+          <li><details class="item"><summary><span>Two years working closely with customers at Brightpath.</span><span class="tag tag-source">From your resume</span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+            <div class="item-body"><blockquote class="quote"><p>“I was in support for two years before moving into the product team.”</p><footer><span class="mono">00:40</span><span class="dir" style="color:var(--accent-700)"><svg aria-hidden="true"><use href="icons.svg#check"/></svg>Backs this up</span></footer></blockquote></div></details></li>
+        </ul>
+      </div>
+
+      <div class="group" id="g-mostly">
+        <h3 class="group-title h3"><svg aria-hidden="true" style="color:var(--accent-700)"><use href="icons.svg#half"/></svg>Mostly came through</h3>
+        <ul class="ledger">
+          <li><details class="item"><summary><span>Led the onboarding redesign.</span><span class="tag tag-source">From your resume</span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+            <div class="item-body">
+              <blockquote class="quote"><p>“I owned the problem framing and the order we shipped in.”</p><footer><span class="mono">12:34</span><span class="dir" style="color:var(--accent-700)"><svg aria-hidden="true"><use href="icons.svg#check"/></svg>Backs this up</span></footer></blockquote>
+              <blockquote class="quote"><p>“The designer and I sort of decided together, and engineering pushed back on the order.”</p><footer><span class="mono">18:50</span><span class="dir" style="color:var(--warning-ink)"><svg aria-hidden="true"><use href="icons.svg#alert"/></svg>Raises a question</span></footer></blockquote>
+              <p class="note">Your part in the framing came through. Which calls were yours once the team disagreed was less clear.</p>
+            </div></details></li>
+          <li><details class="item"><summary><span>Comfortable working from funnel data.</span><span class="tag tag-source">From your resume</span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+            <div class="item-body"><blockquote class="quote"><p>“We tracked drop-off at each step of the funnel.”</p><footer><span>Time not recorded</span><span class="dir" style="color:var(--text-secondary)"><svg aria-hidden="true"><use href="icons.svg#info"/></svg>Adds context</span></footer></blockquote><p class="note">You referred to the funnel twice; how you read it wasn't explored in depth.</p></div></details></li>
+        </ul>
+      </div>
+
+      <div class="group" id="g-refined">
+        <h3 class="group-title h3"><svg aria-hidden="true" style="color:var(--info)"><use href="icons.svg#refresh"/></svg>Refined during the conversation</h3>
+        <ul class="ledger"><li><details class="item"><summary><span>Sign-up completion went from 41% to 58%.</span><span class="tag tag-source">From your resume</span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+          <div class="item-body"><blockquote class="quote"><p>“That was across the quarter, and part of it was a pricing change too, so I'd say the redesign was most of it, not all.”</p><footer><span class="mono">21:12</span><span class="dir" style="color:var(--text-secondary)"><svg aria-hidden="true"><use href="icons.svg#info"/></svg>Adds context</span></footer></blockquote>
+            <p class="note">You gave a more careful version of the number when asked more. That's a useful habit to keep.</p></div></details></li></ul>
+      </div>
+
+      <div class="group" id="g-revisit">
+        <h3 class="group-title h3"><svg aria-hidden="true" style="color:var(--warning-ink)"><use href="icons.svg#alert"/></svg>Worth revisiting</h3>
+        <ul class="ledger"><li><details class="item" open><summary><span>Ran the A/B experiment for the new flow.</span><span class="tag tag-source">From your resume</span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+          <div class="item-body"><blockquote class="quote"><p>“We didn't really A/B it in the end, we shipped to everyone and watched the funnel.”</p><footer><span class="mono">23:40</span><span class="dir" style="color:var(--warning-ink)"><svg aria-hidden="true"><use href="icons.svg#alert"/></svg>Raises a question</span></footer></blockquote>
+            <p class="note">What you said here differs from your resume. Worth deciding how you'd describe it next time.</p></div></details></li></ul>
+      </div>
+
+      <div class="group" id="g-none">
+        <h3 class="group-title h3"><svg aria-hidden="true" style="color:var(--text-secondary)"><use href="icons.svg#info"/></svg>Not enough to say yet</h3>
+        <ul class="ledger"><li><details class="item"><summary><span>Experience writing product requirements.</span><span class="tag tag-source">From your resume</span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+          <div class="item-body"><p class="note">This didn't come up in the conversation, so Mirror doesn't guess.</p></div></details></li></ul>
+      </div>
+    </section>
+
+    <section id="next" aria-labelledby="n-h">
+      <div class="sec-head"><p class="label">What next</p><h2 class="h2" id="n-h">What would you like to do now?</h2></div>
+      <article class="panel growth" style="margin-bottom:var(--s6)">
+        <p class="label">Your main growth area</p>
+        <h3 class="h2" id="g-h">Describing what you led</h3>
+        <p class="body secondary">Mirror picked one area from this conversation as a starting point, so your next practice session has a clear direction.</p>
+        <div class="exercise"><p class="label">A tiny exercise to try</p><p>Pick one project and say, in two sentences, what you did yourself and what your team did.</p></div>
+      </article>
+      <ul class="rows next-rows">
+        <li><a class="row-link" href="interview.html?state=prejoin"><span class="insight"><span class="h3">Practise explaining a project</span><span class="row-meta">Recommended · 15 minutes · focused on what you led</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+        <li><a class="row-link" href="#answers"><span class="insight"><span class="h3">Try the same answer again</span><span class="row-meta">Your first answer is kept. Compare the two side by side.</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+        <li><a class="row-link" href="#"><span class="insight"><span class="h3">Update the Brightpath story</span><span class="row-meta">Add the pricing context and who made which call.</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+        <li><a class="row-link" href="dashboard.html"><span class="insight"><span class="h3">Finish for now</span><span class="row-meta">Everything is saved in Reflect.</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+      </ul>
+    </section>
+
+    <section id="answers" aria-labelledby="a-h">
+      <div class="sec-head"><h2 class="h2" id="a-h">Your answers</h2></div>
+      <ul class="ledger">
+        <li><details class="item"><summary><span><span class="label q-num">Question 1 · Background</span>What drew you to product work?</span><span></span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+          <div class="item-body"><div class="answer-meta"><div><p class="label">What came through</p><p>A clear line from support work to product decisions.</p></div><div><p class="label">What could be clearer</p><p>One specific example early would land faster.</p></div></div></div></details></li>
+        <li><details class="item" open><summary><span><span class="label q-num">Question 3 · Deep dive</span>How did you decide which part of the flow to change first?</span><span></span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+          <div class="item-body"><div class="answer-meta"><div><p class="label">What came through</p><p>A real reason for the order, grounded in what customers said.</p></div><div><p class="label">What could be clearer</p><p>Who made the final call when engineering pushed back.</p></div></div>
+            <div class="attempts"><div><p class="label">First answer · kept</p><p>“The designer and I sort of decided together…”</p></div><div><p class="label">Second try</p><p>“I made the call to ship the ID step first; the designer owned the layout.”</p></div></div><p class="small secondary" style="margin:0">They're not a grade. Both answers stay in your history.</p><div><button class="btn btn-secondary" type="button"><svg aria-hidden="true"><use href="icons.svg#replay"/></svg>Try this answer again</button></div></div></details></li>
+        <li><details class="item"><summary><span><span class="label q-num">Question 4 · Role core</span>How would you know a feature was worth keeping?</span><span></span><svg class="chev" aria-hidden="true"><use href="icons.svg#chev-down"/></svg></summary>
+          <div class="item-body"><div class="answer-meta"><div><p class="label">What came through</p><p>You named a success signal before the solution.</p></div><div><p class="label">What could be clearer</p><p>What you'd do if the signal stayed flat.</p></div></div></div></details></li>
+      </ul>
+    </section>
+
+    <aside class="well trust" aria-labelledby="t-h">
+      <h2 class="h3" id="t-h">What this review means, and what it doesn't</h2>
+      <ul><li>This review covers this one conversation.</li><li>AI can make mistakes. If something doesn't sound right, you're welcome to tell us.</li><li>Anything that didn't come up is never guessed.</li><li>This is a practice review, not a hiring decision.</li><li>We're still learning how well these reviews match real interview outcomes.</li></ul>
+    </aside>
+  </main>
+</div>
+
+<nav class="tabbar glass" aria-label="Main (mobile)">
+  <a href="dashboard.html"><svg aria-hidden="true"><use href="icons.svg#home"/></svg>Home</a><a href="#"><svg aria-hidden="true"><use href="icons.svg#map"/></svg>Plan</a><a href="#"><svg aria-hidden="true"><use href="icons.svg#book"/></svg>Stories</a><a href="#"><svg aria-hidden="true"><use href="icons.svg#practice"/></svg>Practice</a><a href="#" aria-current="page"><svg aria-hidden="true"><use href="icons.svg#reflect"/></svg>Reflect</a>
+</nav>
+
+<dialog class="sheet side" id="source-sheet" aria-labelledby="src-title">
+  <div class="sheet-frame glass"><div class="sheet-body" style="display:grid;gap:var(--s5);align-content:start">
+    <div style="display:flex;justify-content:space-between;align-items:center"><p class="label" id="src-title">Where it came from</p><button class="btn btn-quiet" type="button" data-close aria-label="Close" style="padding:0 10px"><svg aria-hidden="true"><use href="icons.svg#x"/></svg></button></div>
+    <h2 class="h3">You used support conversations to find why people left sign-up.</h2>
+    <div style="display:grid;gap:var(--s2)"><span class="tag tag-source" style="justify-self:start"><svg width="14" height="14" aria-hidden="true"><use href="icons.svg#chat"/></svg>Your conversation · 14:22</span>
+      <blockquote class="quote"><p>“The numbers told us where people left, not why. So I sat in on five support calls before we touched the design.”</p></blockquote></div>
+    <div style="display:grid;gap:var(--s2)"><span class="tag tag-source" style="justify-self:start"><svg width="14" height="14" aria-hidden="true"><use href="icons.svg#file"/></svg>Your resume or documents</span>
+      <blockquote class="quote"><p>“Partnered with support to identify onboarding friction; led redesign of sign-up flow.”</p></blockquote></div>
+    <p class="small secondary" style="margin:0">Quotes are shown as you said or wrote them. Live captions are not used here.</p>
+  </div></div>
+</dialog>
+
+<script>
+  window.PROTO = {
+    initial: "ready",
+    states: [["ready","Review ready"],["short","Shorter conversation"],["processing","Preparing (pending)"],["loading","Loading"],["error","Couldn't finish"]],
+  };
+  window.PROTO.onState = (state) => { document.querySelector(".skip").href = ["ready", "short"].includes(state) ? "#main" : "#main-state"; };
+  const links = [...document.querySelectorAll(".index a")];
+  const spy = new IntersectionObserver((entries) => {
+    for (const entry of entries) if (entry.isIntersecting) links.forEach((a) => a.hash === "#" + entry.target.id ? a.setAttribute("aria-current", "location") : a.removeAttribute("aria-current"));
+  }, { rootMargin: "-30% 0px -60% 0px" });
+  document.querySelectorAll("main section[id]").forEach((s) => spy.observe(s));
+</script>
+<script src="proto.js"></script>
+</body>
+</html>

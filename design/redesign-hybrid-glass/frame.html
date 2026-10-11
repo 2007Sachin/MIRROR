@@ -1,0 +1,9 @@
+<!doctype html>
+<!-- Screenshot helper: gives a page a true narrow viewport (desktop Chrome windows can't go below ~500px). -->
+<meta charset="utf-8">
+<style>html,body{margin:0;background:#F4F1EA}iframe{border:0;display:block}</style>
+<iframe id="f"></iframe>
+<script>
+  const p = new URLSearchParams(location.search), f = document.getElementById("f");
+  f.width = p.get("w") || 390; f.height = p.get("h") || 844; f.src = p.get("src");
+</script>

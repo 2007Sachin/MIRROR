@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mirror redesign prototypes</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  main { max-width: 880px; margin: 0 auto; padding: var(--s16) var(--s6); display: grid; gap: var(--s10); }
+  .intro { display: grid; gap: var(--s3); }
+  .swatches { display: flex; flex-wrap: wrap; gap: var(--s2); }
+  .swatches span { display: grid; gap: 4px; font: 500 .6875rem/1.2 var(--font-mono); color: var(--text-secondary); }
+  .swatches i { width: 56px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
+  @media (max-width: 640px) { main { padding: var(--s10) var(--s4); } }
+</style>
+</head>
+<body>
+<main>
+  <div class="intro">
+    <p class="label">Mirror · Redesign prototypes · Reading Room</p>
+    <h1 class="h1">Content is opaque. Controls float.</h1>
+    <p class="body secondary">Static, isolated prototypes with synthetic content. Nothing here talks to the API, Supabase or the product app. Use the “Prototype states” panel on each page, or add <code>?state=…</code> to the URL.</p>
+  </div>
+  <ul class="rows">
+    <li><a class="row-link" href="dashboard.html"><span><span class="h3">Dashboard · Your space</span><br><span class="small secondary">8 states: ready, returning, in progress, preparing, didn't finish, empty, loading, couldn't load</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+    <li><a class="row-link" href="interview.html?state=prejoin"><span><span class="h3">Interview room</span><br><span class="small secondary">15 states: pre-join, mic checked, mic blocked, welcome back, speaking, listening, answering, considering, typing, typed retry, voice retry, connection, offline, open elsewhere, complete</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+    <li><a class="row-link" href="results.html"><span><span class="h3">Results · Your review</span><br><span class="small secondary">5 states: ready, shorter conversation, preparing, loading, couldn't finish</span></span><svg class="chev" width="20" height="20" aria-hidden="true"><use href="icons.svg#chev"/></svg></a></li>
+  </ul>
+  <section class="intro" aria-labelledby="sw">
+    <h2 class="label" id="sw">Core tokens</h2>
+    <div class="swatches">
+      <span><i style="background:#F4F1EA"></i>canvas</span><span><i style="background:#EAE6DC"></i>sunken</span><span><i style="background:#FFFDF8"></i>surface</span><span><i style="background:#1E2124"></i>graphite</span><span><i style="background:#474C52"></i>secondary</span><span><i style="background:#25685F"></i>teal-600</span><span><i style="background:#1D5650"></i>teal-700</span><span><i style="background:#E3EFEC"></i>teal-50</span><span><i style="background:#6E4462"></i>plum-600</span><span><i style="background:#F2E9EF"></i>plum-50</span>
+    </div>
+  </section>
+  <p class="small"><a href="DESIGN_SYSTEM.md">Design system spec</a> · <a href="REVIEW.md">Critique, decisions, route plan and risks</a></p>
+</main>
+</body>
+</html>
