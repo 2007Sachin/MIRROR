@@ -94,23 +94,32 @@ export function CandidateStagePlanEditor({ target, view, onSaved, onDirtyChange,
   return <section className={`pl-stage-editor${compact ? " pl-stage-editor--compact" : ""}`} aria-label={compact ? copy.overviewTitle : undefined} aria-labelledby={compact ? undefined : "pl-stage-editor-title"}>
     {!compact && <h2 id="pl-stage-editor-title">{copy.promptTitle}</h2>}{!compact && <p>{copy.editorIntro}</p>}<p>{copy.privacy}</p>
     <fieldset disabled={locked}><legend>{copy.stateLabel}</legend>
-      {([ ["NOT_ASKED", copy.notAsked], ["NOT_YET", copy.notYet], ["KNOWN", copy.known] ] as const).map(([value, label]) => <label key={value}><input type="radio" name="candidate-stage-state" checked={draft.state === value} onChange={() => set((d) => setStageState(d, value))} />{label}</label>)}
-      {draft.state === "KNOWN" && <><label><input type="checkbox" checked={draft.orderKnown} onChange={(e) => set((d) => ({ ...d, orderKnown: e.target.checked }))} />{copy.orderKnown}</label>
-        <ul>{draft.stages.map((stage, i) => <li key={stage.stage_id} className="pl-stage-editor__stage"><h3>{copy.stageLabel}{draft.orderKnown ? ` ${i + 1}` : ""}</h3>
-          <label>{copy.kindLabel}<select value={stage.kind} onChange={(e) => { const kind = e.target.value as CandidateStageKind; set((d) => updateStage(d, stage.stage_id, { kind, custom_label: kind === "OTHER" ? stage.custom_label ?? "" : null })); }}>
-            {kinds.map((kind) => <option key={kind} value={kind}>{copy.stageKinds[kind]}</option>)}</select></label>
-          {stage.kind === "OTHER" && <label>{copy.customLabel}<input value={stage.custom_label ?? ""} maxLength={80} onChange={(e) => set((d) => updateStage(d, stage.stage_id, { custom_label: e.target.value }))} /></label>}
-          <label>{copy.certaintyLabel}<select value={stage.certainty} onChange={(e) => set((d) => updateStage(d, stage.stage_id, { certainty: e.target.value as "SURE" | "UNCERTAIN" }))}><option value="SURE">{copy.certain}</option><option value="UNCERTAIN">{copy.uncertain}</option></select></label>
+      <div className="pl-stage-editor__state-options">
+        {([ ["NOT_ASKED", copy.notAsked], ["NOT_YET", copy.notYet], ["KNOWN", copy.known] ] as const).map(([value, label]) => <label key={value} className="pl-stage-editor__choice"><input type="radio" name="candidate-stage-state" checked={draft.state === value} onChange={() => set((d) => setStageState(d, value))} />{label}</label>)}
+      </div>
+      {draft.state === "KNOWN" && <>
+        <label className="pl-stage-editor__choice pl-stage-editor__order"><input type="checkbox" checked={draft.orderKnown} onChange={(e) => set((d) => ({ ...d, orderKnown: e.target.checked }))} />{copy.orderKnown}</label>
+        <ul>{draft.stages.map((stage, i) => <li key={stage.stage_id} className="pl-stage-editor__stage"><div className="pl-stage-editor__stage-head"><h3>{copy.stageLabel}{draft.orderKnown ? ` ${i + 1}` : ""}</h3>
+          <div className="pl-stage-editor__stage-actions">
+            {draft.orderKnown && <><button type="button" className="pl-stage-editor__quiet-action" aria-label={copy.moveUp} disabled={i === 0} onClick={() => set((d) => moveStage(d, stage.stage_id, i - 1))}>{copy.moveUp}</button><button type="button" className="pl-stage-editor__quiet-action" aria-label={copy.moveDown} disabled={i === draft.stages.length - 1} onClick={() => set((d) => moveStage(d, stage.stage_id, i + 1))}>{copy.moveDown}</button></>}
+            <button type="button" className="pl-stage-editor__quiet-action" onClick={() => set((d) => removeStage(d, stage.stage_id))}>{copy.remove}</button>
+          </div></div>
+          <div className="pl-stage-editor__fields">
+            <label>{copy.kindLabel}<select value={stage.kind} onChange={(e) => { const kind = e.target.value as CandidateStageKind; set((d) => updateStage(d, stage.stage_id, { kind, custom_label: kind === "OTHER" ? stage.custom_label ?? "" : null })); }}>
+              {kinds.map((kind) => <option key={kind} value={kind}>{copy.stageKinds[kind]}</option>)}</select></label>
+            {stage.kind === "OTHER" && <label>{copy.customLabel}<input value={stage.custom_label ?? ""} maxLength={80} onChange={(e) => set((d) => updateStage(d, stage.stage_id, { custom_label: e.target.value }))} /></label>}
+            <label>{copy.certaintyLabel}<select value={stage.certainty} onChange={(e) => set((d) => updateStage(d, stage.stage_id, { certainty: e.target.value as "SURE" | "UNCERTAIN" }))}><option value="SURE">{copy.certain}</option><option value="UNCERTAIN">{copy.uncertain}</option></select></label>
+          </div>
           <label>{copy.noteLabel}<textarea value={draft.notes[stage.stage_id] ?? ""} maxLength={500} aria-describedby={`pl-stage-note-help-${stage.stage_id}`} onChange={(e) => set((d) => setStageNote(d, stage.stage_id, e.target.value))} /></label><small id={`pl-stage-note-help-${stage.stage_id}`}>{copy.noteHelp}</small>
-          {draft.orderKnown && <span><button type="button" aria-label={copy.moveUp} disabled={i === 0} onClick={() => set((d) => moveStage(d, stage.stage_id, i - 1))}>{copy.moveUp}</button><button type="button" aria-label={copy.moveDown} disabled={i === draft.stages.length - 1} onClick={() => set((d) => moveStage(d, stage.stage_id, i + 1))}>{copy.moveDown}</button></span>}
-          <button type="button" onClick={() => set((d) => removeStage(d, stage.stage_id))}>{copy.remove}</button>
         </li>)}</ul>
-        <button type="button" disabled={draft.stages.length >= 12} onClick={() => set((d) => addStage(d, newStage("OTHER")))}>{copy.addStage}</button>{draft.stages.length >= 12 && <p>{copy.atLimit}</p>}
+        <div className="pl-stage-editor__add-row"><button type="button" className="pl-stage-editor__secondary-action" disabled={draft.stages.length >= 12} onClick={() => set((d) => addStage(d, newStage("OTHER")))}>{copy.addStage}</button>{draft.stages.length >= 12 && <p>{copy.atLimit}</p>}</div>
       </>}
     </fieldset>
     {archived && !error && <p role="status">{copy.archived}</p>}{error && <p role="alert">{error}</p>}{saved && <p role="status">{copy.saved}</p>}
     {!validation.valid && draft.state === "KNOWN" && <p role="alert">{copy.invalid}</p>}
-    {stale && <button type="button" disabled={reloadBusy} onClick={loadLatest}>{copy.reloadLatest}</button>}
-    <button type="button" disabled={locked || !dirty || !validation.valid || !view.blueprint} onClick={save}>{saving ? copy.saving : copy.save}</button>
+    <div className="pl-stage-editor__footer">
+      {stale && <button type="button" className="pl-stage-editor__secondary-action" disabled={reloadBusy} onClick={loadLatest}>{copy.reloadLatest}</button>}
+      <button type="button" className="pl-stage-editor__primary-action" disabled={locked || !dirty || !validation.valid || !view.blueprint} onClick={save}>{saving ? copy.saving : copy.save}</button>
+    </div>
   </section>;
 }

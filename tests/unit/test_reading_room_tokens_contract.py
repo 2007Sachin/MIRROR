@@ -5,6 +5,8 @@ from pathlib import Path
 
 
 CSS = (Path(__file__).parents[2] / "apps" / "web" / "src" / "app" / "globals.css").read_text(encoding="utf-8")
+WEB = Path(__file__).parents[2] / "apps" / "web" / "src"
+CRITICAL_PATH = (Path(__file__).parents[2] / "scripts" / "qa" / "browser" / "tests" / "critical-path.mjs").read_text(encoding="utf-8")
 ROOT_BLOCK = re.search(r":root\s*\{(.*?)\n\}", CSS, re.S).group(1)
 TOKENS = dict(re.findall(r"(--[\w-]+):\s*([^;]+);", ROOT_BLOCK))
 
@@ -96,6 +98,17 @@ def test_reading_room_scope_maps_legacy_tokens_to_role_tokens() -> None:
 
 
 def test_migrated_screens_opt_into_the_reading_room() -> None:
-    web = Path(__file__).parents[2] / "apps" / "web" / "src"
-    missing = [f for f in sorted(MIGRATED) if "readingRoom" not in (web / f).read_text(encoding="utf-8") and "reading-room" not in (web / f).read_text(encoding="utf-8")]
+    missing = [f for f in sorted(MIGRATED) if "readingRoom" not in (WEB / f).read_text(encoding="utf-8") and "reading-room" not in (WEB / f).read_text(encoding="utf-8")]
     assert missing == []
+
+
+def test_isolated_browser_journey_covers_landing_content_and_layout() -> None:
+    for expected in (
+        'await step("landing"',
+        'heading("Find the words for your experience.", 1)',
+        'getByRole("link", { name: "See a sample reflection" }).click()',
+        'getByRole("table", { name: "Mirror compared with a generic mock interview" })',
+        'getByRole("columnheader").count()',
+        'overflow("landing", true)',
+    ):
+        assert expected in CRITICAL_PATH

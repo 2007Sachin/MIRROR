@@ -136,7 +136,19 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.locator("#typed-answer").waitFor();
   };
 
-  // 1. Unauthenticated visit is sent to /login by the middleware.
+  // 1. Public Reading Room landing: real copy, CTA behavior and responsive layout.
+  await step("landing", async () => {
+    await page.goto(baseUrl);
+    await heading("Find the words for your experience.", 1).waitFor();
+    await page.getByRole("link", { name: "Start practicing" }).waitFor();
+    await page.getByRole("link", { name: "See a sample reflection" }).click();
+    await page.locator("#sample-reflection").waitFor();
+    await page.getByRole("table", { name: "Mirror compared with a generic mock interview" }).waitFor();
+    assert.equal(await page.getByRole("columnheader").count(), 3);
+    await overflow("landing", true);
+  });
+
+  // 2. Unauthenticated visit is sent to /login by the middleware.
   await step("unauth-dashboard-redirects-to-login", async () => {
     await page.goto(`${baseUrl}/dashboard`);
     await page.waitForURL((url) => url.pathname === "/login");
@@ -165,7 +177,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.waitForURL((url) => url.pathname === "/dashboard");
   });
 
-  // 2. Home: greeting, role/target context, one clear primary action.
+  // 3. Home: greeting, role/target context, one clear primary action.
   await step("home", async () => {
     await heading(/, QA$/, 1).waitFor();
     await page.getByText(`Preparing for: ${ROLE}`).waitFor();
@@ -186,7 +198,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     }
   });
 
-  // 3. Start ONE quick drill.
+  // 4. Start ONE quick drill.
   await step("start-practice-choose-quick-drill", async () => {
     await page.getByRole("link", { name: `Start ${ROLE} practice` }).click();
     await page.waitForURL((url) => url.pathname === "/practice/start");

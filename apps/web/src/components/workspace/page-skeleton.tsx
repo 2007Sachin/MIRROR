@@ -10,7 +10,7 @@ const bar = (width: string, height: string) => ({ width, height, display: "block
  */
 export default function PageSkeleton() {
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <div className="route-skeleton" role="status" aria-live="polite">
         <span className="sr-only">{loading.space.note}</span>
         <div aria-hidden="true" style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}>
