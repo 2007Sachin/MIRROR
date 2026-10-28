@@ -115,7 +115,7 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
         </div>
       </header>
 
-      {/* The tab bar is last visually and before <main> in the DOM, so keyboard users reach it first and the page stays fully tappable. */}
+      {/* The tab bar is fixed to the bottom but sits before <main> so keyboard and screen-reader users reach it first. */}
       <nav className="ws-mobile-nav" aria-label={shellCopy.mobileNav}>
         {primaryNavigation.map(({ href, mobileLabel, icon: Icon, match }) => {
           const active = activeFor(match);

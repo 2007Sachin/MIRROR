@@ -11,7 +11,7 @@ import { EmptyState, PageAlert, PageHeader, PageLoading, PageShell, Section, use
 import { mirrorApi, type DashboardSummary, type ProgressRoleTile } from "@/lib/api";
 import { getActiveRole } from "@/lib/api-active-role";
 import { progress } from "@/lib/copy";
-import { practiceHome, reflect as t } from "@/lib/copy-practice";
+import { reflect as t } from "@/lib/copy-practice";
 import { newSessionHref } from "@/lib/dashboard-view";
 import { historyStateClass, practiceHistory, sameRole } from "@/lib/practice-view";
 
@@ -54,13 +54,7 @@ export function ReflectView() {
       {state === "ready" && data ? (
         <div className="dh-home-sections">
           <Section id="reflect-recent" title={role ? t.recentTitle(role) : t.recentAllTitle}>
-            {mine.length ? <ReviewRows rows={mine} /> : (
-              <EmptyState title={t.recentAllTitle} body={t.recentEmpty}>
-                <Link className="dh-text-action" href="/practice">
-                  {practiceHome.start} <ArrowRight size={15} aria-hidden="true" />
-                </Link>
-              </EmptyState>
-            )}
+            {mine.length ? <ReviewRows rows={mine} /> : <EmptyState title={t.recentAllTitle} body={t.recentEmpty} />}
           </Section>
 
           {others.length ? (

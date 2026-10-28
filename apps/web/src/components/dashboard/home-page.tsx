@@ -109,7 +109,7 @@ export function HomePage({ initialRole }: { initialRole?: string }) {
 
   return (
     <AppShell profile={profile}>
-      <div className="dh reading-room">
+      <div className="dh">
         {!data && !failed ? <Loader label={loading.space.label} note={loading.space.note} /> : null}
         {failed ? (
           <div className="dh-alert" role="alert">

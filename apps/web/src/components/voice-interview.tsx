@@ -898,7 +898,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
     }
   }
 
-  async function submitTextFallback(event: FormEvent) {
+  async function submitTypedAnswer(event: FormEvent) {
     event.preventDefault();
     const text = typedAnswer.trim();
     if (!text || submitInFlightRef.current || closingRef.current) return;
@@ -989,6 +989,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       await mirrorApi.endInterview(sessionId);
       if (!mountedRef.current) return;
       transition("COMPLETE");
+      router.push(`/app/report/${sessionId}`);
     } catch (caught) {
       if (!mountedRef.current) return;
       setError(caught instanceof ApiError ? caught.message : "We couldn't end the conversation just now. Please try again.");
@@ -1192,29 +1193,27 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                   {roomState === "CONNECTING" ? <SpinnerGap className="interview-spinner" size={19} /> : <Microphone size={19} />}
                   {roomState === "CONNECTING" ? "Joining…" : resuming ? voiceRoom.draft.continue : "Start interview"}
                 </button>
-              ) : permission === "denied" || permission === "unavailable" ? (
-                <button type="button" ref={prejoinActionRef} className="interview-join-button" onClick={() => void joinWithTyping()} disabled={processing}>
-                  <Keyboard size={19} aria-hidden="true" /> Continue with typing
-                </button>
               ) : (
-                <button
-                  type="button"
-                  ref={prejoinActionRef}
-                  className="interview-join-button"
-                  onClick={() => void testMicrophone()}
-                  disabled={roomState === "CHECKING_MIC"}
-                >
-                  {roomState === "CHECKING_MIC" ? <SpinnerGap className="interview-spinner" size={19} /> : <Microphone size={19} />}
-                  {roomState === "CHECKING_MIC" ? "Checking microphone…" : "Check microphone"}
+                <button type="button" ref={prejoinActionRef} className="interview-join-button" onClick={() => void joinWithTyping()} disabled={processing}>
+                  <Keyboard size={19} aria-hidden="true" /> {voiceRoom.typing.join}
                 </button>
               )}
               {permission === "denied" || permission === "unavailable" ? (
                 <button type="button" className="interview-text-entry-button" onClick={() => void testMicrophone()} disabled={processing}>
                   Try the microphone again
                 </button>
-              ) : (
+              ) : permission === "granted" ? (
                 <button type="button" className="interview-text-entry-button" onClick={() => void joinWithTyping()} disabled={processing}>
-                  Continue with typing
+                  {voiceRoom.typing.join}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="interview-text-entry-button"
+                  onClick={() => void testMicrophone()}
+                  disabled={roomState === "CHECKING_MIC"}
+                >
+                  {roomState === "CHECKING_MIC" ? "Checking microphone…" : "Check microphone"}
                 </button>
               )}
             </div>
@@ -1304,10 +1303,10 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
           </div>
 
           {(showTextFallback || textOnlyRef.current) ? (
-            <form className="interview-text-composer" onSubmit={submitTextFallback} inert={dialogOpen}>
+            <form className="interview-text-composer" onSubmit={submitTypedAnswer} inert={dialogOpen}>
               <div>
                 <label htmlFor="typed-answer">Type your answer</label>
-                <span>{textRetryPending ? "Retry the same answer to continue." : "Voice pauses while you type."}</span>
+                <span>{textRetryPending ? voiceRoom.typing.retry : voiceRoom.typing.hint}</span>
               </div>
               <textarea
                 ref={typedAnswerRef}

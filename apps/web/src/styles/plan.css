@@ -152,7 +152,7 @@
 .pl-skeleton span { background: var(--paper-sunken, var(--line)); border-radius: .35rem; display: block; height: 1.1rem; max-width: 32rem; }
 
 @media (max-width: 40rem) {
-  .pl-card { padding: var(--space-4); }
+  .pl-card { padding: var(--space-4); scroll-margin-bottom: 1.5rem; }
   .pl-actions { align-items: stretch; flex-direction: column; }
   .pl-stage-editor__state-options,
   .pl-stage-editor__stage-head,

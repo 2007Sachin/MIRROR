@@ -43,6 +43,11 @@ export function recommendedTitle(step: HomeNextStep) {
   return t.recommended.title[step.focus] ?? t.recommended.title.role;
 }
 
+/** Home's start action when nothing is already in progress: a Quick drill, ready to begin. */
+export function quickDrillHref(role: string, roleProfileId: string) {
+  return startPracticeHref(role, { mode: "QUICK_DRILL", focus: "role" }, roleProfileId);
+}
+
 export function startStepHref(step: HomeNextStep) {
   return startPracticeHref(
     step.target_role,
