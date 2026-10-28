@@ -104,6 +104,7 @@ def test_every_dashboard_action_goes_somewhere_real() -> None:
 
 def test_returning_authentication_routes_to_dashboard_without_auto_logout() -> None:
     assert 'router.replace("/dashboard")' in AUTH_FORM
+    assert 'method="post"' in AUTH_FORM
     assert 'redirectWithCookies(request, response, "/dashboard")' in PROXY
     assert '"/dashboard/:path*"' in PROXY
     assert "auth.signOut()" in APP_SHELL

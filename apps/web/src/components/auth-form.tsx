@@ -134,6 +134,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
               : "Start a private, gentle practice session."}
           </p>
           <form
+            method="post"
             onSubmit={submit}
             className="mirror-auth-form"
             onFocusCapture={() => setFormFocused(true)}
