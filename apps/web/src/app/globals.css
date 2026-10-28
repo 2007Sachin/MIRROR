@@ -1028,9 +1028,21 @@ body:has(.onboarding-workspace) :focus-visible { outline: 2px solid var(--ink); 
 .thesis-convergence div > p:last-child { line-height: 1.55; margin-top: .7rem; }
 
 .diagnostic-panel {
-  background: #e3eae4;
-  border-left: 1px solid #c7d2c9;
-  color: #17201a;
+  background: var(--paper-sunken);
+  border-left: 1px solid var(--line);
+  color: var(--fg-primary);
+}
+.clip-announce {
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 .diagnostic-panel::before { display: none; }
 .diagnostic-panel-desktop { height: 100%; }
@@ -1088,7 +1100,7 @@ body:has(.onboarding-workspace) :focus-visible { outline: 2px solid var(--ink); 
 
 @media (max-width: 800px) {
   .onboarding-workspace { display: flex; }
-  .diagnostic-panel { background: #e3eae4; border-bottom: 1px solid #c7d2c9; border-left: 0; }
+  .diagnostic-panel { background: var(--paper-sunken); border-bottom: 1px solid var(--line); border-left: 0; }
   .diagnostic-panel-desktop { display: none; }
   .diagnostic-panel-mobile { display: block; }
   .diagnostic-panel-mobile > summary {

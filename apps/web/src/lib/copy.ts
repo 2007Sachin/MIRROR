@@ -316,6 +316,8 @@ export const report = {
     readyOnHome: "When it's ready, your review will be waiting on your Home page.",
     longWaitTitle: "Still working on it",
     stillWaiting: "Still preparing. We'll keep checking for you.",
+    statusLabel: "Preparing your review. You can leave this page and come back.",
+    readyAnnounce: "Your review is ready.",
     returnToSpace: "Return to your space",
     failedTitle: "We couldn't finish your review just now",
     unavailableTitle: "Your review isn't available right now",
@@ -358,7 +360,8 @@ export const voiceRoom = {
   },
   typing: {
     join: "Type your answers",
-    label: "Type your answer",
+    label: "Your answer",
+    nextQuestion: "Your next question is ready.",
     hint: "Write it the way you'd say it. A few sentences is plenty.",
     retry: "Send the same answer again to continue.",
     sendError: "We couldn't send that answer just now. Your answer is still here.",
@@ -708,7 +711,7 @@ export const homeNow = {
     progress: {
       title: "Progress",
       open: "View progress",
-      start: "Start practising",
+      start: "Start practice",
       none: (role: string) => `No practices yet for ${role}.`,
       some: (count: number, role: string) => `${count} ${count === 1 ? "practice" : "practices"} recorded for ${role}.`,
     },
@@ -745,8 +748,8 @@ export const progress = {
     lastPractised: (when: string) => `Last practised ${when}`,
     view: "View progress",
     none: "No practice yet",
-    noneBody: "Start practising to see your progress and personalised insights for this role.",
-    start: "Start practising",
+    noneBody: "Start practice to see your progress and personalised insights for this role.",
+    start: "Start practice",
     baseline: "Your baseline is taking shape.",
     positive: { IMPROVING: "Improving", CLEAR: "Coming through clearly" } as Record<string, string>,
     attention: { NEEDS_ATTENTION: "Needs attention", LESS: "Appeared less often" } as Record<string, string>,
@@ -758,7 +761,7 @@ export const progress = {
   },
   role: {
     back: "All roles",
-    start: "Start practising",
+    start: "Start practice",
     tabsLabel: "Sections of this role's progress",
     tabs: { overview: "Overview", answers: "Answers", history: "Practice history", connection: "Role connection" } as Record<string, string>,
     notFound: {
@@ -776,7 +779,7 @@ export const progress = {
     baselineSeen: "What came through in this practice",
     none: {
       title: "No practice yet",
-      body: "Start practising to see your progress and personalised insights for this role.",
+      body: "Start practice to see your progress and personalised insights for this role.",
     },
     noChange: "Your latest practice covered different ground from the earlier ones, so there is nothing to compare yet.",
   },

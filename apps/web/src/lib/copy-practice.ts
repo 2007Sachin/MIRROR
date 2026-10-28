@@ -62,11 +62,12 @@ export const preCheck = {
 /** The reflection after one practice. */
 export const reflection = {
   landedTitle: "What landed well",
-  landedEmpty: "This conversation was short, so nothing stood out clearly yet. That's normal early on.",
+  landedEmpty: "Not enough to say yet. A longer conversation will give more to work with.",
   strengthenTitle: "One thing to strengthen",
-  strengthenEmpty: "Nothing specific stood out to strengthen this time.",
+  strengthenEmpty: "Not enough to say yet. A longer conversation will give more to work with.",
+  tryAgainHint: "Answer this question once more. Your first answer stays as it was.",
   nextTitle: "Try this next",
-  nextChoose: "Choose what you'd like to practise next.",
+  nextChoose: "Choose what you'd like to practice next.",
   nextChooseAction: "Practice next",
   nextAction: "Practice next",
   nextActionHint: "A short practice picked from what you just did.",
@@ -75,7 +76,7 @@ export const reflection = {
   relatesTo: "Relates to",
   repeatTitle: "What would you like to do now?",
   repeat: {
-    sameAnswer: "Practise the same answer",
+    sameAnswer: "Practice the same answer",
     sameAnswerBody: "Say it again and see what changed.",
     editStory: "Update the story",
     editStoryBody: "Keep what worked for next time.",

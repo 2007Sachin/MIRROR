@@ -72,7 +72,9 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
   const [storageDown, setStorageDown] = useState(false);
   const [pollRun, setPollRun] = useState(0);
   const retryButton = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const anchorRef = useRef<string | null>(null);
+  const [readyAnnounce, setReadyAnnounce] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -160,6 +162,18 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
     };
   }, [pollRun, router, sessionId]);
 
+  useEffect(() => {
+    if (state !== "ready") {
+      setReadyAnnounce("");
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      setReadyAnnounce(reportCopy.states.readyAnnounce);
+      headingRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [state]);
+
   function reloadReview() {
     setState("processing");
     setPollRun((run) => run + 1);
@@ -212,6 +226,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
         <PageHeader eyebrow={t.eyebrow} title={reportCopy.states.processingTitle} back={{ href: "/practice", label: t.back }} />
         <Loader label={loading.reflecting.label} note={loading.reflecting.note} />
         <div aria-live="polite">
+          <p className="clip-announce">{reportCopy.states.statusLabel}</p>
           <p className="dh-prose">{reportCopy.states.processingBody}</p>
           <p className="dh-action-meta">{reportCopy.states.processingSaved}</p>
           {stillWorking ? (
@@ -263,12 +278,13 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
 
   if (!report || !review) return null;
 
-  // "Practise the same answer" opens the retry on the answer the one thing to strengthen came from.
+  // "Practice the same answer" opens the retry on the answer the one thing to strengthen came from.
   const sameAnswer = strengthenFrom ? "#review-strengthen-title" : "#review-answers-title";
 
   return (
     <PageShell readingRoom>
-      <PageHeader eyebrow={t.eyebrow} title={role} back={{ href: "/reflect", label: reflect.eyebrow }} />
+      <p className="clip-announce" aria-live="polite">{readyAnnounce}</p>
+      <PageHeader eyebrow={t.eyebrow} title={role} back={{ href: "/reflect", label: reflect.eyebrow }} headingRef={headingRef} />
       <p className="dh-step-count">
         <time dateTime={report.session.completed_at}>{formatDay(report.session.completed_at)}</time>
       </p>
@@ -349,9 +365,10 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
                   <>
                     {strengthenFrom ? (
                       <span className="dh-row-actions is-start">
-                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === "strengthen" ? null : "strengthen")} aria-expanded={openRetry === "strengthen"}>
+                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === "strengthen" ? null : "strengthen")} aria-expanded={openRetry === "strengthen"} aria-describedby="review-try-again-hint">
                           {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
                         </button>
+                        <span id="review-try-again-hint" className="dh-action-meta">{r.tryAgainHint}</span>
                       </span>
                     ) : null}
                   </>
@@ -441,9 +458,10 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
                     ) : null}
                     {block.answerTurnId && block.answer && retryKey ? (
                       <span className="dh-row-actions is-start">
-                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === retryKey ? null : retryKey)} aria-expanded={openRetry === retryKey}>
+                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === retryKey ? null : retryKey)} aria-expanded={openRetry === retryKey} aria-describedby={`review-try-again-${retryKey}`}>
                           {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
                         </button>
+                        <span id={`review-try-again-${retryKey}`} className="dh-action-meta">{r.tryAgainHint}</span>
                         {latest ? (
                           <button className="dh-text-action is-quiet" type="button" onClick={() => setOpenComparison(openComparison === retryKey ? null : retryKey)} aria-expanded={openComparison === retryKey}>
                             {tryCopy.latestAvailable(previous?.length ?? 0)} · {openComparison === retryKey ? tryCopy.hideComparison : tryCopy.showComparison}

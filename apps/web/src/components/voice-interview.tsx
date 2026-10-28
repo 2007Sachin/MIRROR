@@ -184,6 +184,8 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
   const stepAwayDialogRef = useRef<HTMLDivElement | null>(null);
   const [remaining, setRemaining] = useState(0);
   const [question, setQuestion] = useState("");
+  const [nextQuestionAnnounce, setNextQuestionAnnounce] = useState("");
+  const seenQuestion = useRef(false);
   const [turnId, setTurnId] = useState<string | null>(null);
   // The opening turn is stored as "<spoken welcome>\n\n<first question>" so the
   // welcome is voiced and recorded with the turn. Split it for display only.
@@ -194,6 +196,11 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       greeting: question.slice(0, break_).trim(),
       questionBody: question.slice(break_ + 2).trim(),
     };
+  }, [question]);
+  useEffect(() => {
+    if (!question) return;
+    if (seenQuestion.current) setNextQuestionAnnounce(voiceRoom.typing.nextQuestion);
+    seenQuestion.current = true;
   }, [question]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioFailed, setAudioFailed] = useState(false);
@@ -1260,6 +1267,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                   {welcomeLine ? <p className="interview-greeting">{welcomeLine}</p> : null}
                   {greeting ? <p className="interview-greeting">{greeting}</p> : null}
                   <h1 className="display">{questionBody || "Preparing the next question…"}</h1>
+                  {nextQuestionAnnounce ? <span className="clip-announce">{nextQuestionAnnounce}</span> : null}
                 </div>
               </article>
 
@@ -1318,7 +1326,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
           {(showTextFallback || textOnlyRef.current) ? (
             <form className="interview-text-composer" onSubmit={submitTypedAnswer} inert={dialogOpen}>
               <div>
-                <label htmlFor="typed-answer">Type your answer</label>
+                <label htmlFor="typed-answer">{voiceRoom.typing.label}</label>
                 <span>{textRetryPending ? voiceRoom.typing.retry : voiceRoom.typing.hint}</span>
               </div>
               <textarea

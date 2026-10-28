@@ -5,7 +5,7 @@ import "@/styles/dashboard.css";
 import { ArrowLeft, ArrowRight, WarningCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 
 import { Loader } from "@/components/loader";
 import { AppShell } from "@/components/workspace/app-shell";
@@ -99,12 +99,14 @@ export function PageHeader({
   intro,
   action,
   back,
+  headingRef,
 }: {
   eyebrow: string;
   title: string;
   intro?: string;
   action?: ReactNode;
   back?: { href: string; label: string };
+  headingRef?: Ref<HTMLHeadingElement>;
 }) {
   return (
     <header className="dh-page-header">
@@ -116,7 +118,7 @@ export function PageHeader({
       <div className="dh-page-header-row">
         <div>
           <p className="dh-section-label">{eyebrow}</p>
-          <h1 className="dh-title display">{title}</h1>
+          <h1 ref={headingRef} className="dh-title display" tabIndex={headingRef ? -1 : undefined}>{title}</h1>
           {intro ? <p className="dh-page-intro">{intro}</p> : null}
         </div>
         {action}
