@@ -103,7 +103,8 @@
   max-width: 26rem;
   background: var(--paper-raised);
   border: 1px solid var(--line-strong);
-  border-radius: 0.65rem;
+  border-left: 3px solid var(--accent-700);
+  border-radius: 2px;
   padding: var(--space-6);
 }
 
@@ -235,7 +236,7 @@
 .ld-signal-grid { display: grid; gap: var(--space-6); }
 
 @media (min-width: 40rem) {
-  .ld-signal-grid { grid-template-columns: repeat(3, 1fr); }
+  .ld-signal-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 .ld-signal {

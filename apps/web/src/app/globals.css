@@ -77,22 +77,22 @@
      Roles that already have a token (--line, --line-strong, --success, --danger,
      --danger-soft) keep the existing one. Text colours are --fg-* because
      --text-* is the type scale. */
-  --canvas: #f4f1ea;
-  --canvas-sunken: #eae6dc;
-  --surface: #fffdf8;
-  --surface-fallback: #f7f4ee;
-  --fg-primary: #1e2124;
-  --fg-secondary: #474c52;
-  --fg-muted: #62676d; /* solid surfaces only, never on glass */
-  --border-control: #7e8387;
+  --canvas: #f3efe6;
+  --canvas-sunken: #e6e0d2;
+  --surface: #fffcf6;
+  --surface-fallback: #f6f1e6;
+  --fg-primary: #1a1914;
+  --fg-secondary: #3c392f;
+  --fg-muted: #514c40; /* solid surfaces only, never on glass */
+  --border-control: #6f6a5c;
 
-  --accent-50: #e3efec;
-  --accent-100: #cfe3de;
-  --accent-500: #3a8578; /* non-text marks only */
-  --accent-600: #25685f;
-  --accent-700: #1d5650;
-  --provenance-50: #f2e9ef;
-  --provenance-600: #6e4462;
+  --accent-50: #e7efe8;
+  --accent-100: #d3e2d6;
+  --accent-500: #2c6844; /* non-text marks only */
+  --accent-600: #1b4a30;
+  --accent-700: #123524;
+  --provenance-50: #f4ecdf;
+  --provenance-600: #7a4e1e;
   --focus-ring: var(--accent-700);
 
   --success-soft: #e6efe4;
@@ -278,6 +278,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* Interview room (redesign P8): a light Reading Room surface. Content (question, caption,
    transcript, composer) sits on solid panels; glass is limited to the header strip and the
    floating control dock, and falls back to solid without blur or with reduced transparency.
+   The question is the loudest element. Phase, timer, audio state, and controls stay quiet chrome.
    The --room-* names are kept (the loader reads them) and now resolve to role tokens. */
 body:has(.interview-room) { overflow: hidden; }
 body:has(.interview-room) .site-header { display: none; }
@@ -291,9 +292,9 @@ body:has(.app-shell) .site-header { display: none; }
   --room-text: var(--fg-primary);
   --room-muted: var(--fg-secondary);
   --room-accent: var(--accent-700);
-  --room-dock: 5.75rem;
-  background: var(--canvas);
-  color: var(--fg-primary);
+  --room-dock: 5.35rem;
+  background: var(--room-surface);
+  color: var(--room-text);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   height: 100dvh;
@@ -305,24 +306,24 @@ body:has(.app-shell) .site-header { display: none; }
   align-items: center;
   backdrop-filter: var(--glass-blur);
   background: var(--glass-bg);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--room-line);
   display: flex;
   justify-content: space-between;
   min-height: 3.75rem;
   padding: 0 clamp(1rem, 2.4vw, 2rem);
 }
-.interview-room-brand { align-items: center; display: flex; gap: .75rem; }
+.interview-room-brand { align-items: center; display: flex; gap: .65rem; }
 .interview-room-mark {
-  align-items: center; background: var(--fg-primary); border-radius: var(--radius-control); color: var(--surface); display: flex;
-  font-family: var(--font-display); font-size: 1rem; font-weight: 700; height: 2.25rem; justify-content: center; width: 2.25rem;
+  align-items: center; background: var(--room-text); border-radius: var(--radius-control); color: var(--room-panel); display: flex;
+  font-family: var(--font-display); font-size: .92rem; font-weight: 650; height: 2rem; justify-content: center; width: 2rem;
 }
-.interview-room-brand div { display: grid; gap: .12rem; }
-.interview-room-brand strong { font-size: var(--text-sm); font-weight: 640; }
-.interview-room-brand div span { color: var(--fg-secondary); font-size: var(--text-xs); }
-.interview-room-meta { align-items: center; color: var(--fg-secondary); display: flex; font-family: var(--font-mono); font-size: var(--text-xs); gap: 1rem; letter-spacing: .06em; }
-.interview-room-meta time { color: var(--fg-primary); font-variant-numeric: tabular-nums; }
+.interview-room-brand div { display: grid; gap: .05rem; }
+.interview-room-brand strong { font-size: var(--text-xs); font-weight: 650; letter-spacing: -.01em; }
+.interview-room-brand div span { color: var(--room-muted); font-size: var(--text-xs); }
+.interview-room-meta { align-items: center; color: var(--room-muted); display: flex; font-family: var(--font-mono); font-size: var(--text-xs); gap: .85rem; letter-spacing: .06em; }
+.interview-room-meta time { color: var(--room-text); font-variant-numeric: tabular-nums; }
 /* The phase arrives as an internal key (DEEP_DIVE); show it in plain case. */
-.interview-room-phase { border-right: 1px solid var(--line); padding-right: 1rem; text-transform: capitalize; }
+.interview-room-phase { border-right: 1px solid var(--room-line); padding-right: .85rem; text-transform: capitalize; }
 /* Shared by the pre-join and the live room (restored in P8 as light tokens). */
 .interview-device-dot { background: var(--accent-600); border-radius: 50%; flex: none; height: .5rem; width: .5rem; }
 .interview-device-dot.is-denied { background: var(--danger); }
@@ -332,7 +333,7 @@ body:has(.app-shell) .site-header { display: none; }
 }
 .interview-join-button:hover { background: var(--accent-700); border-color: var(--accent-700); }
 .interview-join-button:disabled { cursor: wait; opacity: .72; }
-.interview-text-entry-button { color: var(--accent-700); font-size: var(--text-sm); font-weight: 600; min-height: 2.75rem; padding: 0 var(--space-2); text-decoration: underline; text-underline-offset: .2rem; }
+.interview-text-entry-button { color: var(--room-accent); font-size: var(--text-sm); font-weight: 600; min-height: 2.75rem; padding: 0 var(--space-2); text-decoration: underline; text-underline-offset: .2rem; }
 .interview-inline-error { border-left: 2px solid var(--danger); color: var(--danger); font-size: var(--text-sm); line-height: 1.5; margin: 0; padding-left: .75rem; }
 .interview-spinner { animation: interview-spin 850ms linear infinite; }
 
@@ -340,136 +341,144 @@ body:has(.app-shell) .site-header { display: none; }
 body:has(.interview-room.is-prejoin) { overflow: auto; }
 .interview-room.is-prejoin { grid-template-rows: auto 1fr; height: auto; min-height: 100dvh; overflow: visible; }
 .interview-prejoin { display: grid; padding: clamp(1rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem) 3rem; place-items: start center; }
-.prejoin-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: var(--elevation-1); display: grid; gap: var(--space-5); max-width: 40rem; min-width: 0; padding: clamp(1.5rem, 4vw, 2.5rem); width: 100%; }
-.prejoin-panel .mono { color: var(--fg-secondary); font-size: var(--text-xs); letter-spacing: .1em; margin: 0; overflow-wrap: anywhere; text-transform: uppercase; }
+.prejoin-panel { background: var(--room-panel); border: 1px solid var(--room-line); border-radius: var(--radius-panel); box-shadow: var(--elevation-1); display: grid; gap: var(--space-5); max-width: 40rem; min-width: 0; padding: clamp(1.5rem, 4vw, 2.5rem); width: 100%; }
+.prejoin-panel .mono { color: var(--room-muted); font-size: var(--text-xs); letter-spacing: .1em; margin: 0; overflow-wrap: anywhere; text-transform: uppercase; }
 .prejoin-panel h1 { font-size: var(--text-2xl); font-weight: 540; letter-spacing: -.035em; line-height: 1.05; margin: 0; }
-.prejoin-lede { color: var(--fg-secondary); margin: 0; }
+.prejoin-lede { color: var(--room-muted); margin: 0; }
 .prejoin-points { display: grid; gap: var(--space-3); list-style: none; margin: 0; padding: 0; }
-.prejoin-points li { color: var(--fg-secondary); display: grid; gap: var(--space-3); grid-template-columns: 1.25rem minmax(0, 1fr); line-height: 1.5; }
-.prejoin-points svg { color: var(--accent-700); margin-top: .15rem; }
-.prejoin-points strong { color: var(--fg-primary); }
-.prejoin-mic { align-items: center; background: var(--canvas-sunken); border-radius: var(--radius-panel); display: flex; flex-wrap: wrap; gap: var(--space-3); min-height: 3.25rem; padding: var(--space-3) var(--space-4); }
+.prejoin-points li { color: var(--room-muted); display: grid; gap: var(--space-3); grid-template-columns: 1.25rem minmax(0, 1fr); line-height: 1.5; }
+.prejoin-points svg { color: var(--room-accent); margin-top: .15rem; }
+.prejoin-points strong { color: var(--room-text); }
+.prejoin-mic { align-items: center; background: var(--room-raised); border-radius: var(--radius-panel); display: flex; flex-wrap: wrap; gap: var(--space-3); min-height: 3.25rem; padding: var(--space-3) var(--space-4); }
 .prejoin-mic p { font-size: var(--text-sm); font-weight: 600; margin: 0; }
 .interview-room.is-prejoin .interview-voice-meter--preview { margin-left: auto; position: static; }
 @media (prefers-reduced-motion: reduce) { .interview-voice-meter i { transition: none; } }
 .prejoin-actions { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); }
-.prejoin-panel small { color: var(--fg-secondary); font-size: var(--text-xs); line-height: 1.55; }
+.prejoin-panel small { color: var(--room-muted); font-size: var(--text-xs); line-height: 1.55; }
 @media (max-width: 640px) { .prejoin-actions .interview-join-button { width: 100%; } }
 @keyframes interview-spin { to { transform: rotate(360deg); } }
 .interview-call-layout {
-  display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr) minmax(18rem, 22vw);
-  min-height: 0; padding: 1rem 1rem calc(var(--room-dock) + 1rem);
+  display: grid; gap: var(--space-3); grid-template-columns: minmax(0, 1fr) minmax(18rem, 22vw);
+  min-height: 0; padding: var(--space-4) var(--space-4) calc(var(--room-dock) + var(--space-4));
 }
-.interview-stage { display: grid; gap: 1rem; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
-.interview-participant { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: var(--elevation-1); min-height: 0; overflow: hidden; position: relative; }
-/* The question is the one dominant element. */
+.interview-stage { display: grid; gap: var(--space-3); grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
+.interview-participant { background: var(--room-panel); border: 1px solid var(--room-line); border-radius: var(--radius-panel); box-shadow: none; min-height: 0; overflow: hidden; position: relative; }
+/* The question is the one dominant element. Presence is only an audio mark. */
 .interview-participant--mirror {
-  align-content: center; display: grid; gap: clamp(1rem, 2vw, 1.5rem); grid-template-rows: auto auto; justify-items: center;
-  padding: clamp(3rem, 5vw, 4rem) clamp(1.25rem, 3.5vw, 3.5rem) clamp(1.5rem, 3vw, 2.5rem);
+  align-items: center; border-color: var(--line-strong); display: flex; flex-direction: column; gap: clamp(.85rem, 1.5vw, 1.15rem);
+  justify-content: center;
+  padding: clamp(2.45rem, 3.4vw, 3.1rem) clamp(1.35rem, 4vw, 4.25rem) clamp(1.1rem, 2.2vw, 1.85rem);
 }
-.interview-participant-label { align-items: baseline; display: flex; gap: .5rem; left: 1.1rem; position: absolute; top: 1rem; z-index: 2; }
-.interview-participant-label span { font-size: var(--text-sm); font-weight: 650; }
-.interview-participant-label small { color: var(--fg-secondary); font-size: var(--text-xs); }
+.interview-participant-label { align-items: baseline; display: flex; gap: .4rem; left: 1rem; position: absolute; top: .85rem; z-index: 2; }
+.interview-participant-label span { color: var(--room-muted); font-size: var(--text-xs); font-weight: 600; }
+.interview-participant-label small { color: var(--room-muted); font-size: var(--text-xs); font-weight: 500; }
 .interview-presence {
-  align-items: center; background: var(--accent-50); border: 1px solid var(--accent-100); border-radius: 50%;
-  display: flex; height: clamp(5rem, 8vw, 6.5rem); justify-content: center; position: relative; width: clamp(5rem, 8vw, 6.5rem);
+  align-items: center; background: var(--room-raised); border: 1px solid var(--room-line); border-radius: 50%;
+  display: flex; flex: none; height: clamp(3.15rem, 5vw, 4rem); justify-content: center; position: relative; width: clamp(3.15rem, 5vw, 4rem);
 }
-.interview-presence span { color: var(--accent-700); font-family: var(--font-display); font-size: clamp(1.8rem, 3vw, 2.4rem); font-weight: 560; position: relative; z-index: 2; }
-.interview-presence i { border: 1px solid var(--accent-100); border-radius: 50%; inset: -.45rem; position: absolute; }
-.interview-presence i:nth-of-type(2) { inset: -1rem; opacity: .6; }
-.interview-presence i:nth-of-type(3) { inset: -1.6rem; opacity: .3; }
+.interview-presence span { color: var(--room-text); font-family: var(--font-display); font-size: clamp(1.2rem, 1.8vw, 1.55rem); font-weight: 560; position: relative; z-index: 2; }
+.interview-presence i { border: 1px solid var(--room-line); border-radius: 50%; inset: -.22rem; position: absolute; }
+.interview-presence i:nth-of-type(2) { inset: -.46rem; opacity: .5; }
+.interview-presence i:nth-of-type(3) { inset: -.7rem; opacity: .25; }
 .interview-room--interviewer_speaking .interview-presence i { animation: interview-presence-pulse 2.4s ease-in-out infinite; }
 .interview-room--interviewer_speaking .interview-presence i:nth-of-type(2) { animation-delay: 200ms; }
 .interview-room--interviewer_speaking .interview-presence i:nth-of-type(3) { animation-delay: 400ms; }
-@keyframes interview-presence-pulse { 50% { border-color: var(--accent-500); transform: scale(1.05); } }
-.interview-question { max-height: 100%; min-width: 0; overflow-y: auto; text-align: center; width: 100%; }
-.interview-question > span { color: var(--accent-700); font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: .1em; text-transform: uppercase; }
-.interview-question h1 { font-size: clamp(1.5rem, 2.4vw, 2.6rem); font-weight: 520; letter-spacing: -.035em; line-height: 1.12; margin: .8rem auto 0; max-width: 30ch; text-wrap: balance; }
+@keyframes interview-presence-pulse { 50% { border-color: var(--room-accent); transform: scale(1.04); } }
+/* 1px of slack keeps a subpixel line box from painting a scrollbar when the question fits. */
+.interview-question { flex: 0 1 auto; max-height: calc(100% - 4.25rem); min-height: 0; min-width: 0; overflow-y: auto; padding-bottom: 1px; scrollbar-width: thin; text-align: center; width: 100%; }
+.interview-question > span { color: var(--room-muted); font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 560; letter-spacing: .12em; text-transform: uppercase; }
+.interview-question h1 { color: var(--room-text); font-size: clamp(2rem, 3.4vw, 3.2rem); font-weight: 560; letter-spacing: -.045em; line-height: 1.06; margin: .6rem auto 0; max-width: 22ch; overflow-wrap: break-word; text-wrap: balance; }
 .interview-stage:focus-visible { border-radius: var(--radius-panel); outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 /* The spoken welcome that precedes the first question. */
-.interview-greeting { color: var(--fg-secondary); font-size: var(--text-base); line-height: 1.6; margin: .7rem auto 0; max-width: 54ch; text-wrap: pretty; }
-.interview-question--opening h1 { font-size: clamp(1.4rem, 2.1vw, 2.2rem); }
-.interview-participant--candidate { align-items: center; background: var(--canvas-sunken); box-shadow: none; display: flex; flex-direction: column; justify-content: center; min-height: 8.5rem; padding: 2.5rem 1rem 1rem; }
-.interview-participant--candidate > p { color: var(--fg-secondary); font-size: var(--text-sm); margin: .7rem 0 0; }
-.interview-live-caption { margin-top: .5rem; max-width: min(46rem, 86%); text-align: center; }
-.interview-live-caption span { color: var(--accent-700); font-size: var(--text-xs); font-weight: 650; }
+.interview-greeting { color: var(--room-muted); font-size: var(--text-sm); line-height: 1.55; margin: .55rem auto 0; max-width: 46ch; text-wrap: pretty; }
+.interview-question--opening h1 { font-size: clamp(1.75rem, 2.8vw, 2.7rem); }
+.interview-participant--candidate { align-items: center; background: var(--room-raised); border-color: var(--room-line); box-shadow: none; display: flex; flex-direction: column; justify-content: center; min-height: 5.5rem; padding: 2.15rem .9rem .75rem; }
+.interview-participant--candidate > p { color: var(--room-muted); font-size: var(--text-xs); margin: .4rem 0 0; }
+.interview-live-caption { margin-top: .35rem; max-width: min(40rem, 86%); text-align: center; }
+.interview-live-caption span { color: var(--room-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: .04em; }
 .interview-live-caption p {
-  -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--fg-primary); display: -webkit-box; font-size: var(--text-md);
-  line-height: 1.45; margin: .3rem 0 0; overflow: hidden;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--room-text); display: -webkit-box; font-size: var(--text-sm);
+  line-height: 1.45; margin: .25rem 0 0; overflow: hidden;
 }
 .interview-voice-meter { --voice-level: 0; align-items: center; display: flex; gap: .3rem; height: 2.75rem; }
 .interview-voice-meter i { background: var(--accent-500); border-radius: 999px; height: calc(.32rem + var(--voice-level) * 1.6rem); opacity: calc(.35 + var(--voice-level)); transition: height 70ms linear, opacity 70ms linear; width: .2rem; }
 .interview-voice-meter i:nth-child(3n + 1) { transform: scaleY(.58); }
 .interview-voice-meter i:nth-child(4n + 2) { transform: scaleY(.76); }
 .interview-complete {
-  align-self: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: var(--elevation-1);
+  align-self: center; background: var(--room-panel); border: 1px solid var(--line-strong); border-radius: var(--radius-panel); box-shadow: none;
   grid-row: 2; justify-self: center; margin: 1rem; max-width: 36rem; padding: clamp(1.75rem, 4vw, 2.75rem); text-align: center;
 }
-.interview-complete .mono { color: var(--accent-700); font-size: var(--text-xs); letter-spacing: .1em; text-transform: uppercase; }
+.interview-complete .mono { color: var(--room-accent); font-size: var(--text-xs); letter-spacing: .1em; text-transform: uppercase; }
 .interview-complete h1 { font-size: var(--text-2xl); font-weight: 540; letter-spacing: -.035em; margin: .75rem 0; }
-.interview-complete > p:not(.mono) { color: var(--fg-secondary); line-height: 1.6; margin-inline: auto; max-width: 31rem; }
+.interview-complete > p:not(.mono) { color: var(--room-muted); line-height: 1.6; margin-inline: auto; max-width: 31rem; }
 .interview-complete > div { display: flex; gap: .75rem; justify-content: center; margin-top: 1.5rem; }
-.interview-complete button { background: var(--accent-600); border: 1px solid var(--accent-600); border-radius: var(--radius-control); color: var(--surface); font-weight: 650; min-height: 2.75rem; padding: .6rem 1rem; }
+.interview-complete button { background: var(--accent-600); border: 1px solid var(--accent-600); border-radius: var(--radius-control); color: var(--room-panel); font-weight: 650; min-height: 2.75rem; padding: .6rem 1rem; }
 .interview-complete button:hover { background: var(--accent-700); }
-.interview-complete button.is-quiet { background: transparent; border-color: transparent; color: var(--accent-700); }
-.interview-transcript { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
-.interview-transcript-heading { align-items: center; border-bottom: 1px solid var(--line); display: flex; gap: .75rem; justify-content: space-between; padding: 1rem 1.1rem; }
-.interview-transcript-heading h2 { font-size: var(--text-md); font-weight: 600; letter-spacing: -.01em; margin: 0; }
-.interview-live-dot { align-items: center; color: var(--accent-700); display: flex; flex: none; font-size: var(--text-xs); gap: .4rem; }
-.interview-live-dot::before { background: var(--accent-600); border-radius: 50%; content: ""; height: .4rem; width: .4rem; }
-.interview-live-dot.is-off { color: var(--fg-muted); }
+.interview-complete button.is-quiet { background: transparent; border-color: transparent; color: var(--room-accent); }
+.interview-transcript { background: var(--room-panel); border: 1px solid var(--room-line); border-radius: var(--radius-panel); display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+.interview-transcript-heading { align-items: center; border-bottom: 1px solid var(--room-line); display: flex; gap: .65rem; justify-content: space-between; padding: .75rem 1rem; }
+.interview-transcript-heading h2 { color: var(--room-muted); font-size: var(--text-sm); font-weight: 600; letter-spacing: -.01em; margin: 0; }
+.interview-live-dot { align-items: center; color: var(--room-muted); display: flex; flex: none; font-size: var(--text-xs); gap: .4rem; }
+.interview-live-dot::before { background: var(--room-accent); border-radius: 50%; content: ""; height: .4rem; width: .4rem; }
+.interview-live-dot.is-off { color: var(--room-muted); }
 .interview-live-dot.is-off::before { background: var(--border-control); }
-.interview-transcript-list { overflow-y: auto; padding: .25rem 1.1rem 1.1rem; scrollbar-width: thin; }
-.interview-transcript-turn { border-bottom: 1px solid var(--line); padding: .9rem 0; }
-.interview-transcript-turn > span { color: var(--accent-700); font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: .06em; text-transform: uppercase; }
-.interview-transcript-turn.is-candidate > span { color: var(--fg-secondary); }
-.interview-transcript-turn.is-live { background: var(--accent-50); border-radius: var(--radius-control); margin-inline: -.5rem; padding-inline: .5rem; }
+.interview-transcript-list { overflow-y: auto; padding: .15rem 1rem 1rem; scrollbar-width: thin; }
+.interview-transcript-turn { border-bottom: 1px solid var(--room-line); padding: .7rem 0; }
+.interview-transcript-turn > span { color: var(--room-text); font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 560; letter-spacing: .06em; text-transform: uppercase; }
+.interview-transcript-turn.is-candidate > span { color: var(--room-muted); font-weight: 500; }
+.interview-transcript-turn.is-live { background: var(--room-raised); border-radius: var(--radius-control); margin-inline: -.4rem; padding-inline: .4rem; }
 /* pre-line keeps the opening welcome and its question as separate paragraphs. */
-.interview-transcript-turn p { color: var(--fg-primary); font-size: var(--text-sm); line-height: 1.55; margin: .4rem 0 0; white-space: pre-line; }
-.interview-transcript-empty { color: var(--fg-secondary); font-size: var(--text-sm); line-height: 1.6; margin: .9rem 0; }
-.interview-thinking { align-items: center; color: var(--fg-secondary); display: flex; font-size: var(--text-xs); gap: .32rem; padding: 1rem 0; }
-.interview-thinking i { animation: interview-thinking 1s ease-in-out infinite; background: var(--accent-500); border-radius: 50%; height: .25rem; width: .25rem; }
+.interview-transcript-turn p { color: var(--room-text); font-size: var(--text-sm); line-height: 1.55; margin: .35rem 0 0; white-space: pre-line; }
+.interview-transcript-empty { color: var(--room-muted); font-size: var(--text-sm); line-height: 1.6; margin: .9rem 0; }
+.interview-thinking { align-items: center; color: var(--room-muted); display: flex; font-size: var(--text-xs); gap: .32rem; padding: .85rem 0; }
+.interview-thinking i { animation: interview-thinking 1s ease-in-out infinite; background: var(--room-accent); border-radius: 50%; height: .25rem; width: .25rem; }
 .interview-thinking i:nth-child(2) { animation-delay: 130ms; }.interview-thinking i:nth-child(3) { animation-delay: 260ms; margin-right: .25rem; }
 @keyframes interview-thinking { 50% { opacity: .25; transform: translateY(-2px); } }
-/* Floating glass control dock. */
+/* Floating glass control dock. Buttons stay hairline; only "done answering" is filled. */
 .interview-controls {
   -webkit-backdrop-filter: var(--glass-blur);
   align-items: center; backdrop-filter: var(--glass-blur); background: var(--glass-bg); border-radius: var(--radius-glass);
-  bottom: calc(.75rem + env(safe-area-inset-bottom)); box-shadow: var(--glass-edge), var(--elevation-2); display: flex; gap: .75rem;
-  left: 50%; max-width: calc(100% - 1.5rem); padding: .5rem .6rem; position: fixed; transform: translateX(-50%); z-index: 8;
+  bottom: calc(.75rem + env(safe-area-inset-bottom)); box-shadow: var(--glass-edge), var(--elevation-2); display: flex; gap: .5rem;
+  left: 50%; max-width: calc(100% - 1.5rem); padding: .35rem .4rem; position: fixed; transform: translateX(-50%); z-index: 8;
 }
-.interview-call-status { align-items: center; display: flex; gap: .6rem; min-width: 0; padding-inline: .4rem; }
-.interview-call-status > div { display: grid; gap: .1rem; min-width: 0; }
-.interview-call-status strong { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
-.interview-call-status small { color: var(--fg-secondary); font-size: var(--text-xs); white-space: nowrap; }
-.interview-status-dot { background: var(--border-control); border-radius: 50%; flex: none; height: .55rem; width: .55rem; }
-.interview-status-dot.is-listening, .interview-status-dot.is-candidate_speaking { background: var(--accent-600); box-shadow: 0 0 0 4px var(--accent-50); }
+.interview-call-status { align-items: center; display: flex; gap: .45rem; min-width: 0; padding-inline: .45rem; }
+.interview-call-status > div { display: grid; gap: .05rem; min-width: 0; }
+.interview-call-status strong { color: var(--room-text); font-size: var(--text-xs); font-weight: 650; white-space: nowrap; }
+.interview-call-status small { color: var(--room-muted); font-size: var(--text-xs); white-space: nowrap; }
+.interview-status-dot { background: var(--border-control); border-radius: 50%; flex: none; height: .45rem; width: .45rem; }
+.interview-status-dot.is-listening, .interview-status-dot.is-candidate_speaking { background: var(--room-accent); box-shadow: none; }
 .interview-status-dot.is-error { background: var(--danger); }
-.interview-control-cluster { align-items: center; display: flex; gap: .4rem; }
+.interview-control-cluster { align-items: center; display: flex; gap: .3rem; }
 .interview-control-cluster button, .interview-leave-button {
-  align-items: center; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-control); color: var(--fg-primary);
-  display: flex; flex-direction: column; font-size: var(--text-xs); font-weight: 560; gap: .2rem; justify-content: center; min-height: 3.25rem; min-width: 3.5rem; padding: .4rem .6rem;
-  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  align-items: center; background: var(--room-panel); border: 1px solid var(--room-line); border-radius: var(--radius-control); color: var(--room-muted);
+  display: flex; flex-direction: column; font-size: var(--text-xs); font-weight: 560; gap: .12rem; justify-content: center; min-height: 2.75rem; min-width: 3.35rem; padding: .28rem .45rem;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
-.interview-control-cluster button:hover { background: var(--canvas-sunken); border-color: var(--border-control); }
-.interview-control-cluster button.is-active { background: var(--accent-50); border-color: var(--accent-600); color: var(--accent-700); }
+.interview-control-cluster button svg, .interview-leave-button svg { height: 1.05rem; width: 1.05rem; }
+.interview-control-cluster button:hover { background: var(--room-raised); border-color: var(--room-line); color: var(--room-text); }
+.interview-control-cluster button.is-active { background: var(--room-panel); border-color: var(--room-line); box-shadow: inset 0 -2px 0 var(--room-accent); color: var(--room-text); font-weight: 650; }
 .interview-control-cluster button.is-degraded { border-color: var(--warning); color: var(--warning-ink); }
-.interview-cc-icon { border: 1px solid currentColor; border-radius: .2rem; font-size: .61rem; line-height: 1; padding: .17rem .21rem; }
+.interview-cc-icon { border: 1px solid currentColor; border-radius: .2rem; font-size: .58rem; line-height: 1; padding: .14rem .18rem; }
 .interview-control-cluster button:disabled, .interview-leave-button:disabled { cursor: not-allowed; opacity: .45; }
-.interview-leave-button { border-color: var(--line-strong); color: var(--danger); flex-direction: row; gap: .45rem; min-width: auto; padding-inline: .9rem; }
-.interview-leave-button:hover { background: var(--danger-soft); }
+.interview-leave-button { border-color: var(--room-line); color: var(--danger); flex-direction: row; gap: .4rem; min-width: auto; padding-inline: .75rem; white-space: nowrap; }
+.interview-leave-button:hover { background: var(--danger-soft); color: var(--danger); }
+.interview-controls .interview-done-button {
+  align-items: center; background: var(--room-text); border: 1px solid var(--room-text); border-radius: var(--radius-control); color: var(--room-panel);
+  display: flex; font-size: var(--text-xs); font-weight: 650; min-height: 2.75rem; padding: .35rem .8rem;
+}
+.interview-controls .interview-done-button:hover { opacity: .86; }
 .interview-text-composer {
-  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-panel); bottom: calc(var(--room-dock) + .75rem); box-shadow: var(--elevation-3);
+  background: var(--room-panel); border: 1px solid var(--line-strong); border-radius: var(--radius-panel); bottom: calc(var(--room-dock) + .75rem); box-shadow: var(--elevation-3);
   left: 50%; max-width: 44rem; padding: 1rem; position: fixed; transform: translateX(-50%); width: calc(100% - 1.5rem); z-index: 10;
 }
 .interview-text-composer > div:first-child { align-items: baseline; display: flex; gap: .75rem; justify-content: space-between; }
-.interview-text-composer label { font-size: var(--text-sm); font-weight: 650; }.interview-text-composer > div:first-child span { color: var(--fg-secondary); font-size: var(--text-xs); }
-.interview-text-composer textarea { background: var(--canvas); border: 1px solid var(--border-control); border-radius: var(--radius-control); color: var(--fg-primary); font-size: var(--text-base); line-height: 1.55; margin-top: .7rem; min-height: 6.5rem; padding: .8rem; resize: vertical; width: 100%; }
+.interview-text-composer label { color: var(--room-text); font-size: var(--text-sm); font-weight: 650; }.interview-text-composer > div:first-child span { color: var(--room-muted); font-size: var(--text-xs); }
+.interview-text-composer textarea { background: var(--room-surface); border: 1px solid var(--border-control); border-radius: var(--radius-control); color: var(--room-text); font-size: var(--text-base); line-height: 1.55; margin-top: .7rem; min-height: 6.5rem; padding: .8rem; resize: vertical; width: 100%; }
 .interview-text-composer textarea:focus-visible { border-color: var(--focus-ring); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.interview-text-composer textarea[readonly] { background: var(--canvas-sunken); }
+.interview-text-composer textarea[readonly] { background: var(--room-raised); }
 .interview-text-composer > div:last-child { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .6rem; }
 .interview-text-composer button { border: 1px solid var(--line-strong); border-radius: var(--radius-control); font-size: var(--text-sm); min-height: 2.75rem; padding: .5rem .9rem; }
-.interview-text-composer button[type="submit"] { background: var(--accent-600); border-color: var(--accent-600); color: var(--surface); font-weight: 650; }
+.interview-text-composer button[type="submit"] { background: var(--accent-600); border-color: var(--accent-600); color: var(--room-panel); font-weight: 650; }
 .interview-text-composer button:disabled { opacity: .5; }
 .interview-error-banner {
   align-items: center; background: var(--danger-soft); border: 1px solid var(--danger); border-radius: var(--radius-control); bottom: calc(var(--room-dock) + .75rem);
@@ -483,7 +492,7 @@ body:has(.interview-room.is-prejoin) { overflow: auto; }
   .interview-transcript { display: none; }
 }
 @media (max-width: 640px) {
-  .interview-room { --room-dock: 9.5rem; min-height: 30rem; }
+  .interview-room { --room-dock: 8.25rem; min-height: 30rem; }
   .interview-room-header { padding-inline: .85rem; }
   .interview-room-brand div span, .interview-room-phase { display: none; }
   .interview-room-meta { gap: .6rem; }
@@ -491,17 +500,17 @@ body:has(.interview-room.is-prejoin) { overflow: auto; }
   .interview-complete > div { flex-direction: column; }
   .interview-call-layout { gap: .55rem; padding: .55rem .55rem calc(var(--room-dock) + .55rem); }
   .interview-stage { gap: .55rem; }
-  .interview-participant--mirror { gap: .8rem; padding: 2.75rem 1rem 1.1rem; }
-  .interview-question h1 { font-size: clamp(1.3rem, 6vw, 1.75rem); line-height: 1.15; }
-  .interview-question--opening h1 { font-size: clamp(1.2rem, 5.4vw, 1.5rem); }
+  .interview-participant--mirror { gap: .65rem; padding: 2.35rem .9rem 1rem; }
+  .interview-question h1 { font-size: clamp(1.65rem, 7.4vw, 2.15rem); line-height: 1.1; }
+  .interview-question--opening h1 { font-size: clamp(1.5rem, 6.5vw, 1.9rem); }
   .interview-greeting { font-size: var(--text-sm); }
-  .interview-presence { height: 4rem; width: 4rem; }
-  .interview-presence span { font-size: 1.5rem; }
-  .interview-participant--candidate { min-height: 6.5rem; padding-top: 2.25rem; }
-  .interview-live-caption p { font-size: var(--text-base); }
+  .interview-presence { height: 3.15rem; width: 3.15rem; }
+  .interview-presence span { font-size: 1.2rem; }
+  .interview-participant--candidate { min-height: 5.15rem; padding-top: 2rem; }
+  .interview-live-caption p { font-size: var(--text-sm); }
   .interview-controls { flex-wrap: wrap; justify-content: center; left: .5rem; max-width: none; right: .5rem; transform: none; }
   .interview-call-status { flex: 1 1 100%; justify-content: center; }
-  .interview-control-cluster button, .interview-leave-button { min-height: 3rem; min-width: 3.25rem; }
+  .interview-control-cluster button, .interview-leave-button { min-height: 2.75rem; min-width: 3.15rem; }
   .interview-leave-button span { display: none; }
   .interview-text-composer { bottom: calc(var(--room-dock) + .5rem); }
   .interview-error-banner { bottom: calc(var(--room-dock) + .5rem); }
@@ -524,7 +533,8 @@ body:has(.interview-room.is-prejoin) { overflow: auto; }
   .interview-control-cluster button.is-active { outline: 2px solid Highlight; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .interview-presence i, .interview-voice-meter i, .interview-thinking i, .interview-spinner { animation: none !important; transition: none !important; }
+  .interview-presence i, .interview-voice-meter i, .interview-thinking i, .interview-spinner,
+  .interview-control-cluster button, .interview-leave-button, .interview-controls .interview-done-button { animation: none !important; transition: none !important; }
 }
 
 /* Evidence workspace: a warm editorial record, built around diagnostic state rather than metrics. */

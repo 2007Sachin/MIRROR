@@ -187,7 +187,7 @@ export function ExperiencePage() {
   const empty = pageState === "EMPTY";
 
   return (
-    <PageShell>
+    <PageShell readingRoom>
       <PageHeader
         eyebrow={t.eyebrow}
         title={t.title}

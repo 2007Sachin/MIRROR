@@ -1,11 +1,12 @@
 /*
- * Guided stories, the story library cards and Dig Deeper feedback.
- * Tokens only (docs/architecture/REDESIGN_BUILD.md "Visual system"): no raw colours.
+ * Guided stories, the story library, and Dig Deeper feedback.
+ * Same paper sheets as the rest of the desk. Pine marks the current step
+ * and the one filled action. No raw colours.
  */
 
 .sg-why {
   background: var(--action-soft);
-  border-radius: .5rem;
+  border-radius: var(--radius-control);
   color: var(--ink);
   margin: 0 0 var(--space-4);
   padding: var(--space-3) var(--space-4);
@@ -15,9 +16,10 @@
 .sg-builder {
   background: var(--paper-raised);
   border: 1px solid var(--line);
-  border-radius: .75rem;
+  border-radius: var(--radius-panel);
+  box-shadow: var(--elevation-1);
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
   padding: var(--space-6);
 }
 
@@ -35,6 +37,8 @@
   border-top: 4px solid var(--paper-sunken);
   color: var(--slate);
   font-size: var(--text-xs);
+  letter-spacing: 0;
+  line-height: 1.35;
   padding-top: var(--space-2);
 }
 .sg-steps li.is-done { border-top-color: var(--slate); }
@@ -57,7 +61,8 @@
   background: var(--paper-raised);
   border: 1px solid var(--line);
   border-left: 4px solid var(--success);
-  border-radius: .75rem;
+  border-radius: var(--radius-panel);
+  box-shadow: var(--elevation-1);
   color: var(--ink);
   padding: var(--space-5) var(--space-6);
 }
@@ -75,7 +80,8 @@
 .sg-card {
   background: var(--paper-raised);
   border: 1px solid var(--line);
-  border-radius: .75rem;
+  border-radius: var(--radius-panel);
+  box-shadow: var(--elevation-1);
   display: grid;
   gap: var(--space-2);
   padding: var(--space-5);
@@ -86,7 +92,7 @@
   gap: var(--space-3);
   justify-content: space-between;
 }
-.sg-card-head strong { color: var(--ink); }
+.sg-card-head strong { color: var(--ink); font-size: var(--text-md); font-weight: 650; line-height: 1.3; }
 .sg-card-head .dh-row-state { flex: none; }
 .sg-card-purpose {
   color: var(--slate);
@@ -107,7 +113,7 @@
 .sg-feedback h3:first-child { margin-top: 0; }
 .sg-next-sentence {
   background: var(--action-soft);
-  border-radius: .5rem;
+  border-radius: var(--radius-control);
   color: var(--ink);
   font-style: italic;
   margin: 0;
@@ -116,9 +122,10 @@
 
 .sg-inline-error {
   align-items: center;
+  background: var(--paper-raised);
   border: 1px solid var(--line);
   border-left: 4px solid var(--danger);
-  border-radius: .5rem;
+  border-radius: var(--radius-panel);
   color: var(--danger);
   display: flex;
   flex-wrap: wrap;
@@ -132,7 +139,7 @@
 .sg-card :focus-visible,
 .sg-inline-error :focus-visible,
 .sg-done :focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
