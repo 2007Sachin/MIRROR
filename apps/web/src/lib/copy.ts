@@ -60,6 +60,12 @@ export const landing = {
         href: "https://home.ubalt.edu/tmitch/645/articles/McDanieletal1994CriterionValidityInterviewsMeta.pdf",
       },
       {
+        title: "The interview is where it gets specific",
+        body: "In a 2025 survey of 237 employers, nearly 9 in 10 looked for problem-solving on resumes. Among those who hire for skills, about 9 in 10 do that work in the interview.",
+        source: "NACE Job Outlook 2025",
+        href: "https://www.naceweb.org/talent-acquisition/candidate-selection/what-are-employers-looking-for-when-reviewing-college-students-resumes/",
+      },
+      {
         title: "Polish is a start",
         body: "A well-written resume can't yet show what was yours, how big the work was, or how you knew it worked. Talking it through can.",
         source: "Mirror product framing",

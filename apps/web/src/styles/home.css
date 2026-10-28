@@ -58,7 +58,7 @@
   justify-content: center;
   min-height: 2.5rem;
 }
-.hm-primary-action { background: var(--dh-action); border: 1px solid var(--dh-action); border-radius: .5rem; color: #fff; padding: .55rem 1.05rem; }
+.hm-primary-action { background: var(--dh-action); border: 1px solid var(--dh-action); border-radius: var(--radius-control); color: var(--pulse-ink); min-height: 2.75rem; padding: .55rem 1.05rem; }
 .hm-primary-action:hover { background: var(--dh-action-hover); border-color: var(--dh-action-hover); }
 .hm-primary-action.is-small { min-height: 2.25rem; padding: .4rem .85rem; }
 .hm-primary-action:disabled, .hm-secondary-action:disabled, .hm-text-action:disabled { cursor: not-allowed; opacity: .55; }
