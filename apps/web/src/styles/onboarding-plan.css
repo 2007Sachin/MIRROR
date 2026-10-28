@@ -61,7 +61,7 @@
 .op-choice:disabled { cursor: not-allowed; }
 .op-paste { display: grid; gap: .4rem; }
 .op-paste textarea { min-height: 9rem; }
-.op-confirm { display: flex; gap: .4rem; align-items: center; color: var(--success, #166534); }
+.op-confirm { display: flex; gap: .4rem; align-items: center; color: var(--success); }
 
 /* Review */
 .op-group { margin-top: 1.75rem; }

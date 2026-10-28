@@ -888,7 +888,7 @@ export class ApiError extends Error {
   }
 }
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
 
 /** The one authenticated fetch. Area modules (lib/api-*.ts) build their calls on it. */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {

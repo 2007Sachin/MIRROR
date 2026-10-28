@@ -319,14 +319,30 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     welcome_text: null,
   });
 
-  const assessment = () => ({
-    ...fixture("assessment.json"),
-    session_id: state.session.id,
-    status: !state.ended ? "PENDING" : { processing: "PROCESSING", failed: "FAILED" }[targets.state.scenario.review] ?? "COMPLETED",
-    queued_at: state.ended ? state.session.completed_at : null,
-    started_at: state.ended ? state.session.completed_at : null,
-    completed_at: state.ended ? state.session.completed_at : null,
-  });
+  // Set when POST .../assessment/retry requeues a FAILED job. Cleared when the QA scenario changes.
+  let assessmentRequeued = false;
+  const assessment = () => {
+    const scenario = targets.state.scenario.review;
+    const endedAt = state.session?.completed_at ?? null;
+    let status = "COMPLETED";
+    if (!state.ended || assessmentRequeued) status = "PENDING";
+    else if (scenario === "processing") status = "PROCESSING";
+    else if (scenario === "failed") status = "FAILED";
+    const ago = (ms) => new Date(Date.now() - ms).toISOString();
+    const running = status === "PROCESSING" || status === "COMPLETED" || status === "FAILED";
+    // The processing scenario is a job the worker has already held, so its clock is server time, not "just now".
+    const queuedAt = status === "PROCESSING" ? ago(7 * 60 * 1000) : status === "FAILED" ? ago(8 * 60 * 1000) : state.ended ? endedAt : null;
+    const startedAt = status === "PROCESSING" ? ago(6 * 60 * 1000) : status === "FAILED" ? ago(7 * 60 * 1000) : running && !assessmentRequeued ? endedAt : null;
+    return {
+      ...fixture("assessment.json"),
+      session_id: state.session?.id ?? fixture("assessment.json").session_id,
+      status,
+      failure_code: status === "FAILED" ? "assessment_stale" : null,
+      queued_at: queuedAt,
+      started_at: startedAt,
+      completed_at: status === "COMPLETED" || status === "FAILED" ? endedAt : null,
+    };
+  };
 
   const home = () => {
     if (!state.session) return fixture("home_first_practice.json");
@@ -504,6 +520,13 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     return { body: { ...fixture("completion.json"), ...state.session, assessment: assessment() } };
   });
   route("GET", "/api/v1/sessions/([^/]+)/assessment", ({ match }) => needSession(match[1]) ?? { body: assessment() });
+  route("POST", "/api/v1/sessions/([^/]+)/assessment/retry", ({ match }) => {
+    const missing = needSession(match[1]);
+    if (missing) return missing;
+    if (!state.ended) return err(404, "Session not found");
+    assessmentRequeued = true;
+    return { body: assessment() };
+  });
   const notReady = { code: "ASSESSMENT_NOT_READY", message: "Your review is still being prepared." };
   // Review scenarios: processing/failed keep the review behind a 409 (as the backend does while the
   // assessment runs or after it stops); unavailable503 is the backend's ReportUnavailable answer.
@@ -525,7 +548,10 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
   for (const [method, pattern, handler] of targets.routes) route(method, pattern, handler);
 
   // Test-control surface (not part of the Mirror API). Read-only except reset and scenario.
-  route("POST", "/__qa/scenario", ({ body }) => targets.setScenario(body));
+  route("POST", "/__qa/scenario", ({ body }) => {
+    assessmentRequeued = false;
+    return targets.setScenario(body);
+  });
   route("POST", "/__qa/targets/reset", () => {
     targets.reset();
     return { body: { ok: true } };
@@ -555,6 +581,7 @@ export async function startMock({ authPort = 0, apiPort = 0, password, supabaseU
     },
   }));
   route("POST", "/__qa/reset", () => {
+    assessmentRequeued = false;
     Object.assign(state, { session: null, turns: [], ended: false, createBodies: [], answers: [], heartbeats: 0, unmocked: [], requests: [], textClientTurnIds: [] });
     activeQuestions = QUESTIONS;
     state.idempotency.clear();

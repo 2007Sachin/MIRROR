@@ -735,7 +735,7 @@ body:has(.onboarding-workspace) :focus-visible { outline-color: var(--ink); }
 .onboarding-main > * { margin-inline: auto; max-width: 48rem; }
 .onboarding-progress { align-items: center; color: #697069; display: grid; font-family: var(--font-mono); font-size: .61rem; gap: .8rem 1rem; grid-template-columns: 1fr auto; letter-spacing: .13em; margin-bottom: clamp(3.75rem, 8vh, 6.5rem); text-transform: uppercase; }
 .onboarding-progress > div { background: rgba(20, 24, 21, .14); grid-column: 1 / -1; height: 1px; overflow: hidden; }
-.onboarding-progress > div > span { background: #26775f; display: block; height: 1px; transform-origin: left center; transition: transform 320ms cubic-bezier(.2, .8, .2, 1); width: 100%; }
+.onboarding-progress > div > span { background: var(--accent-600); display: block; height: 1px; transform-origin: left center; transition: transform 320ms cubic-bezier(.2, .8, .2, 1); width: 100%; }
 .onboarding-step { animation: onboarding-enter 280ms cubic-bezier(.2, .8, .2, 1) both; }
 .onboarding-step-header { max-width: 43rem; }
 .onboarding-eyebrow, .onboarding-section-index, .diagnostic-kicker, .evidence-map-label { color: #667069; font-family: var(--font-mono); font-size: .64rem; font-weight: 560; letter-spacing: .14em; margin: 0; text-transform: uppercase; }
@@ -938,7 +938,7 @@ body:has(.onboarding-workspace) :focus-visible { outline: 2px solid var(--ink); 
 .onboarding-main > * { max-width: 60rem; }
 .onboarding-progress { color: #68736b; margin-bottom: clamp(1.35rem, 3.4vh, 2.2rem); }
 .onboarding-progress > div { background: #cbd4cc; }
-.onboarding-progress > div > span { background: #2d7059; height: 2px; }
+.onboarding-progress > div > span { background: var(--accent-600); height: 2px; }
 .onboarding-step-header { max-width: 47rem; }
 .onboarding-eyebrow,
 .onboarding-section-index,
