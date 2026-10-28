@@ -1,7 +1,7 @@
 /*
- * Home. Built from the shared tokens (`--dh-*`, `--ink`, `--paper`): warm background, thin
- * neutral borders, ink primary actions, small uppercase eyebrows. No gradients, no heavy
- * shadows, no charts. Density comes from tight rhythm, not from cramming.
+ * Home. Built from the shared tokens (`--dh-*`, `--ink`, `--paper`). Inside .reading-room
+ * those names follow the Reading Room accent, radius, and 44px controls. Thin borders,
+ * small uppercase eyebrows. No gradients, no heavy shadows, no charts.
  */
 .hm {
   --hm-card: var(--paper-raised);
@@ -97,7 +97,7 @@
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 650;
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   padding: .45rem 2rem .45rem .65rem;
   width: 100%;
 }

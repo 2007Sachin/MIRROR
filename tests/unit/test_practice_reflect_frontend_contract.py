@@ -79,4 +79,5 @@ def test_reflect_is_gated_puts_the_active_role_first_and_owns_progress() -> None
     assert "getActiveRole" in REFLECT and "RoleTileCard" in REFLECT
     assert REFLECT.index('id="reflect-recent"') < REFLECT.index('id="reflect-developing"')
     assert 'redirect("/reflect")' in PROGRESS_PAGE
+    assert 'href="/practice"' in REFLECT and "practiceHome.start" in REFLECT
     assert (WEB / "app" / "progress" / "[roleProfileId]" / "page.tsx").exists()

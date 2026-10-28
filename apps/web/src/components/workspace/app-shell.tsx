@@ -66,7 +66,17 @@ function initials(profile: Profile | null) {
 export function AppShell({ children, profile }: { children: ReactNode; profile: Profile | null }) {
   const pathname = usePathname();
   const router = useRouter();
+  const mainRef = useRef<HTMLElement>(null);
   const [logoutError, setLogoutError] = useState("");
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const id = window.location.hash.replace(/^#/, "");
+    const target = id ? document.getElementById(id) : null;
+    if (target) target.scrollIntoView();
+    else main.scrollTo(0, 0);
+  }, [pathname]);
 
   const activeFor = (match: Match[]) => match.some((item) => matches(pathname, item));
 
@@ -105,7 +115,7 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
         </div>
       </header>
 
-      {/* The tab bar is fixed to the bottom but sits before <main> so keyboard and screen-reader users reach it first. */}
+      {/* The tab bar is last visually and before <main> in the DOM, so keyboard users reach it first and the page stays fully tappable. */}
       <nav className="ws-mobile-nav" aria-label={shellCopy.mobileNav}>
         {primaryNavigation.map(({ href, mobileLabel, icon: Icon, match }) => {
           const active = activeFor(match);
@@ -119,7 +129,7 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
       </nav>
 
       {logoutError ? <div className="ws-alert" role="alert">{logoutError}</div> : null}
-      <main id="main-content" className="ws-content">{children}</main>
+      <main id="main-content" className="ws-content" ref={mainRef}>{children}</main>
     </div>
   );
 }

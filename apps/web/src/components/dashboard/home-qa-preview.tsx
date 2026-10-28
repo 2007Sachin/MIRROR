@@ -12,7 +12,7 @@ const noop = async () => undefined;
 export function HomeQaPreview({ scenario }: { scenario: HomeQaScenario }) {
   return (
     <AppShell profile={{ id: "qa-user", full_name: "Ankit Sunil", email: "ankit@example.test" }}>
-      <div className="dh">
+      <div className="dh reading-room">
         <p className="sr-only" role="status">QA scenario: {scenario.label}</p>
         <HomeView
           data={scenario.data}

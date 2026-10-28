@@ -113,7 +113,7 @@ function preflight(request, response) {
   response.writeHead(204, {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-    "access-control-allow-headers": "authorization,content-type",
+    "access-control-allow-headers": "authorization,apikey,content-type,x-client-info,x-supabase-api-version",
     "access-control-max-age": "600",
     vary: "Origin",
   });

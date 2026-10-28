@@ -137,8 +137,8 @@
   color: var(--fg-primary);
 }
 .reading-room .ws-panel { background: var(--surface); border-radius: var(--radius-panel); box-shadow: var(--elevation-1); }
-.reading-room :is(.button-primary, .button-secondary, .dh-primary-action, .field) { border-radius: var(--radius-control); }
-.reading-room :is(.button-primary, .button-secondary, .dh-primary-action) { min-height: 2.75rem; }
+.reading-room :is(.button-primary, .button-secondary, .dh-primary-action, .hm-primary-action, .hm-secondary-action, .field) { border-radius: var(--radius-control); }
+.reading-room :is(.button-primary, .button-secondary, .dh-primary-action, .hm-primary-action, .hm-secondary-action) { min-height: 2.75rem; }
 .reading-room :focus-visible { outline-color: var(--focus-ring); }
 .reading-room :is(.dh-title, .ws-page-header h1) { text-wrap: balance; }
 .reading-room :is(.dh-header p, .dh-section-body, .ws-page-header > div > p:last-child) { max-width: 64ch; text-wrap: pretty; }

@@ -198,6 +198,10 @@ def test_dashboard_topbar_and_responsive_navigation_are_present() -> None:
     assert "sidebarOpen" not in APP_SHELL
     css = (WEB / "styles" / "workspace.css").read_text(encoding="utf-8")
     assert "backdrop-filter: var(--glass-blur)" in css and "blur(" not in css
+    mobile = css.split("@media (max-width: 1024px)", 1)[1].split("@media", 1)[0]
+    assert "position: fixed" not in mobile
+    assert "overflow: auto" in mobile
+    assert "order: 1" in mobile
 
 
 def test_the_profile_menu_is_an_account_menu_and_nothing_is_invented() -> None:

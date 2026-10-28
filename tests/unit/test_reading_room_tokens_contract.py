@@ -89,6 +89,8 @@ MIGRATED = {
     "components/landing-story.tsx", "components/auth-form.tsx", "components/onboarding-flow.tsx", "app/onboarding/page.tsx",
     # P6: Review
     "components/review/review-page.tsx",
+    # Home joins the same scope as Practice and Reflect.
+    "components/dashboard/home-page.tsx", "components/dashboard/home-qa-preview.tsx",
 }
 
 
