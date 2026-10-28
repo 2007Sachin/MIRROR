@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from app.assessment_pipeline_models import AssessmentPipelineStatus
-from app.assessment_pipeline_repository import MemoryAssessmentPipelineRepository
+from app.assessment_pipeline_repository import (
+    STALE_FAILURE_CODE,
+    MemoryAssessmentPipelineRepository,
+    SupabaseAssessmentPipelineRepository,
+    assessment_stale_after,
+)
+from app.config import Settings
 from app.assessment_worker import AssessmentWorker
 from app.claim_resolution_models import ClaimsAudit
 from app.final_assessment_aggregator import FinalAssessmentAggregator
@@ -214,3 +220,115 @@ def test_forever_worker_survives_transient_claim_failure() -> None:
 
     asyncio.run(exercise())
     assert repository.claim_attempts == 2
+
+
+class MutableClock:
+    def __init__(self) -> None:
+        self.now = datetime(2026, 10, 28, 12, 0, tzinfo=UTC)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+    def advance(self, seconds: int) -> None:
+        self.now += timedelta(seconds=seconds)
+
+
+def test_stale_window_comes_from_attempt_and_backoff_settings() -> None:
+    settings = Settings(assessment_job_max_attempts=3, assessment_job_retry_base_seconds=30)
+    assert assessment_stale_after(settings) == timedelta(seconds=330)
+
+
+def test_queued_job_stays_pending_until_the_worker_window_elapses() -> None:
+    clock = MutableClock()
+    repository = MemoryAssessmentPipelineRepository(stale_after=timedelta(seconds=30), clock=clock)
+    asyncio.run(repository.enqueue(SESSION_ID, USER_ID))
+    assert asyncio.run(repository.status(SESSION_ID, USER_ID)).status == AssessmentPipelineStatus.PENDING
+    clock.advance(30)
+    stale = asyncio.run(repository.status(SESSION_ID, USER_ID))
+    assert stale is not None
+    assert stale.status == AssessmentPipelineStatus.FAILED
+    assert stale.failure_code == STALE_FAILURE_CODE
+
+
+def test_stale_processing_can_be_retried_and_claimed() -> None:
+    clock = MutableClock()
+    repository = MemoryAssessmentPipelineRepository(stale_after=timedelta(seconds=10), clock=clock)
+    asyncio.run(repository.enqueue(SESSION_ID, USER_ID))
+    assert asyncio.run(repository.claim("worker", 3)) is not None
+    clock.advance(9)
+    assert asyncio.run(repository.status(SESSION_ID, USER_ID)).status == AssessmentPipelineStatus.PROCESSING
+    clock.advance(1)
+    stale = asyncio.run(repository.status(SESSION_ID, USER_ID))
+    assert stale.status == AssessmentPipelineStatus.FAILED
+    assert stale.failure_code == STALE_FAILURE_CODE
+    retried = asyncio.run(repository.retry(SESSION_ID, USER_ID))
+    again = asyncio.run(repository.retry(SESSION_ID, USER_ID))
+    assert retried.status == AssessmentPipelineStatus.PENDING
+    assert again.status == AssessmentPipelineStatus.PENDING
+    assert again.failure_code is None
+    assert len(repository._jobs) == 1
+    assert asyncio.run(repository.claim("worker", 3)) is not None
+
+
+def test_completed_assessment_is_not_expired_or_requeued() -> None:
+    clock = MutableClock()
+    repository = MemoryAssessmentPipelineRepository(stale_after=timedelta(seconds=1), clock=clock)
+    asyncio.run(repository.enqueue(SESSION_ID, USER_ID))
+    job = asyncio.run(repository.claim("worker", 3))
+    asyncio.run(repository.complete(job.id))
+    clock.advance(60)
+    state = asyncio.run(repository.status(SESSION_ID, USER_ID))
+    assert state.status == AssessmentPipelineStatus.COMPLETED
+    assert asyncio.run(repository.retry(SESSION_ID, USER_ID)).status == AssessmentPipelineStatus.COMPLETED
+    assert asyncio.run(repository.claim("worker", 3)) is None
+
+
+def _job_row(**overrides):
+    now = datetime(2026, 10, 28, 12, 0, tzinfo=UTC)
+    old = now - timedelta(minutes=30)
+    row = {
+        "status": "pending",
+        "attempts": 1,
+        "error": None,
+        "created_at": old.isoformat(),
+        "locked_at": None,
+        "completed_at": None,
+        "run_after": old.isoformat(),
+    }
+    row.update(overrides)
+    return now, row
+
+
+def test_supabase_job_row_reports_stale_queued_and_locked_work() -> None:
+    now, pending = _job_row()
+    limit = timedelta(seconds=30)
+    stale = SupabaseAssessmentPipelineRepository._state(pending, SESSION_ID, now=now, stale_after=limit)
+    assert stale.status == AssessmentPipelineStatus.FAILED
+    assert stale.failure_code == STALE_FAILURE_CODE
+    assert stale.queued_at is not None and stale.started_at is None
+
+    fresh_now, fresh = _job_row(created_at=now.isoformat(), run_after=now.isoformat())
+    assert SupabaseAssessmentPipelineRepository._state(fresh, SESSION_ID, now=fresh_now, stale_after=limit).status == AssessmentPipelineStatus.PENDING
+
+    _, waiting = _job_row(run_after=(now + timedelta(minutes=2)).isoformat(), error="RuntimeError")
+    waiting_state = SupabaseAssessmentPipelineRepository._state(waiting, SESSION_ID, now=now, stale_after=limit)
+    assert waiting_state.status == AssessmentPipelineStatus.PENDING
+    assert waiting_state.failure_code == "RuntimeError"
+
+    _, running = _job_row(status="running", locked_at=now.isoformat())
+    running_state = SupabaseAssessmentPipelineRepository._state(running, SESSION_ID, now=now, stale_after=limit)
+    assert running_state.status == AssessmentPipelineStatus.PROCESSING
+    assert running_state.queued_at is not None and running_state.started_at == now
+
+    _, locked = _job_row(status="running", locked_at=(now - timedelta(minutes=30)).isoformat())
+    locked_state = SupabaseAssessmentPipelineRepository._state(locked, SESSION_ID, now=now, stale_after=limit)
+    assert locked_state.status == AssessmentPipelineStatus.FAILED
+    assert locked_state.failure_code == STALE_FAILURE_CODE
+
+    _, done = _job_row(status="complete", locked_at=(now - timedelta(hours=5)).isoformat(), completed_at=now.isoformat())
+    assert SupabaseAssessmentPipelineRepository._state(done, SESSION_ID, now=now, stale_after=limit).status == AssessmentPipelineStatus.COMPLETED
+
+    _, failed = _job_row(status="failed", error="RuntimeError", completed_at=now.isoformat())
+    failed_state = SupabaseAssessmentPipelineRepository._state(failed, SESSION_ID, now=now, stale_after=limit)
+    assert failed_state.status == AssessmentPipelineStatus.FAILED
+    assert failed_state.failure_code == "RuntimeError"
