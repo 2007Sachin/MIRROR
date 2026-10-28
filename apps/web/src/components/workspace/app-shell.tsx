@@ -82,7 +82,7 @@ export function AppShell({ children, profile }: { children: ReactNode; profile: 
   }
 
   return (
-    <div className="app-shell ws-shell">
+    <div className="app-shell ws-shell reading-room">
       {/* Glass top bar. One navigation list drives both this bar (wide screens) and the tab bar (narrow screens). */}
       <header className="ws-topbar">
         <Link href="/dashboard" className="ws-brand" aria-label={shellCopy.homeLink}>

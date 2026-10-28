@@ -1,3 +1,4 @@
+/* One ink-and-paper desk. Inside .reading-room, --action is deep pine and --paper is warm canvas. */
 .dh {
   --dh-action: var(--action);
   --dh-action-hover: var(--action-hover);
@@ -45,11 +46,11 @@
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 650;
-  gap: .4rem;
+  gap: var(--space-2);
   justify-content: center;
-  min-height: 2.65rem;
+  min-height: 2.75rem;
 }
-.dh-primary-action { background: var(--dh-action); border: 1px solid var(--dh-action); color: var(--paper-raised); padding: .65rem 1rem; }
+.dh-primary-action { background: var(--dh-action); border: 1px solid var(--dh-action); color: var(--paper-raised); padding: var(--space-2) var(--space-4); }
 .dh-primary-action:hover { background: var(--dh-action-hover); border-color: var(--dh-action-hover); }
 .dh-primary-action:disabled { cursor: not-allowed; opacity: .55; }
 .dh-text-action { background: transparent; border: 1px solid transparent; color: var(--dh-action-hover); padding: .25rem .15rem; }
@@ -64,12 +65,12 @@
   background: var(--paper-raised);
   border: 1px solid var(--dh-line);
   border-left: 4px solid var(--dh-action);
-  border-radius: .7rem;
+  border-radius: var(--radius-panel, .75rem);
   min-width: 0;
-  padding: clamp(1.5rem, 4vw, 2.5rem);
+  padding: clamp(var(--space-6), 4vw, var(--space-10));
 }
 .dh-next-role { color: var(--dh-action-hover); font-size: var(--text-sm); font-weight: 650; margin: var(--space-5) 0 0; overflow-wrap: anywhere; }
-.dh-next-action h2 { font-size: clamp(1.7rem, 3vw, 2.35rem); font-weight: 580; letter-spacing: -.035em; line-height: 1.08; margin: var(--space-3) 0 0; max-width: 24ch; overflow-wrap: anywhere; }
+.dh-next-action h2 { font-size: var(--text-xl); font-weight: 580; letter-spacing: 0; line-height: 1.12; margin: var(--space-3) 0 0; max-width: 24ch; overflow-wrap: anywhere; }
 .dh-next-copy { color: var(--slate); font-size: var(--text-md); line-height: 1.6; margin: var(--space-4) 0 0; max-width: 55ch; }
 .dh-action-row { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-6); }
 .dh-action-meta { color: var(--silver); font-size: var(--text-sm); margin: var(--space-3) 0 0; }
@@ -102,7 +103,7 @@
 .dh-section-heading { align-items: end; display: flex; gap: var(--space-6); justify-content: space-between; }
 .dh-page-layout .dh-section-heading { align-items: start; }
 .dh-section-heading h2 { font-size: var(--text-xl); font-weight: 580; letter-spacing: -.025em; line-height: 1.15; margin: var(--space-2) 0 0; overflow-wrap: anywhere; }
-.dh-page-layout .dh-section-heading h2 { font-size: clamp(1.35rem, 2vw, var(--text-xl)); letter-spacing: 0; line-height: 1.18; margin-top: var(--space-2); }
+.dh-page-layout .dh-section-heading h2 { font-size: var(--text-lg); letter-spacing: 0; line-height: 1.2; margin-top: var(--space-2); }
 .dh-section-heading time { color: var(--silver); display: block; font-size: var(--text-sm); margin-top: var(--space-2); }
 
 .dh-review-columns { display: grid; gap: var(--space-8); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--space-6); }
@@ -185,18 +186,18 @@
   border: 1px solid var(--dh-line);
   border-radius: var(--radius-control, .5rem);
   color: var(--ink);
-  min-height: 2.5rem;
-  padding: .45rem .75rem;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
 }
 .dh-page-layout .dh-alert button:hover { background: var(--danger-soft); border-color: var(--danger); }
 
 .dh-role-dialog { background: transparent; border: 0; max-height: none; max-width: none; padding: 0; }
 .dh-role-dialog::backdrop { background: rgba(18, 21, 26, .42); }
-.dh-role-dialog-panel { background: var(--paper-raised); border: 1px solid var(--line); border-radius: .75rem; box-shadow: 0 1.5rem 4rem rgba(18, 21, 26, .18); max-height: calc(100dvh - 2rem); overflow-y: auto; padding: var(--space-6); width: min(34rem, calc(100vw - 2rem)); }
+.dh-role-dialog-panel { background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: var(--elevation-2); max-height: calc(100dvh - 2rem); overflow-y: auto; padding: var(--space-6); width: min(34rem, calc(100vw - 2rem)); }
 .dh-role-dialog-panel > header { align-items: start; display: flex; gap: var(--space-5); justify-content: space-between; }
 .dh-role-dialog-panel h2 { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 580; letter-spacing: -.025em; line-height: 1.15; margin: var(--space-2) 0 0; }
 .dh-role-dialog-panel header p:last-child { color: var(--slate); font-size: var(--text-sm); line-height: 1.55; margin: var(--space-3) 0 0; }
-.dh-dialog-close { align-items: center; border-radius: .4rem; color: var(--silver); display: flex; flex: none; height: 2.25rem; justify-content: center; width: 2.25rem; }
+.dh-dialog-close { align-items: center; border-radius: var(--radius-control); color: var(--silver); display: flex; flex: none; height: 2.75rem; justify-content: center; width: 2.75rem; }
 .dh-dialog-close:hover { background: var(--paper-sunken); color: var(--ink); }
 .dh-role-options { border-top: 1px solid var(--line); display: grid; margin-top: var(--space-6); }
 .dh-role-options :is(a, button) { align-items: center; background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); display: flex; font: inherit; gap: var(--space-4); justify-content: space-between; min-height: 4.4rem; padding: var(--space-3) 0; text-align: left; width: 100%; }
@@ -237,12 +238,14 @@
   .dh-role-dialog::backdrop { animation: none; }
 }
 
-/* ------------------------------------------------------------------ Phase 2 pages
-   Practice, My Experience, Roles, Progress, Review, Settings and Help all render
-   inside the same `.dh` container as Home, so they inherit its tokens, spacing and
-   focus styles rather than starting a second visual system. */
+/* ------------------------------------------------------------------ Signed-in pages
+   Practice, plan, stories, progress, review, settings and help share this sheet:
+   a display title, a text-md intro, text-lg section titles, then body copy.
+   Panels stay solid paper. Pine is reserved for the one filled action, the
+   current mark, and the focus ring. */
 
 .dh-page-header { padding: var(--space-2) 0 var(--space-8); }
+.dh-page-layout .dh-title { font-size: var(--text-2xl); letter-spacing: 0; line-height: 1.08; }
 .dh-page-layout .dh-page-header {
   border-bottom: 1px solid var(--dh-line);
   padding: var(--space-2) 0 var(--space-6);
@@ -255,8 +258,8 @@
 .dh-page-layout .dh-back-link {
   border-radius: var(--radius-control, .5rem);
   margin-bottom: var(--space-4);
-  min-height: 2.5rem;
-  padding: 0 .35rem;
+  min-height: 2.75rem;
+  padding: 0 var(--space-2);
 }
 .dh-back-link:hover { color: var(--dh-action-hover); }
 .dh-section-body { color: var(--slate); font-size: var(--text-sm); line-height: 1.6; margin: var(--space-3) 0 0; max-width: 56ch; }
@@ -281,7 +284,7 @@
   padding: clamp(var(--space-6), 5vw, var(--space-10));
 }
 .dh-empty h2 { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 580; letter-spacing: -.025em; margin: 0; }
-.dh-page-layout .dh-empty h2 { letter-spacing: 0; line-height: 1.18; }
+.dh-page-layout .dh-empty h2 { font-size: var(--text-lg); letter-spacing: 0; line-height: 1.2; }
 .dh-empty p { color: var(--slate); font-size: var(--text-base); line-height: 1.6; margin: var(--space-3) 0 var(--space-6); max-width: 46ch; }
 .dh-page-layout .dh-empty p { margin: 0 0 var(--space-3); max-width: 58ch; }
 
@@ -382,7 +385,7 @@
 a.dh-role-name:hover { color: var(--dh-action-hover); }
 .dh-role-meta { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .dh-role-meta small { color: var(--silver); font-size: var(--text-sm); }
-.dh-role-picker select { background: var(--paper-raised); border: 1px solid var(--dh-line); border-radius: .5rem; color: var(--ink); font: inherit; font-size: var(--text-sm); min-height: 2.65rem; padding: .5rem 2rem .5rem .75rem; }
+.dh-role-picker select { background: var(--paper-raised); border: 1px solid var(--dh-line); border-radius: var(--radius-control); color: var(--ink); font: inherit; font-size: var(--text-sm); min-height: 2.75rem; padding: var(--space-2) var(--space-8) var(--space-2) var(--space-3); }
 
 .dh-tag-groups { display: grid; gap: var(--space-6); grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin-top: var(--space-6); }
 .dh-tag-group h3 { font-size: var(--text-sm); font-weight: 650; margin: 0 0 var(--space-3); }
@@ -430,7 +433,7 @@ a.dh-role-name:hover { color: var(--dh-action-hover); }
 .dh-answer-note ul { display: grid; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
 .dh-answer-note li { color: var(--slate); font-size: var(--text-sm); line-height: 1.55; }
 
-.dh-trust { align-items: start; border: 1px solid var(--dh-line); border-radius: .7rem; display: flex; gap: var(--space-4); padding: var(--space-6); }
+.dh-trust { align-items: start; border: 1px solid var(--dh-line); border-radius: var(--radius-panel); display: flex; gap: var(--space-4); padding: var(--space-6); }
 .dh-trust svg { color: var(--slate); flex: none; margin-top: .1rem; }
 .dh-trust h2 { font-size: var(--text-base); font-weight: 650; margin: 0; }
 .dh-trust ul { color: var(--slate); display: grid; gap: var(--space-2); margin: var(--space-3) 0 0; padding-left: 1.1rem; }
@@ -440,7 +443,7 @@ a.dh-role-name:hover { color: var(--dh-action-hover); }
 
 .dh-form { display: grid; gap: var(--space-5); margin-top: var(--space-6); max-width: 34rem; }
 .dh-page-layout .dh-form { margin-top: 0; max-width: 40rem; }
-.dh-form label { display: grid; gap: .45rem; }
+.dh-form label { display: grid; gap: var(--space-2); }
 .dh-form label > span { font-size: var(--text-sm); font-weight: 650; }
 .dh-form label > small { color: var(--silver); font-size: var(--text-xs); line-height: 1.5; }
 .dh-page-layout .dh-form :is(input, select, textarea, .field),
@@ -452,14 +455,17 @@ a.dh-role-name:hover { color: var(--dh-action-hover); }
   min-height: 2.75rem;
 }
 .dh-page-layout .dh-form :is(input, select, textarea):not([type="radio"]):not([type="checkbox"]) {
-  padding: .75rem .9rem;
+  padding: var(--space-3) var(--space-4);
   width: 100%;
 }
 .dh-page-layout .dh-form textarea { line-height: 1.55; min-height: 8rem; resize: vertical; }
 .dh-page-layout .dh-form :is(input, select, textarea, .field):focus {
   border-color: var(--dh-action);
   box-shadow: 0 0 0 3px var(--dh-action-soft);
-  outline: none;
+}
+.dh-page-layout .dh-form :is(input, select, textarea, .field):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .dh-form .dh-primary-action { justify-self: start; }
 .dh-page-layout .dh-form .dh-primary-action { margin-top: var(--space-1); }
@@ -476,7 +482,7 @@ a.dh-role-name:hover { color: var(--dh-action-hover); }
   .dh-page-header-row > :is(a, button, label) { align-self: stretch; }
   .dh-page-layout .dh-page-header { padding-bottom: var(--space-5); }
   .dh-page-layout .dh-page-header-row { gap: var(--space-4); }
-  .dh-page-layout .dh-title { font-size: clamp(2rem, 10vw, 2.75rem); }
+  .dh-page-layout .dh-title { font-size: var(--text-2xl); }
   .dh-page-layout .dh-section { padding: var(--space-5); }
   .dh-page-layout .dh-section-heading { align-items: stretch; flex-direction: column; gap: var(--space-3); }
   .dh-page-layout .dh-section-heading > :is(a, button, label) { align-self: stretch; }
@@ -499,13 +505,14 @@ a.dh-role-name:hover { color: var(--dh-action-hover); }
 
 /* A section whose heading is not wrapped in `.dh-section-heading` (Help). */
 .dh-section > h2 { font-size: var(--text-xl); font-weight: 580; letter-spacing: -.025em; line-height: 1.15; margin: var(--space-2) 0 0; }
+.dh-page-layout .dh-section > h2 { font-size: var(--text-lg); letter-spacing: 0; line-height: 1.2; }
 
 /* ------------------------------------------------------------------ role workspace */
 
 .dh-role-tabs { border-bottom: 1px solid var(--dh-line); display: flex; gap: var(--space-6); margin: 0 0 var(--space-8); overflow-x: auto; }
 .dh-role-tabs a { border-bottom: 2px solid transparent; color: var(--slate); font-size: var(--text-sm); font-weight: 650; margin-bottom: -1px; padding: var(--space-3) 0; white-space: nowrap; }
 .dh-role-tabs a:hover { color: var(--ink); }
-.dh-role-tabs a[aria-current="page"] { border-bottom-color: var(--dh-action); color: var(--ink); }
+.dh-role-tabs a[aria-current="page"] { border-bottom-color: var(--dh-action); color: var(--dh-action-hover); }
 .dh-change-list li > span { display: grid; gap: .15rem; }
 .dh-change-list li strong { font-weight: 650; }
 .dh-match { color: var(--slate); font-size: var(--text-sm); }
@@ -520,10 +527,10 @@ a.dh-role-name:hover { color: var(--dh-action-hover); }
 .dh-pressure-statement { border-left: 3px solid var(--dh-action); color: var(--ink); font-family: var(--font-display); font-size: var(--text-md); font-weight: 560; line-height: 1.45; margin: 0; max-width: 62ch; padding-left: var(--space-4); }
 .dh-pressure-ready { border: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-6) 0 0; padding: 0; }
 .dh-pressure-ready legend { font-size: var(--text-sm); font-weight: 650; margin-bottom: var(--space-3); padding: 0; width: 100%; }
-.dh-pressure-ready button { align-items: center; background: var(--paper-raised); border: 1px solid var(--dh-line); border-radius: 999px; color: var(--ink); cursor: pointer; display: inline-flex; font: inherit; font-size: var(--text-sm); gap: .35rem; min-height: 2.5rem; padding: .45rem .95rem; }
+.dh-pressure-ready button { align-items: center; background: var(--paper-raised); border: 1px solid var(--dh-line); border-radius: var(--radius-pill); color: var(--ink); cursor: pointer; display: inline-flex; font: inherit; font-size: var(--text-sm); gap: var(--space-2); min-height: 2.75rem; padding: var(--space-2) var(--space-4); }
 .dh-pressure-ready button[aria-pressed="true"] { background: var(--dh-action-soft); border-color: var(--dh-action); color: var(--dh-action-hover); font-weight: 650; }
 .dh-pressure-ready button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.dh-drill { background: var(--paper-raised); border: 1px solid var(--dh-line); border-radius: .7rem; margin-top: var(--space-6); padding: clamp(1.25rem, 3vw, 2rem); }
+.dh-drill { background: var(--paper-raised); border: 1px solid var(--dh-line); border-radius: var(--radius-panel); margin-top: var(--space-6); padding: clamp(var(--space-5), 3vw, var(--space-8)); }
 .dh-form.is-wide { max-width: 44rem; }
 .dh-form textarea.field { resize: vertical; }
 .dh-check-list { display: grid; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
