@@ -14,6 +14,11 @@ test('partial startup closes both servers when second bind fails without sockets
   assert.deepEqual(closed.sort(), ['api', 'auth']);
 });
 
+test('mock preflight allows the headers the current Supabase client sends', () => {
+  const source = fs.readFileSync(new URL('../mock/server.mjs', import.meta.url), 'utf8');
+  assert.match(source, /"access-control-allow-headers": "authorization,apikey,content-type,x-client-info,x-supabase-api-version"/);
+});
+
 test('both mock listeners authorize before CORS or route dispatch', () => {
   const source = fs.readFileSync(new URL('../mock/server.mjs', import.meta.url), 'utf8');
   assert.equal((source.match(/if \(!guardRequest\(request, response,/g) ?? []).length, 2);

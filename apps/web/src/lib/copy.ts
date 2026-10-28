@@ -310,6 +310,12 @@ export const report = {
   states: {
     processingTitle: "Preparing your review",
     processingBody: "Mirror is looking at what you shared and how it connects to the role. Thank you for your patience.",
+    processingWait: (minutes: number) =>
+      minutes < 1
+        ? "Mirror is looking at what you shared and how it connects to the role. This usually takes a few minutes. You can stay here or come back later. Your answers are saved."
+        : `Mirror is still looking at what you shared and how it connects to the role. About ${minutes} ${minutes === 1 ? "minute" : "minutes"} so far. You can stay here or come back later. Your answers are saved.`,
+    stillPreparing: "This is taking a little longer than usual. Your answers are saved, and your review will be here when you come back.",
+    comeBack: "Come back later",
     returnToSpace: "Return to your space",
     failedTitle: "We couldn't finish your review just now",
     unavailableTitle: "Your review isn't available right now",
@@ -347,6 +353,12 @@ export const voiceRoom = {
     continue: "Continue conversation",
     end: "End and get my review",
     ending: "Ending…",
+  },
+  typing: {
+    join: "Type your answers",
+    label: "Type your answer",
+    hint: "A normal way to answer. Write it the way you would say it.",
+    retry: "Retry the same answer to continue.",
   },
 } as const;
 

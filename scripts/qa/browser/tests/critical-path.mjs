@@ -132,7 +132,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
   const joinWithTyping = async () => {
     await page.getByRole("button", { name: "Check microphone" }).click();
     await page.getByText("Microphone blocked").waitFor();
-    await page.getByRole("button", { name: "Continue with typing" }).click();
+    await page.getByRole("button", { name: "Type your answers" }).click();
     await page.locator("#typed-answer").waitFor();
   };
 
@@ -234,7 +234,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.getByText("5-minute drill · Explain a project").waitFor();
     await page.getByText(/recorded and saved privately to your account, with a transcript/).waitFor();
     await page.getByRole("button", { name: "Check microphone" }).waitFor();
-    await page.getByRole("button", { name: "Continue with typing" }).waitFor();
+    await page.getByRole("button", { name: "Type your answers" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Start interview" }).count(), 0, "no start before the microphone is checked");
     await overflow("brief");
     if (viewport.name === "desktop") {
@@ -262,7 +262,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await page.getByRole("status").filter({ hasText: "Microphone ready" }).waitFor();
     await page.getByRole("button", { name: "Start interview" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Check microphone" }).count(), 0, "one primary action once the microphone is ready");
-    await page.getByRole("button", { name: "Continue with typing" }).waitFor();
+    await page.getByRole("button", { name: "Type your answers" }).waitFor();
     assert.equal(await startsSoFar(), 0);
     await page.screenshot({ path: path.join(outDir, `${viewport.name}-prejoin-microphone-ready.png`), fullPage: true });
     await page.reload(); // back to the run's blocked microphone for the next steps
@@ -296,14 +296,14 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     await overflow("interview-prejoin");
     await page.getByRole("button", { name: "Check microphone" }).click();
     await page.getByText("Microphone blocked").waitFor();
-    await page.getByRole("button", { name: "Continue with typing" }).waitFor();
+    await page.getByRole("button", { name: "Type your answers" }).waitFor();
     await page.getByRole("button", { name: "Try the microphone again" }).waitFor();
     await page.getByText(/Microphone access is blocked/).waitFor();
   });
 
   await step("interview-join-with-typing", async () => {
     // A double click must start the interview once: the button is disabled while joining.
-    await page.getByRole("button", { name: "Continue with typing" }).dblclick();
+    await page.getByRole("button", { name: "Type your answers" }).dblclick();
     await page.locator("#typed-answer").waitFor();
     await heading(QUESTIONS[0], 1).waitFor();
     await page.getByText("Hello, this is a short synthetic practice.").first().waitFor(); // spoken welcome shown as text
@@ -348,8 +348,10 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
       if (i < ANSWERS.length - 1) {
         await heading(QUESTIONS[i + 1], 1).waitFor();
         await page.locator("#typed-answer").waitFor({ timeout: 2_500 });
+        assert.equal(documentNavigations, navigationCount, "typed progression does not reload or navigate the document");
+      } else {
+        await page.waitForURL(/\/app\/report\/[^/]+$/);
       }
-      assert.equal(documentNavigations, navigationCount, "typed progression does not reload or navigate the document");
     });
     if (i === 0) {
       await step("interview-step-away-cannot-end-by-accident", async () => {
@@ -379,7 +381,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
         await page.reload();
         await heading("Your conversation is saved", 1).waitFor();
         await page.getByText("Pick up where you left off.").waitFor();
-        await page.getByRole("button", { name: "Continue with typing" }).click();
+        await page.getByRole("button", { name: "Type your answers" }).click();
         await page.locator("#typed-answer").waitFor();
         await heading(QUESTIONS[1], 1).waitFor();
         const rejoined = await getState();
@@ -391,7 +393,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
   }
 
   await step("interview-complete", async () => {
-    await heading("Interview complete", 1).waitFor();
+    await page.waitForURL(/\/app\/report\/[^/]+$/);
     await poll(async () => (await getState()).ended, { message: "the room to end the session" });
     const state = await getState();
     assert.deepEqual(state.answers, ANSWERS, "every typed answer reached the API");
@@ -429,8 +431,6 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
     assert.equal(response.status, 200, `review scenario ${review}`);
   };
   await step("review", async () => {
-    await page.getByRole("button", { name: "View review" }).click();
-    await page.waitForURL(/\/app\/report\/[^/]+$/);
     await assertReview();
     await overflow("review");
   });

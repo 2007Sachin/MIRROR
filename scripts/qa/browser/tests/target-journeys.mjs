@@ -30,7 +30,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
   const joinWithTyping = async () => {
     await page.getByRole("button", { name: "Check microphone" }).click();
     await page.getByText("Microphone blocked").waitFor();
-    await page.getByRole("button", { name: "Continue with typing" }).click();
+    await page.getByRole("button", { name: "Type your answers" }).click();
     await page.locator("#typed-answer").waitFor();
   };
   const planUrl = (role) => `${baseUrl}/plan?role=${role}`;
@@ -227,14 +227,12 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
         }
       }
     }
-    await heading("Interview complete", 1).waitFor();
+    await page.waitForURL(/\/app\/report\/[^/]+$/);
     await poll(async () => (await getState()).ended, { message: "the stage-matched practice to end" });
     const completed = await getState();
     assert.deepEqual(completed.answers.slice(answersBefore), stageAnswers);
     assert.equal(JSON.stringify(completed.targets.roundPracticeResponses.at(-1)).includes("QA-SYNTHETIC-STAGE-NOTE"), false,
       "candidate notes do not enter the practice response");
-    await page.getByRole("button", { name: "View review" }).click();
-    await page.waitForURL(/\/app\/report\/[^/]+$/);
     await heading(/Software Development Engineer/, 1).waitFor();
     await heading("What landed well").waitFor();
     for (const answer of stageAnswers) await page.getByText(answer, { exact: true }).waitFor();
@@ -455,7 +453,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
         }
       }
     }
-    await heading("Interview complete", 1).waitFor();
+    await page.waitForURL(/\/app\/report\/[^/]+$/);
     await poll(async () => (await getState()).ended, { message: "the researched practice to end" });
     const completed = await getState();
     const answersAfterStart = completed.answers.slice(answersBefore);
@@ -469,8 +467,6 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
       targetStarts: completed.targets.roundPractice,
     })}`);
     assert.deepEqual(answersAfterStart, QA_RESEARCHED_CODING_PROMPTS.map((prompt) => prompt.answer));
-    await page.getByRole("button", { name: "View review" }).click();
-    await page.waitForURL(/\/app\/report\/[^/]+$/);
     await heading("QA Analyst (test role)", 1).waitFor();
     await heading("What landed well").waitFor();
     await heading("One thing to strengthen").waitFor();
@@ -675,12 +671,10 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
         await page.locator("#typed-answer").waitFor({ timeout: 2_500 });
       }
     }
-    await heading("Interview complete", 1).waitFor();
+    await page.waitForURL(/\/app\/report\/[^/]+$/);
     await poll(async () => (await getState()).ended, { message: "the business-roles practice to end" });
     const completed = await getState();
     assert.deepEqual(completed.answers.slice(answersBefore), QA_BUSINESS_CASE_PROMPTS.map((prompt) => prompt.answer));
-    await page.getByRole("button", { name: "View review" }).click();
-    await page.waitForURL(/\/app\/report\/[^/]+$/);
     await heading("What landed well").waitFor();
     for (const prompt of QA_BUSINESS_CASE_PROMPTS) await page.getByText(prompt.answer, { exact: true }).waitFor();
     await overflow("business-roles-review");

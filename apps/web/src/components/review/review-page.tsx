@@ -30,8 +30,14 @@ import { answerBlocks, answerTargets, practiceNext, reviewStrengths, strengthenI
 
 type ViewState = "loading" | "processing" | "error" | "ready";
 
-const POLL_MS = 5000;
-const MAX_POLLS = 24;
+const WAIT_LIMIT_MS = 5 * 60 * 1000;
+
+/** Short at first, then slower, for about five minutes in total. */
+function pollDelay(elapsedMs: number) {
+  if (elapsedMs < 30_000) return 5_000;
+  if (elapsedMs < 120_000) return 10_000;
+  return 20_000;
+}
 
 export function ReviewPage({ sessionId }: { sessionId: string }) {
   const router = useRouter();
@@ -47,11 +53,16 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
   const [message, setMessage] = useState("");
   const [retryable, setRetryable] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  const [waitedOut, setWaitedOut] = useState(false);
 
   useEffect(() => {
     mounted.current = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let attempts = 0;
+    const started = Date.now();
+    const tick = window.setInterval(() => {
+      if (mounted.current) setElapsedMinutes(Math.floor((Date.now() - started) / 60_000));
+    }, 15_000);
 
     const fail = (reason: unknown) => {
       if (!mounted.current) return;
@@ -98,13 +109,14 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
             setMessage(reportCopy.states.savedRetry);
             return;
           }
+          const elapsed = Date.now() - started;
+          setElapsedMinutes(Math.floor(elapsed / 60_000));
           setState("processing");
-          attempts += 1;
-          if (attempts < MAX_POLLS) timer = setTimeout(load, POLL_MS);
-          else {
-            setState("error");
-            setMessage(reportCopy.states.longWait);
+          if (elapsed >= WAIT_LIMIT_MS) {
+            setWaitedOut(true);
+            return;
           }
+          timer = setTimeout(load, pollDelay(elapsed));
         } catch (statusReason) {
           fail(statusReason);
         }
@@ -114,6 +126,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
     void load();
     return () => {
       mounted.current = false;
+      window.clearInterval(tick);
       if (timer) clearTimeout(timer);
     };
   }, [router, sessionId]);
@@ -132,6 +145,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
 
   const strengths = useMemo(() => reviewStrengths(review), [review]);
   const strengthen = useMemo(() => strengthenItem(review), [review]);
+  const workItems = useMemo(() => (review?.improvements ?? []).slice(0, 3), [review]);
   const blocks = useMemo(() => answerBlocks(turns ?? [], report), [turns, report]);
   const landedFrom = useMemo(() => answerTargets(strengths.length, blocks, "cameThrough"), [strengths, blocks]);
   const strengthenFrom = useMemo(() => answerTargets(strengthen ? 1 : 0, blocks, "couldBeClearer")[0] ?? null, [strengthen, blocks]);
@@ -156,8 +170,18 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
     return (
       <PageShell readingRoom>
         <PageHeader eyebrow={t.eyebrow} title={reportCopy.states.processingTitle} back={{ href: "/practice", label: t.back }} />
-        <Loader label={loading.reflecting.label} note={loading.reflecting.note} />
-        <p className="dh-prose">{reportCopy.states.processingBody}</p>
+        {waitedOut ? null : <Loader label={loading.reflecting.label} note={loading.reflecting.note} />}
+        <p className="dh-prose">{waitedOut ? reportCopy.states.stillPreparing : reportCopy.states.processingWait(elapsedMinutes)}</p>
+        <div className="dh-action-row">
+          {waitedOut ? (
+            <button className="dh-primary-action" type="button" onClick={() => void retry()} disabled={retrying}>
+              {retrying ? reportCopy.states.retrying : reportCopy.states.retry}
+            </button>
+          ) : null}
+          <Link className="dh-text-action" href="/dashboard">
+            {reportCopy.states.comeBack} <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+        </div>
       </PageShell>
     );
   }
@@ -177,8 +201,8 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
               {retrying ? reportCopy.states.retrying : reportCopy.states.retry}
             </button>
           ) : null}
-          <Link className="dh-text-action" href="/practice">
-            {t.back} <ArrowRight size={15} aria-hidden="true" />
+          <Link className="dh-text-action" href="/dashboard">
+            {reportCopy.states.comeBack} <ArrowRight size={15} aria-hidden="true" />
           </Link>
         </div>
       </PageShell>
@@ -224,7 +248,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
             <>
               <h2 id="review-next" className="display">{r.nextChoose}</h2>
               <div className="dh-action-row">
-                <Link className="dh-primary-action" href={startPracticeHref(role, undefined, review.role_profile_id)}>
+                <Link className="dh-primary-action" href={startPracticeHref(role, { mode: "QUICK_DRILL", focus: "role" }, review.role_profile_id)}>
                   {r.nextChooseAction} <ArrowRight size={17} aria-hidden="true" />
                 </Link>
               </div>
@@ -263,33 +287,39 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
         </Section>
 
         <Section id="review-strengthen" title={r.strengthenTitle}>
-          {strengthen ? (
+          {workItems.length ? (
             <div className="pr-reflection-list">
-              <div>
-                {strengthen.need ? <p className="pr-need"><span>{r.roleNeed}</span> {strengthen.need}</p> : null}
-                <strong>{strengthen.title}</strong>
-                <p>{strengthen.note}</p>
-                {strengthen.from ? <p className="dh-quiet">{`${r.relatesTo}: ${strengthen.from}`}</p> : null}
-                <FromAnswer target={strengthenFrom} />
-                {strengthenFrom ? (
-                  <span className="dh-row-actions is-start">
-                    <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === "strengthen" ? null : "strengthen")} aria-expanded={openRetry === "strengthen"}>
-                      {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
-                    </button>
-                  </span>
+              {workItems.map((item, index) => (
+              <div key={item.title}>
+                {index === 0 && strengthen?.need ? <p className="pr-need"><span>{r.roleNeed}</span> {strengthen.need}</p> : null}
+                <strong>{item.title}</strong>
+                <p>{item.note}</p>
+                {item.from_label ? <p className="dh-quiet">{`${r.relatesTo}: ${item.from_label}`}</p> : null}
+                {index === 0 ? <FromAnswer target={strengthenFrom} /> : null}
+                {index === 0 ? (
+                  <>
+                    {strengthenFrom ? (
+                      <span className="dh-row-actions is-start">
+                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === "strengthen" ? null : "strengthen")} aria-expanded={openRetry === "strengthen"}>
+                          {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
+                        </button>
+                      </span>
+                    ) : null}
+                  </>
                 ) : null}
-                {strengthenFrom && openRetry === "strengthen" ? (
+                {index === 0 && strengthenFrom && openRetry === "strengthen" ? (
                   <TryAgain
                     sessionId={sessionId}
                     answerTurnId={strengthenFrom.answerTurnId}
                     question={strengthenFrom.question}
                     firstAnswer={strengthenFrom.answer}
-                    area={{ key: review.practice_focus ?? null, title: strengthen.title }}
+                    area={{ key: review.practice_focus ?? null, title: strengthen?.title ?? item.title }}
                     onSaved={saved}
                     onClose={() => setOpenRetry(null)}
                   />
                 ) : null}
               </div>
+              ))}
             </div>
           ) : (
             <p className="dh-review-empty">{r.strengthenEmpty}</p>

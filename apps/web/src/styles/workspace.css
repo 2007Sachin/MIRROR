@@ -150,25 +150,28 @@ html:has(.ws-shell) { scroll-padding-top: 4.5rem; }
 .ws-alert.is-inline { margin: 0 0 var(--space-4); }
 .ws-mobile-nav { display: none; }
 
-/* Narrow screens: the glass tab bar carries the same five destinations as the top bar. */
+/* Narrow screens: the glass tab bar carries the same five destinations as the top bar.
+   It stays in the layout, below the scrolling page, so cards and controls stay tappable. */
 @media (max-width: 1024px) {
   .ws-nav { display: none; }
-  .ws-shell { padding-bottom: calc(5.75rem + env(safe-area-inset-bottom)); }
-  html:has(.ws-shell) { scroll-padding-bottom: 6.5rem; }
+  .ws-shell { display: flex; flex-direction: column; height: 100dvh; }
+  .ws-topbar, .ws-alert { flex: none; }
+  .ws-content { flex: 1 1 auto; min-height: 0; overflow: auto; }
   .ws-mobile-nav {
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
+    align-self: center;
     background: var(--glass-bg);
     border-radius: var(--radius-glass);
-    bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
     box-shadow: var(--glass-edge), var(--elevation-2);
     display: grid;
+    flex: none;
     gap: var(--space-1);
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    left: 50%;
+    margin: 0 var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom));
+    order: 1;
     padding: var(--space-1);
-    position: fixed;
-    transform: translateX(-50%);
+    position: relative;
     width: min(32rem, calc(100% - 1.5rem));
     z-index: 40;
   }

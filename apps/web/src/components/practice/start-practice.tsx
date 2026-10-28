@@ -36,6 +36,13 @@ async function loadStart(storyId: string | null, targetId: string | null): Promi
 
 const ROUND_MODES: PracticeMode[] = ["QUICK_DRILL", "FOCUSED_PRACTICE"];
 
+/** No format in the address means a Quick drill on this role, ready to start. */
+function defaultChoice(mode: string | null, focus: string | null, theme: string | null): PracticeChoice {
+  const fromUrl = choiceFrom(mode, focus, theme);
+  if (mode) return fromUrl;
+  return { mode: "QUICK_DRILL", focus: fromUrl.focus ?? "role", theme: fromUrl.focus === "role" ? fromUrl.theme : null };
+}
+
 type PickedRole = { role: string; id: string | null };
 
 /**
@@ -63,7 +70,7 @@ export function StartPractice() {
       ? { mode: params.get("mode") === "FOCUSED_PRACTICE" ? "FOCUSED_PRACTICE" : "QUICK_DRILL", focus: "story", theme: null }
       : round
         ? { mode: params.get("mode") === "QUICK_DRILL" ? "QUICK_DRILL" : "FOCUSED_PRACTICE", focus: "role", theme: round.label }
-        : choiceFrom(params.get("mode"), params.get("focus"), params.get("theme")),
+        : defaultChoice(params.get("mode"), params.get("focus"), params.get("theme")),
   );
   const [busy, setBusy] = useState(false);
   const [startError, setStartError] = useState("");

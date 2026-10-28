@@ -17,6 +17,7 @@ import {
   practiceArea,
   practiceHeading,
   recommendedTitle,
+  quickDrillHref,
   startStepHref,
   subline,
   timeAgo,
@@ -187,7 +188,7 @@ function Primary({ data, handlers, now }: { data: HomeResponse; handlers: HomeHa
         <h2 id="hm-primary" className="hm-title">{t.first.title(name)}</h2>
         <p className="hm-body">{t.first.body}</p>
         <div className="hm-actions">
-          <Link className="hm-primary-action" href={startRoleHref(name, role.role_profile_id)}>{t.first.cta(name)} <ArrowRight size={16} aria-hidden="true" /></Link>
+          <Link className="hm-primary-action" href={quickDrillHref(name, role.role_profile_id)}>{t.first.cta(name)} <ArrowRight size={16} aria-hidden="true" /></Link>
         </div>
       </Card>
     );
@@ -198,7 +199,7 @@ function Primary({ data, handlers, now }: { data: HomeResponse; handlers: HomeHa
         <h2 id="hm-primary" className="hm-title">{t.early.title(name)}</h2>
         <p className="hm-body">{t.early.body}</p>
         <div className="hm-actions">
-          <Link className="hm-primary-action" href={startRoleHref(name, role.role_profile_id)}>{t.early.cta} <ArrowRight size={16} aria-hidden="true" /></Link>
+          <Link className="hm-primary-action" href={quickDrillHref(name, role.role_profile_id)}>{t.early.cta} <ArrowRight size={16} aria-hidden="true" /></Link>
         </div>
       </Card>
     );
@@ -223,7 +224,7 @@ function Primary({ data, handlers, now }: { data: HomeResponse; handlers: HomeHa
       <p className="hm-body">{t.returning.body}</p>
       <div className="hm-actions">
         {role ? (
-          <Link className="hm-primary-action" href={startRoleHref(name, role.role_profile_id)}>{t.returning.cta} <ArrowRight size={16} aria-hidden="true" /></Link>
+          <Link className="hm-primary-action" href={quickDrillHref(name, role.role_profile_id)}>{t.returning.cta} <ArrowRight size={16} aria-hidden="true" /></Link>
         ) : null}
       </div>
     </Card>
