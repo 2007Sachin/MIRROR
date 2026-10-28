@@ -17,16 +17,16 @@ test("successful voice join clears stale typing-only mode", () => {
 
 test("typing-only mode keeps the composer available and does not offer cancel", () => {
   const toggleStart = component.indexOf("function toggleTextFallback()");
-  const toggleEnd = component.indexOf("async function submitTextFallback", toggleStart);
-  assert.ok(toggleStart >= 0 && toggleEnd > toggleStart, "text fallback toggle is present");
+  const toggleEnd = component.indexOf("async function submitTypedAnswer", toggleStart);
+  assert.ok(toggleStart >= 0 && toggleEnd > toggleStart, "text fallback toggle is present and is followed by the text-send handler");
   assert.match(component.slice(toggleStart, toggleEnd), /if \(textOnlyRef\.current\)/, "typing-only mode cannot close the composer");
   assert.match(component, /showTextFallback \|\| textOnlyRef\.current/, "typing-only mode always renders the composer");
-  assert.match(component, /readOnly=\{textRetryPending\}/, "an ambiguous request keeps the original answer immutable until retry");
+  assert.match(component, /readOnly=\{textRetryPending \|\| processing\}/, "an ambiguous request keeps the original answer immutable until retry");
   assert.match(component, /!textOnlyRef\.current[^\n]*Cancel/, "typing-only mode does not show a no-op Cancel button");
 });
 
 test("a text fallback in voice mode restores audio, while typed-only mode stays on text turns", () => {
-  const submitStart = component.indexOf("async function submitTextFallback");
+  const submitStart = component.indexOf("async function submitTypedAnswer");
   const submitEnd = component.indexOf("async function retryAudio", submitStart);
   assert.ok(submitStart >= 0 && submitEnd > submitStart, "text submission handler is present");
   const submit = component.slice(submitStart, submitEnd);
