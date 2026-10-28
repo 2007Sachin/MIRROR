@@ -153,7 +153,6 @@
 .pl-skeleton span { background: var(--paper-sunken, var(--line)); border-radius: var(--radius-control, .35rem); display: block; height: 1.1rem; max-width: 32rem; }
 
 @media (max-width: 40rem) {
-  .pl-card { padding: var(--space-4); scroll-margin-bottom: 1.5rem; }
   .pl-card { padding: var(--space-5); }
   .pl-actions { align-items: stretch; flex-direction: column; }
   .pl-stage-editor__state-options,
@@ -163,6 +162,11 @@
   .pl-stage-editor__footer { align-items: stretch; flex-direction: column; }
   .pl-stage-editor__fields { grid-template-columns: 1fr; }
   .pl-stage-editor__order { justify-self: stretch; }
+}
+
+@media (max-width: 1024px) {
+  .pl-areas { scroll-padding-bottom: calc(3.5rem + var(--space-3) + var(--space-6) + env(safe-area-inset-bottom)); }
+  .pl-card { scroll-margin-bottom: calc(3.5rem + var(--space-3) + var(--space-6) + env(safe-area-inset-bottom)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

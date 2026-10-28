@@ -69,6 +69,7 @@ export const reflection = {
   nextChoose: "Choose what you'd like to practise next.",
   nextChooseAction: "Practice next",
   nextAction: "Practice next",
+  nextActionHint: "A short practice picked from what you just did.",
   roleNeed: "Role need",
   fromAnswer: "From your answer to",
   relatesTo: "Relates to",

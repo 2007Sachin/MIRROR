@@ -309,21 +309,23 @@ export const report = {
   completed: "Completed",
   states: {
     processingTitle: "Preparing your review",
-    processingBody: "Mirror is looking at what you shared and how it connects to the role. Thank you for your patience.",
-    processingWait: (minutes: number) =>
-      minutes < 1
-        ? "Mirror is looking at what you shared and how it connects to the role. This usually takes a few minutes. You can stay here or come back later. Your answers are saved."
-        : `Mirror is still looking at what you shared and how it connects to the role. About ${minutes} ${minutes === 1 ? "minute" : "minutes"} so far. You can stay here or come back later. Your answers are saved.`,
-    stillPreparing: "This is taking a little longer than usual. Your answers are saved, and your review will be here when you come back.",
-    comeBack: "Come back later",
+    processingBody: "Mirror is looking at what you shared and how it connects to the role. This can take up to about five minutes.",
+    processingSaved: "Your conversation is saved, so you don't need to stay on this page.",
+    meanwhile: "While you wait",
+    goHome: "Go to Home",
+    readyOnHome: "When it's ready, your review will be waiting on your Home page.",
+    longWaitTitle: "Still working on it",
+    stillWaiting: "Still preparing. We'll keep checking for you.",
     returnToSpace: "Return to your space",
     failedTitle: "We couldn't finish your review just now",
     unavailableTitle: "Your review isn't available right now",
     savedRetry:
-      "Your interview has been saved. Mirror couldn't finish preparing your review, so it can be tried again without repeating the conversation.",
-    longWait: "Your review is taking a little longer than expected. Please check back shortly.",
+      "Your conversation is saved. Mirror couldn't finish preparing your review, so it can be tried again without repeating the conversation.",
+    longWait: "This is taking a little longer than usual. Nothing is lost, and your review will appear here when it's ready.",
     notFound: "We couldn't find that review.",
     loadFailed: "We couldn't load your review just now. Please check your connection and try again.",
+    invalid: "That request wasn't complete, so nothing was changed.",
+    storage: "We couldn't reach your saved review just now. Please try again in a moment.",
     retryFailed: "We couldn't try that again just now. Please try again in a moment.",
     retry: "Try again",
     retrying: "Trying again…",
@@ -357,8 +359,16 @@ export const voiceRoom = {
   typing: {
     join: "Type your answers",
     label: "Type your answer",
-    hint: "A normal way to answer. Write it the way you would say it.",
-    retry: "Retry the same answer to continue.",
+    hint: "Write it the way you'd say it. A few sentences is plenty.",
+    retry: "Send the same answer again to continue.",
+    sendError: "We couldn't send that answer just now. Your answer is still here.",
+    connectionLost: "Connection interrupted. Your answer is still here.",
+    invalid: "That answer needs a few words before it can be sent. Your words are still here.",
+    storage: "We couldn't save that just now. Your answer is still here. Please try again.",
+    nearLimit: "This answer is getting long. You can send it as it is.",
+    sendDisabledHint: "Write a few words to send your answer.",
+    sending: "Sending…",
+    placeholder: "Start with what was going on…",
   },
 } as const;
 

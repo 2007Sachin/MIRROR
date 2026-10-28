@@ -935,8 +935,21 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
       await presentTextQuestion(result);
     } catch (caught) {
       if (!mountedRef.current) return;
-      setError(caught instanceof ApiError ? caught.message : "We couldn't send that answer just now. Please try again.");
-      setTextRetryPending(pendingTextTurnIdRef.current !== null);
+      const status = caught instanceof ApiError ? caught.status : 0;
+      if (status === 422) {
+        pendingTextTurnIdRef.current = null;
+        setTextRetryPending(false);
+        setError(voiceRoom.typing.invalid);
+      } else if (status === 503) {
+        setTextRetryPending(pendingTextTurnIdRef.current !== null);
+        setError(voiceRoom.typing.storage);
+      } else if (!navigator.onLine || status === 0) {
+        setTextRetryPending(pendingTextTurnIdRef.current !== null);
+        setError(voiceRoom.typing.connectionLost);
+      } else {
+        setTextRetryPending(pendingTextTurnIdRef.current !== null);
+        setError(voiceRoom.typing.sendError);
+      }
       setShowTextFallback(true);
       transition("ERROR");
     } finally {
@@ -1313,15 +1326,25 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                 id="typed-answer"
                 value={typedAnswer}
                 onChange={(event) => setTypedAnswer(event.target.value)}
-                placeholder="Write naturally, as you would say it…"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                placeholder={voiceRoom.typing.placeholder}
+                aria-describedby="typed-answer-hint"
                 maxLength={20_000}
-                disabled={processing}
-                readOnly={textRetryPending}
+                readOnly={textRetryPending || processing}
                 autoFocus
               />
+              <p id="typed-answer-hint" className={typedAnswer.trim() ? "sr-only" : "dh-action-meta"}>
+                {voiceRoom.typing.sendDisabledHint} Send with Control or Command and Enter.
+              </p>
+              {typedAnswer.length >= 18_000 ? <p className="dh-action-meta">{voiceRoom.typing.nearLimit}</p> : null}
               <div>
                 {!textOnlyRef.current ? <button type="button" onClick={toggleTextFallback}>Cancel</button> : null}
-                <button type="submit" disabled={processing || !typedAnswer.trim()}>{textRetryPending ? "Retry answer" : "Send answer"}</button>
+                <button type="submit" disabled={processing || !typedAnswer.trim()}>{processing ? voiceRoom.typing.sending : textRetryPending ? "Retry answer" : "Send answer"}</button>
               </div>
             </form>
           ) : null}

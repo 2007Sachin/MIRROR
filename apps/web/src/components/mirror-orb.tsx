@@ -27,6 +27,22 @@ export function MirrorOrb({ activeStep }: MirrorOrbProps) {
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, size, size);
 
+      const styles = getComputedStyle(document.documentElement);
+      const channel = (token: string, alpha: number) => {
+        let value = styles.getPropertyValue(token).trim();
+        if (value.startsWith("var(")) value = styles.getPropertyValue(value.slice(4, -1).trim()).trim();
+        const hex = value.replace("#", "");
+        const full = hex.length === 3 ? hex.split("").map((part) => part + part).join("") : hex;
+        const parsed = Number.parseInt(full, 16);
+        if (!Number.isFinite(parsed) || full.length !== 6) return `rgba(29, 29, 31, ${alpha})`;
+        return `rgba(${(parsed >> 16) & 255}, ${(parsed >> 8) & 255}, ${parsed & 255}, ${alpha})`;
+      };
+      const mint = (alpha: number) => channel("--accent-600", alpha);
+      const soft = (alpha: number) => channel("--accent-100", alpha);
+      const mid = (alpha: number) => channel("--accent-500", alpha);
+      const deep = (alpha: number) => channel("--accent-700", alpha);
+      const wash = (alpha: number) => channel("--accent-50", alpha);
+      const paper = (alpha: number) => channel("--paper-raised", alpha);
       const time = timestamp / 1000;
       const speed = hovered ? 1.18 : 1;
       const phase = time * speed;
@@ -36,9 +52,9 @@ export function MirrorOrb({ activeStep }: MirrorOrbProps) {
       const radius = base * breathing;
 
       const aura = context.createRadialGradient(center, center, radius * 0.25, center, center, radius * 2.3);
-      aura.addColorStop(0, "rgba(79, 209, 165, 0.22)");
-      aura.addColorStop(0.35, "rgba(79, 209, 165, 0.11)");
-      aura.addColorStop(1, "rgba(79, 209, 165, 0)");
+      aura.addColorStop(0, mint(0.22));
+      aura.addColorStop(0.35, mint(0.11));
+      aura.addColorStop(1, mint(0));
       context.fillStyle = aura;
       context.beginPath();
       context.arc(center, center, radius * 2.3, 0, Math.PI * 2);
@@ -47,8 +63,8 @@ export function MirrorOrb({ activeStep }: MirrorOrbProps) {
       const drawLobe = (x: number, y: number, lobeRadius: number, color: string) => {
         const lobe = context.createRadialGradient(x - lobeRadius * 0.34, y - lobeRadius * 0.38, 0, x, y, lobeRadius);
         lobe.addColorStop(0, color);
-        lobe.addColorStop(0.72, "rgba(79, 209, 165, 0.12)");
-        lobe.addColorStop(1, "rgba(79, 209, 165, 0)");
+        lobe.addColorStop(0.72, mint(0.12));
+        lobe.addColorStop(1, mint(0));
         context.fillStyle = lobe;
         context.beginPath();
         context.arc(x, y, lobeRadius, 0, Math.PI * 2);
@@ -57,17 +73,17 @@ export function MirrorOrb({ activeStep }: MirrorOrbProps) {
 
       context.save();
       context.globalCompositeOperation = "screen";
-      drawLobe(center - radius * 0.44 + Math.sin(phase * 0.9) * radius * 0.08, center - radius * 0.2, radius * 0.96, "rgba(196, 255, 232, 0.48)");
-      drawLobe(center + radius * 0.4 + Math.cos(phase * 0.7) * radius * 0.1, center + radius * 0.2, radius * 0.9, "rgba(79, 209, 165, 0.48)");
-      drawLobe(center + Math.sin(phase * 0.8) * radius * 0.15, center + radius * 0.48, radius * 0.72, "rgba(35, 159, 125, 0.42)");
+      drawLobe(center - radius * 0.44 + Math.sin(phase * 0.9) * radius * 0.08, center - radius * 0.2, radius * 0.96, soft(0.48));
+      drawLobe(center + radius * 0.4 + Math.cos(phase * 0.7) * radius * 0.1, center + radius * 0.2, radius * 0.9, mint(0.48));
+      drawLobe(center + Math.sin(phase * 0.8) * radius * 0.15, center + radius * 0.48, radius * 0.72, mid(0.42));
       context.restore();
 
       const sphere = context.createRadialGradient(center - radius * 0.34, center - radius * 0.42, radius * 0.04, center, center, radius * 1.08);
-      sphere.addColorStop(0, "rgba(242, 255, 250, 0.92)");
-      sphere.addColorStop(0.18, "rgba(154, 244, 210, 0.86)");
-      sphere.addColorStop(0.58, "rgba(52, 193, 148, 0.72)");
-      sphere.addColorStop(0.86, "rgba(23, 107, 78, 0.48)");
-      sphere.addColorStop(1, "rgba(7, 45, 33, 0.06)");
+      sphere.addColorStop(0, paper(0.92));
+      sphere.addColorStop(0.18, soft(0.86));
+      sphere.addColorStop(0.58, mid(0.72));
+      sphere.addColorStop(0.86, deep(0.48));
+      sphere.addColorStop(1, deep(0.06));
       context.fillStyle = sphere;
       context.beginPath();
       context.arc(center, center, radius, 0, Math.PI * 2);
@@ -83,7 +99,7 @@ export function MirrorOrb({ activeStep }: MirrorOrbProps) {
         const x = center + Math.cos(angle) * distance;
         const y = center + Math.sin(angle) * distance * 0.72;
         const dot = 0.45 + ((index * 13) % 10) / 12;
-        context.fillStyle = `rgba(237, 255, 247, ${0.05 + dot * 0.16})`;
+        context.fillStyle = wash(0.05 + dot * 0.16);
         context.beginPath();
         context.arc(x, y, dot * Math.max(0.7, size / 260), 0, Math.PI * 2);
         context.fill();
