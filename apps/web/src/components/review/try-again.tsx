@@ -93,12 +93,12 @@ export function TryAgain({
       <div className="dh-action-row">
         {result ? (
           <>
-            <button className="dh-primary-action" type="button" onClick={again}>{t.again}</button>
+            <button className="dh-primary-action is-quiet" type="button" onClick={again}>{t.again}</button>
             <button className="dh-primary-action is-quiet" type="button" onClick={onClose}>{t.done}</button>
           </>
         ) : (
           <>
-            <button className="dh-primary-action" type="button" onClick={() => void submit()} disabled={busy || !draft.trim()}>
+            <button className="dh-primary-action is-quiet" type="button" onClick={() => void submit()} disabled={busy || !draft.trim()}>
               {busy ? t.comparing : t.submit} {busy ? null : <ArrowRight size={16} aria-hidden="true" />}
             </button>
             <button className="dh-text-action is-quiet" type="button" onClick={onClose} disabled={busy}>{t.done}</button>

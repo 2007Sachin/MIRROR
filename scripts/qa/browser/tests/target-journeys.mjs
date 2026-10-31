@@ -295,7 +295,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     assert.equal(await page.locator(".pl-stages").count(), 0, "no published-guidance list for India");
     assert.equal(await page.getByText(/Amazon describes|published guidance for India/).count(), 0);
     await page.getByText(/won't borrow guidance written for other countries/).first().waitFor();
-    await page.getByRole("link", { name: /Practise the coding conversation/ }).waitFor();
+    await page.getByRole("link", { name: /Practice the coding conversation/ }).waitFor();
     await screen("plan-not-researched", { primaries: 1 });
   });
 
@@ -597,7 +597,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await page.locator("#round-requirements_and_stakeholders").getByText(/only some processes include this part/).waitFor();
     assert.equal(await page.getByText(/Coding conversation|System design|whiteboard|run your code/).count(), 0, "no engineering round leaks in");
     assert.equal(await page.getByText(/Amazon|Deloitte|India/).count(), 0, "a fictional company never borrows a real scope");
-    await page.getByRole("link", { name: /Practise the business problem conversation/ }).waitFor();
+    await page.getByRole("link", { name: /Practice the business problem conversation/ }).waitFor();
     await screen("business-roles-plan", { primaries: 1 });
   });
 

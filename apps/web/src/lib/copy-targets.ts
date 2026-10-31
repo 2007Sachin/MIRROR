@@ -113,7 +113,7 @@ export const targetCopy = {
     roundsTitle: "Rounds you can practise in Mirror",
     roundsIntroSuggested: "Mirror practice rounds suggested from the role itself, not the company's process.",
     roundsIntroLinked: "Mirror practice coverage is linked to published guidance where a reviewed mapping exists.",
-    practiseFirst: (round: string) => `Practise the ${round.toLocaleLowerCase()}`,
+    practiseFirst: (round: string) => `Practice the ${round.toLocaleLowerCase()}`,
     nothingYet: "Not enough to say yet.",
     candidateStages: {
       promptTitle: "Tell us about your interview stages",

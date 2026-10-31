@@ -21,6 +21,7 @@ import {
   type SessionReview,
 } from "@/lib/api";
 import { loading, report as reportCopy, review as t, tryAgain as tryCopy } from "@/lib/copy";
+import { shellCopy } from "@/lib/copy-shell";
 import { reflect, reflection as r } from "@/lib/copy-practice";
 import { attemptsByAnswer, latestAttempt } from "@/lib/attempt-view";
 import { formatDay } from "@/lib/dashboard-view";
@@ -30,13 +31,26 @@ import { answerBlocks, answerTargets, practiceNext, reviewStrengths, strengthenI
 
 type ViewState = "loading" | "processing" | "error" | "ready";
 
-const WAIT_LIMIT_MS = 5 * 60 * 1000;
+const SOFT_WAIT_MS = 5 * 60 * 1000;
 
-/** Short at first, then slower, for about five minutes in total. */
+/** Short at first, then a slow interval until the server says the job is finished. */
 function pollDelay(elapsedMs: number) {
   if (elapsedMs < 30_000) return 5_000;
   if (elapsedMs < 120_000) return 10_000;
   return 20_000;
+}
+
+/** PENDING counts from queued_at. PROCESSING counts from started_at. */
+function waitAnchor(pipeline: { status: string; queued_at: string | null; started_at: string | null }) {
+  if (pipeline.status === "PROCESSING") return pipeline.started_at ?? pipeline.queued_at;
+  return pipeline.queued_at;
+}
+
+function elapsedSince(iso: string | null) {
+  if (!iso) return 0;
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) return 0;
+  return Math.max(0, Date.now() - at);
 }
 
 export function ReviewPage({ sessionId }: { sessionId: string }) {
@@ -53,26 +67,43 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
   const [message, setMessage] = useState("");
   const [retryable, setRetryable] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [elapsedMinutes, setElapsedMinutes] = useState(0);
-  const [waitedOut, setWaitedOut] = useState(false);
+  const [longWait, setLongWait] = useState(false);
+  const [stillWorking, setStillWorking] = useState(false);
+  const [storageDown, setStorageDown] = useState(false);
+  const [pollRun, setPollRun] = useState(0);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const anchorRef = useRef<string | null>(null);
+  const [readyAnnounce, setReadyAnnounce] = useState("");
 
   useEffect(() => {
+    let active = true;
     mounted.current = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const started = Date.now();
+    const noteElapsed = (elapsed: number) => {
+      setLongWait(elapsed >= 120_000 && elapsed < SOFT_WAIT_MS);
+      setStillWorking(elapsed >= SOFT_WAIT_MS);
+    };
     const tick = window.setInterval(() => {
-      if (mounted.current) setElapsedMinutes(Math.floor((Date.now() - started) / 60_000));
-    }, 15_000);
+      if (!active) return;
+      noteElapsed(elapsedSince(anchorRef.current));
+    }, 5_000);
 
     const fail = (reason: unknown) => {
-      if (!mounted.current) return;
+      if (!active) return;
       if (reason instanceof ApiError && reason.status === 401) {
         router.replace("/login?reason=session_expired");
         return;
       }
+      setStorageDown(false);
       setRetryable(false);
       setState("error");
-      setMessage(reason instanceof ApiError && reason.status === 404 ? reportCopy.states.notFound : reportCopy.states.loadFailed);
+      if (reason instanceof ApiError && reason.status === 404) setMessage(reportCopy.states.notFound);
+      else if (reason instanceof ApiError && reason.status === 422) setMessage(reportCopy.states.invalid);
+      else if (reason instanceof ApiError && reason.status === 503) {
+        setStorageDown(true);
+        setMessage(reportCopy.states.loadFailed);
+      } else setMessage(reportCopy.states.loadFailed);
     };
 
     const load = async () => {
@@ -81,19 +112,19 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
           mirrorApi.report(sessionId),
           mirrorApi.sessionReview(sessionId),
         ]);
-        if (!mounted.current) return;
+        if (!active) return;
         setReport(nextReport);
         setReview(nextReview);
         setState("ready");
         // The conversation is a bonus: the review stands on its own without it.
         void mirrorApi
           .interviewTurns(sessionId)
-          .then((next) => mounted.current && setTurns(next))
-          .catch(() => mounted.current && setTurnsFailed(true));
+          .then((next) => active && setTurns(next))
+          .catch(() => active && setTurnsFailed(true));
         // Earlier attempts are shown next to their answer; without them the page is unchanged.
         void mirrorApi
           .attempts(sessionId)
-          .then((next) => mounted.current && setAttempts(next))
+          .then((next) => active && setAttempts(next))
           .catch(() => undefined);
       } catch (reason) {
         if (!(reason instanceof ApiError) || reason.status !== 409) {
@@ -102,20 +133,19 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
         }
         try {
           const pipeline = await mirrorApi.assessmentStatus(sessionId);
-          if (!mounted.current) return;
+          if (!active) return;
           if (pipeline.status === "FAILED") {
+            anchorRef.current = null;
             setRetryable(true);
+            setStorageDown(false);
             setState("error");
             setMessage(reportCopy.states.savedRetry);
             return;
           }
-          const elapsed = Date.now() - started;
-          setElapsedMinutes(Math.floor(elapsed / 60_000));
+          anchorRef.current = waitAnchor(pipeline);
+          const elapsed = elapsedSince(anchorRef.current);
+          noteElapsed(elapsed);
           setState("processing");
-          if (elapsed >= WAIT_LIMIT_MS) {
-            setWaitedOut(true);
-            return;
-          }
           timer = setTimeout(load, pollDelay(elapsed));
         } catch (statusReason) {
           fail(statusReason);
@@ -125,19 +155,43 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
 
     void load();
     return () => {
+      active = false;
       mounted.current = false;
       window.clearInterval(tick);
       if (timer) clearTimeout(timer);
     };
-  }, [router, sessionId]);
+  }, [pollRun, router, sessionId]);
+
+  useEffect(() => {
+    if (state !== "ready") {
+      setReadyAnnounce("");
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      setReadyAnnounce(reportCopy.states.readyAnnounce);
+      headingRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [state]);
+
+  function reloadReview() {
+    setState("processing");
+    setPollRun((run) => run + 1);
+  }
 
   async function retry() {
     setRetrying(true);
+    setMessage("");
     try {
-      await mirrorApi.retryAssessment(sessionId);
-      router.replace("/practice");
+      const pipeline = await mirrorApi.retryAssessment(sessionId);
+      anchorRef.current = waitAnchor(pipeline);
+      setRetryable(false);
+      setStorageDown(false);
+      reloadReview();
     } catch (reason) {
-      setMessage(reason instanceof ApiError ? reason.message : reportCopy.states.retryFailed);
+      if (reason instanceof ApiError && reason.status === 503) setMessage(reportCopy.states.storage);
+      else setMessage(reason instanceof ApiError && reason.status === 422 ? reportCopy.states.invalid : reason instanceof ApiError ? reason.message : reportCopy.states.retryFailed);
+      retryButton.current?.focus();
     } finally {
       setRetrying(false);
     }
@@ -170,18 +224,26 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
     return (
       <PageShell readingRoom>
         <PageHeader eyebrow={t.eyebrow} title={reportCopy.states.processingTitle} back={{ href: "/practice", label: t.back }} />
-        {waitedOut ? null : <Loader label={loading.reflecting.label} note={loading.reflecting.note} />}
-        <p className="dh-prose">{waitedOut ? reportCopy.states.stillPreparing : reportCopy.states.processingWait(elapsedMinutes)}</p>
-        <div className="dh-action-row">
-          {waitedOut ? (
-            <button className="dh-primary-action" type="button" onClick={() => void retry()} disabled={retrying}>
-              {retrying ? reportCopy.states.retrying : reportCopy.states.retry}
-            </button>
+        <Loader label={loading.reflecting.label} note={loading.reflecting.note} />
+        <div aria-live="polite">
+          <p className="clip-announce">{reportCopy.states.statusLabel}</p>
+          <p className="dh-prose">{reportCopy.states.processingBody}</p>
+          <p className="dh-action-meta">{reportCopy.states.processingSaved}</p>
+          {stillWorking ? (
+            <p className="pr-wait-note">{reportCopy.states.stillWaiting} {reportCopy.states.readyOnHome}</p>
+          ) : longWait ? (
+            <p className="pr-wait-note">
+              <strong>{reportCopy.states.longWaitTitle}</strong> {reportCopy.states.longWait}
+            </p>
           ) : null}
-          <Link className="dh-text-action" href="/dashboard">
-            {reportCopy.states.comeBack} <ArrowRight size={15} aria-hidden="true" />
-          </Link>
         </div>
+        <p className="dh-section-label">{reportCopy.states.meanwhile}</p>
+        <div className="dh-action-row">
+          <Link className="dh-text-action" href="/dashboard">{reportCopy.states.goHome}</Link>
+          <Link className="dh-text-action" href="/plan">{shellCopy.nav.plan.label}</Link>
+          <Link className="dh-text-action" href="/stories">{shellCopy.nav.stories.label}</Link>
+        </div>
+        {stillWorking ? null : <p className="dh-action-meta">{reportCopy.states.readyOnHome}</p>}
       </PageShell>
     );
   }
@@ -197,12 +259,17 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
         <p className="dh-prose" role="alert">{message}</p>
         <div className="dh-action-row">
           {retryable ? (
-            <button className="dh-primary-action" type="button" onClick={() => void retry()} disabled={retrying}>
+            <button ref={retryButton} className="dh-primary-action" type="button" onClick={() => void retry()} disabled={retrying}>
               {retrying ? reportCopy.states.retrying : reportCopy.states.retry}
             </button>
           ) : null}
+          {storageDown ? (
+            <button className="dh-primary-action is-quiet" type="button" onClick={reloadReview}>
+              {reportCopy.states.retry}
+            </button>
+          ) : null}
           <Link className="dh-text-action" href="/dashboard">
-            {reportCopy.states.comeBack} <ArrowRight size={15} aria-hidden="true" />
+            {reportCopy.states.goHome}
           </Link>
         </div>
       </PageShell>
@@ -211,12 +278,13 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
 
   if (!report || !review) return null;
 
-  // "Practise the same answer" opens the retry on the answer the one thing to strengthen came from.
+  // "Practice the same answer" opens the retry on the answer the one thing to strengthen came from.
   const sameAnswer = strengthenFrom ? "#review-strengthen-title" : "#review-answers-title";
 
   return (
     <PageShell readingRoom>
-      <PageHeader eyebrow={t.eyebrow} title={role} back={{ href: "/reflect", label: reflect.eyebrow }} />
+      <p className="clip-announce" aria-live="polite">{readyAnnounce}</p>
+      <PageHeader eyebrow={t.eyebrow} title={role} back={{ href: "/reflect", label: reflect.eyebrow }} headingRef={headingRef} />
       <p className="dh-step-count">
         <time dateTime={report.session.completed_at}>{formatDay(report.session.completed_at)}</time>
       </p>
@@ -226,9 +294,6 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
           <p className="dh-section-label">{reportCopy.summary.eyebrow}</p>
           <h2 id="review-summary-title">{report.verdict.label}</h2>
           <p>{report.verdict.summary}</p>
-          {review.counts ? (
-            <p className="pr-counts">{reportCopy.cameThrough.counts(review.counts.clear, review.counts.could_be_stronger, review.counts.worth_revisiting)}</p>
-          ) : null}
           {review.shorter_conversation ? <p className="dh-action-meta">{reportCopy.shorterNote}</p> : null}
         </div>
         <section className="dh-next-action" aria-labelledby="review-next">
@@ -241,7 +306,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
                 <Link className="dh-primary-action" href={startPracticeHref(role, next, review.role_profile_id)}>
                   {r.nextAction} <ArrowRight size={17} aria-hidden="true" />
                 </Link>
-                <span className="dh-action-meta">{modeCopy(next.mode).title} · {modeCopy(next.mode).length}</span>
+                <span className="dh-action-meta">{r.nextActionHint} {modeCopy(next.mode).title} · {modeCopy(next.mode).length}</span>
               </div>
             </>
           ) : (
@@ -300,9 +365,10 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
                   <>
                     {strengthenFrom ? (
                       <span className="dh-row-actions is-start">
-                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === "strengthen" ? null : "strengthen")} aria-expanded={openRetry === "strengthen"}>
+                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === "strengthen" ? null : "strengthen")} aria-expanded={openRetry === "strengthen"} aria-describedby="review-try-again-hint">
                           {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
                         </button>
+                        <span id="review-try-again-hint" className="dh-action-meta">{r.tryAgainHint}</span>
                       </span>
                     ) : null}
                   </>
@@ -392,9 +458,10 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
                     ) : null}
                     {block.answerTurnId && block.answer && retryKey ? (
                       <span className="dh-row-actions is-start">
-                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === retryKey ? null : retryKey)} aria-expanded={openRetry === retryKey}>
+                        <button className="dh-text-action" type="button" onClick={() => setOpenRetry(openRetry === retryKey ? null : retryKey)} aria-expanded={openRetry === retryKey} aria-describedby={`review-try-again-${retryKey}`}>
                           {tryCopy.action} <ArrowRight size={15} aria-hidden="true" />
                         </button>
+                        <span id={`review-try-again-${retryKey}`} className="dh-action-meta">{r.tryAgainHint}</span>
                         {latest ? (
                           <button className="dh-text-action is-quiet" type="button" onClick={() => setOpenComparison(openComparison === retryKey ? null : retryKey)} aria-expanded={openComparison === retryKey}>
                             {tryCopy.latestAvailable(previous?.length ?? 0)} · {openComparison === retryKey ? tryCopy.hideComparison : tryCopy.showComparison}

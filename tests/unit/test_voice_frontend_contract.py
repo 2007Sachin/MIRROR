@@ -20,9 +20,12 @@ def test_voice_interview_preserves_accessible_fallback_controls() -> None:
     source = VOICE_INTERVIEW.read_text(encoding="utf-8")
 
     assert 'aria-label={muted ? "Unmute microphone" : "Mute microphone"}' in source
-    assert "Type your answer" in source
+    assert 'htmlFor="typed-answer"' in source
+    assert "voiceRoom.typing.label" in source
+    copy = (VOICE_INTERVIEW.parents[1] / "lib" / "copy.ts").read_text(encoding="utf-8")
+    assert 'label: "Your answer"' in copy
     assert "Replay question" in source
-    assert "Step away" in (VOICE_INTERVIEW.parents[1] / "lib" / "copy.ts").read_text(encoding="utf-8")
+    assert "Step away" in copy
     assert "saveAndContinueLater" in source
 
 
