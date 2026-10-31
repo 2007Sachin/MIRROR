@@ -2027,10 +2027,6 @@ async def prepare_session(
         raise HTTPException(
             status_code=409, detail="Your session changed while we were working. Please refresh and try again."
         ) from exc
-    except ConcurrentSessionChange as exc:
-        raise HTTPException(
-            status_code=409, detail="Your session changed while we were working. Please refresh and try again."
-        ) from exc
     except (ResumeAnalysisRequired, RoleAnalysisRequired) as exc:
         raise HTTPException(
             status_code=409,
