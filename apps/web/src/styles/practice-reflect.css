@@ -122,6 +122,45 @@ div.pr-reflection-list > div { border-left-color: var(--caution); }
 .pr-summary .dh-next-action { background: var(--accent-50); border: 0; border-left: 1px solid var(--line); border-radius: 0; margin: 0; padding: var(--space-6); }
 .pr-summary .dh-next-action h2 { font-size: var(--text-lg); letter-spacing: 0; line-height: 1.2; }
 
+.pr-dimension-tiles {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: var(--space-6) 0 0;
+  padding: 0;
+}
+.pr-dimension-tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5);
+}
+.pr-dimension-tile h3 { font-size: var(--text-sm); font-weight: 650; margin: 0; }
+.pr-dimension-mark { color: var(--fg-secondary); font-size: var(--text-sm); font-weight: 600; margin: 0; }
+.pr-dimension-bar {
+  background: var(--canvas-sunken);
+  border-radius: var(--radius-pill);
+  display: block;
+  height: .35rem;
+  overflow: hidden;
+  position: relative;
+}
+.pr-dimension-bar::after {
+  background: var(--accent-600);
+  border-radius: inherit;
+  content: "";
+  display: block;
+  height: 100%;
+  width: 66%;
+}
+.pr-dimension-tile.is-strength .pr-dimension-bar::after { width: 100%; }
+.pr-dimension-tile.is-solid .pr-dimension-bar::after { width: 66%; }
+.pr-dimension-tile.is-grow .pr-dimension-bar::after { width: 34%; background: var(--warning); }
+.pr-dimension-tile p { color: var(--fg-secondary); font-size: var(--text-sm); line-height: 1.5; margin: 0; }
+
 .pr-claims { display: grid; gap: var(--space-6); }
 .pr-claim-group h3 { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 560; letter-spacing: 0; line-height: 1.2; margin: 0 0 var(--space-2); }
 .pr-claim-list { list-style: none; margin: 0; padding: 0; }
@@ -167,6 +206,7 @@ div.pr-reflection-list > div { border-left-color: var(--caution); }
   .pr-summary { grid-template-columns: 1fr; }
   .pr-summary-main, .pr-summary .dh-next-action { padding: var(--space-6) var(--space-5); }
   .pr-summary .dh-next-action { border-left: 0; border-top: 1px solid var(--line); }
+  .pr-dimension-tiles { grid-template-columns: 1fr; }
 }
 @media (forced-colors: active) {
   .pr-source { border: 1px solid CanvasText; }

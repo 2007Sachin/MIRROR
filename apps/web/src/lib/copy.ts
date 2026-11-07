@@ -335,6 +335,9 @@ export const report = {
 } as const;
 
 export const voiceRoom = {
+  sessionTitle: "Voice practice session",
+  pause: "Pause",
+  endSession: "End session",
   doneAnswering: "I'm done answering",
   stepAway: {
     button: "Step away",
@@ -716,6 +719,12 @@ export const homeNow = {
       some: (count: number, role: string) => `${count} ${count === 1 ? "practice" : "practices"} recorded for ${role}.`,
     },
   },
+  cards: {
+    progressEmpty: "Progress will show here after you practise.",
+    tasks: "Next tasks",
+    tasksEmpty: "Nothing is lined up yet.",
+    activityEmpty: "Activity will show here as you practise.",
+  },
   recent: {
     eyebrow: "Recent activity",
     today: "Today",
@@ -961,6 +970,15 @@ export const progress = {
 export const review = {
   eyebrow: "Review",
   back: "Practice",
+  readyLive: "Your review is ready.",
+  wentWellTitle: "What went well",
+  areasToGrowTitle: "Areas to grow",
+  qualitative: {
+    strength: "Strength",
+    solid: "Solid",
+    grow: "Area to grow",
+  },
+  tilesEmpty: "Not enough signal yet to describe these areas.",
   overview: "Overview",
   clearTitle: "What came through clearly",
   clearEmpty: "This conversation was a little short, so there isn't a clear pattern to point to yet.",

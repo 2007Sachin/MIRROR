@@ -150,6 +150,39 @@ html:has(.ws-shell) { scroll-padding-top: 4.5rem; }
 .ws-alert.is-inline { margin: 0 0 var(--space-4); }
 .ws-mobile-nav { display: none; }
 
+/* Desktop: the same primary links sit as a left sidebar. Mobile keeps the in-flow tab bar (KI-023). */
+@media (min-width: 1025px) {
+  .ws-shell {
+    display: grid;
+    grid-template-columns: 16.5rem minmax(0, 1fr);
+    min-height: 100dvh;
+  }
+  .ws-topbar {
+    align-items: stretch;
+    box-shadow: 1px 0 0 var(--line);
+    flex-direction: column;
+    gap: var(--space-6);
+    grid-column: 1;
+    grid-row: 1 / span 8;
+    height: auto;
+    min-height: 100dvh;
+    padding: var(--space-6) var(--space-5);
+    position: sticky;
+    top: 0;
+  }
+  .ws-nav { flex-direction: column; width: 100%; }
+  .ws-nav-item { width: 100%; }
+  .ws-nav-item.is-active { background: var(--action-soft); border-radius: var(--radius-control); box-shadow: none; }
+  .ws-topbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+    margin-left: 0;
+    margin-top: auto;
+  }
+  .ws-content, .ws-alert { grid-column: 2; }
+  .ws-content { max-width: none; }
+}
+
 /* Narrow screens: the glass tab bar carries the same five destinations as the top bar.
    It stays in the layout, below the scrolling page, so cards and controls stay tappable. */
 @media (max-width: 1024px) {

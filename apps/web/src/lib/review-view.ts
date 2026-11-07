@@ -8,9 +8,26 @@
  * the report's own notes to the answer they came from.
  */
 import type { PracticeChoice, PublicInterviewTurn, ReportEvidence, ReportResponse, SessionReview } from "@/lib/api";
-import { developmentState } from "@/lib/dashboard-view";
+import { review as reviewCopy } from "@/lib/copy";
+import { developmentState, type DevelopmentState } from "@/lib/dashboard-view";
 import { focusFor } from "@/lib/practice-view";
 import { areaLabel } from "@/lib/progress-view";
+
+export type QualitativeMark = "strength" | "solid" | "grow";
+
+/** Map a stored development state to the qualitative tile mark. No numeric scores. */
+export function qualitativeMark(state: DevelopmentState): QualitativeMark {
+  if (state === "Coming through clearly") return "strength";
+  if (state === "Developing") return "solid";
+  return "grow";
+}
+
+export function qualitativeLabel(state: DevelopmentState) {
+  const mark = qualitativeMark(state);
+  if (mark === "strength") return reviewCopy.qualitative.strength;
+  if (mark === "solid") return reviewCopy.qualitative.solid;
+  return reviewCopy.qualitative.grow;
+}
 
 export type ReviewStrength = { key: string; label: string; note: string };
 

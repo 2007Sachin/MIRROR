@@ -51,13 +51,12 @@ export function HomeView({
   const comparable = data.progress?.stage === "COMPARABLE" && data.progress.insights.length > 0;
   const showSince = comparable && !["FIRST_PRACTICE", "EARLY_BASELINE", "NO_ROLE"].includes(data.state);
   const showUpNext = data.next_step && (data.state === "ACTIVE_PRACTICE" || data.state === "REVIEW_READY");
-  const showRail = Boolean(role || showSince || showUpNext || data.state === "EARLY_BASELINE" || data.activity.length);
-
   return (
     <div className="hm">
       <header className="hm-header">
         <h1 className="dh-title display">{greeting}, {firstName}</h1>
         <p className="hm-sub">{subline(data)}</p>
+        {role ? <RoleContext data={data} onSelect={handlers.onSelectRole} /> : null}
       </header>
 
       <div className="hm-layout">
@@ -65,19 +64,15 @@ export function HomeView({
           <div className="hm-stack">
             <Primary data={data} handlers={handlers} now={now} />
             {data.other_active ? <OtherRole practice={data.other_active} onEnd={handlers.onEnd} now={now} /> : null}
+            {data.upcoming_interview ? <UpcomingInterview event={data.upcoming_interview} now={now} /> : null}
           </div>
         </div>
-        {showRail ? (
-          <aside className="hm-rail" aria-label="Dashboard context">
-            {role ? <RoleContext data={data} onSelect={handlers.onSelectRole} /> : null}
-            {data.upcoming_interview ? <UpcomingInterview event={data.upcoming_interview} now={now} /> : null}
-            {data.state === "EARLY_BASELINE" ? <Focus data={data} /> : null}
-            {showUpNext ? <UpNext data={data} /> : null}
-            {showSince && role ? <Since data={data} roleId={roleId} roleName={role.target_role} /> : null}
-            {role ? <Preparation data={data} roleId={roleId} roleName={role.target_role} /> : null}
-            {data.activity.length ? <Activity data={data} now={now} /> : null}
-          </aside>
-        ) : null}
+        <aside className="hm-rail" aria-label="Dashboard context">
+          {showSince && role ? <Since data={data} roleId={roleId} roleName={role.target_role} /> : <ProgressEmpty />}
+          {data.state === "EARLY_BASELINE" ? <Focus data={data} /> : showUpNext ? <UpNext data={data} /> : <TasksEmpty />}
+          {data.activity.length ? <Activity data={data} now={now} /> : <ActivityEmpty />}
+          {role ? <div className="hm-rail-span"><Preparation data={data} roleId={roleId} roleName={role.target_role} /></div> : null}
+        </aside>
       </div>
     </div>
   );
@@ -465,6 +460,34 @@ function Preparation({ data, roleId, roleName }: { data: HomeResponse; roleId: s
           )}
         </article>
       </div>
+    </section>
+  );
+}
+
+function ProgressEmpty() {
+  return (
+    <section className="hm-section" aria-labelledby="hm-since">
+      <p className="dh-section-label" id="hm-since">{t.prep.progress.title}</p>
+      <p className="hm-body">{t.cards.progressEmpty}</p>
+    </section>
+  );
+}
+
+function TasksEmpty() {
+  return (
+    <section className="hm-section" aria-labelledby="hm-up-next">
+      <p className="dh-section-label">{t.cards.tasks}</p>
+      <h2 id="hm-up-next" className="hm-section-title">{t.cards.tasks}</h2>
+      <p className="hm-body">{t.cards.tasksEmpty}</p>
+    </section>
+  );
+}
+
+function ActivityEmpty() {
+  return (
+    <section className="hm-section" aria-labelledby="hm-recent">
+      <p className="dh-section-label" id="hm-recent">{t.recent.eyebrow}</p>
+      <p className="hm-body">{t.cards.activityEmpty}</p>
     </section>
   );
 }

@@ -62,10 +62,10 @@ def test_start_practice_is_the_only_place_a_practice_is_created() -> None:
 
 def test_review_reflects_and_offers_four_ways_on_without_a_readiness_number() -> None:
     # Reading Room P6: the one next practice sits in the summary, above the detail sections.
-    order = [REVIEW.index(key) for key in ("r.nextTitle", "r.landedTitle", "r.strengthenTitle", "r.repeatTitle")]
+    order = [REVIEW.index(key) for key in ("r.nextTitle", "t.wentWellTitle", "t.areasToGrowTitle", "r.repeatTitle")]
     assert order == sorted(order)
-    for text in ('"What landed well"', '"One thing to strengthen"', '"Try this next"'):
-        assert text in COPY
+    for text in ('"What went well"', '"Areas to grow"', '"Try this next"'):
+        assert text in COPY or text in (WEB / "lib" / "copy.ts").read_text(encoding="utf-8")
     for key in ("sameAnswer", "editStory", "anotherTheme", "finish"):
         assert f"r.repeat.{key}" in REVIEW
     assert 'href="/dashboard"' in REVIEW

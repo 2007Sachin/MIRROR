@@ -12,6 +12,7 @@ import {
   LockSimple,
   Microphone,
   MicrophoneSlash,
+  Pause,
   SpeakerHigh,
   SpeakerSlash,
   SpinnerGap,
@@ -1247,14 +1248,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
           <div className="interview-call-layout" inert={dialogOpen}>
             <section ref={stageRef} tabIndex={-1} className="interview-stage" aria-label="Interview participants">
               <article className="interview-participant interview-participant--mirror">
-                <div className="interview-participant-label">
-                  <span>Mirror</span>
-                  <small>Interviewer</small>
-                </div>
-                <div className="interview-presence" aria-hidden="true">
-                  <span>M</span>
-                  <i /><i /><i />
-                </div>
+                <p className="interview-session-title">{voiceRoom.sessionTitle}</p>
                 <div
                   className={`interview-question${greeting ? " interview-question--opening" : ""}`}
                   aria-live="polite"
@@ -1269,15 +1263,18 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                   <h1 className="display">{questionBody || "Preparing the next question…"}</h1>
                   {nextQuestionAnnounce ? <span className="clip-announce">{nextQuestionAnnounce}</span> : null}
                 </div>
-              </article>
-
-              <article className="interview-participant interview-participant--candidate">
-                <div className="interview-participant-label">
-                  <span>You</span>
-                  <small>{textOnlyRef.current ? "Typing" : muted ? "Muted" : "Microphone on"}</small>
-                </div>
-                <div ref={meterRef} className="interview-voice-meter" aria-hidden="true">
-                  {Array.from({ length: 13 }, (_, index) => <i key={index} />)}
+                <div className="interview-mic-orb" aria-hidden="true">
+                  <i className="interview-mic-ring" />
+                  <i className="interview-mic-ring" />
+                  <i className="interview-mic-ring" />
+                  <div className="interview-mic-core">
+                    <div
+                      ref={meterRef}
+                      className={`interview-voice-meter interview-voice-meter--orb${roomState === "LISTENING" || roomState === "CANDIDATE_SPEAKING" ? " is-live" : ""}`}
+                    >
+                      <i /><i /><i />
+                    </div>
+                  </div>
                 </div>
                 {liveCaption && captionsEnabled ? (
                   <div className="interview-live-caption" aria-live="polite">
@@ -1285,7 +1282,7 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                     <p>{liveCaption}</p>
                   </div>
                 ) : (
-                  <p>{roomState === "CANDIDATE_SPEAKING" ? "Take your time. Mirror is listening." : stateLabels[roomState]}</p>
+                  <p className="interview-session-status">{roomState === "CANDIDATE_SPEAKING" ? "Take your time. Mirror is listening." : stateLabels[roomState]}</p>
                 )}
               </article>
             </section>
@@ -1428,18 +1425,29 @@ export function VoiceInterview({ sessionId }: { sessionId: string }) {
                 <span>{voiceRoom.doneAnswering}</span>
               </button>
             ) : null}
-            <button
-              type="button"
-              ref={leaveButtonRef}
-              className="interview-leave-button"
-              aria-label={voiceRoom.stepAway.button /* the text label is hidden on small screens */}
-              onClick={openStepAway}
-              disabled={processing || roomState === "CANDIDATE_SPEAKING" || closing}
-              title={roomState === "CANDIDATE_SPEAKING" ? "Pause briefly so Mirror can save your final answer" : undefined}
-            >
-              <X size={20} />
-              <span>{voiceRoom.stepAway.button}</span>
-            </button>
+            <div className="interview-session-pills">
+              <button
+                type="button"
+                ref={leaveButtonRef}
+                className="interview-pill"
+                aria-label={voiceRoom.stepAway.button}
+                onClick={openStepAway}
+                disabled={processing || roomState === "CANDIDATE_SPEAKING" || closing}
+                title={roomState === "CANDIDATE_SPEAKING" ? "Pause briefly so Mirror can save your final answer" : undefined}
+              >
+                <Pause size={18} aria-hidden="true" />
+                <span>{voiceRoom.pause}</span>
+              </button>
+              <button
+                type="button"
+                className="interview-pill"
+                onClick={() => setStepAway("confirm")}
+                disabled={processing || roomState === "CANDIDATE_SPEAKING" || closing}
+              >
+                <X size={18} aria-hidden="true" />
+                <span>{voiceRoom.endSession}</span>
+              </button>
+            </div>
           </footer>
         </>
       )}

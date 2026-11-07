@@ -234,7 +234,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     assert.equal(JSON.stringify(completed.targets.roundPracticeResponses.at(-1)).includes("QA-SYNTHETIC-STAGE-NOTE"), false,
       "candidate notes do not enter the practice response");
     await heading(/Software Development Engineer/, 1).waitFor();
-    await heading("What landed well").waitFor();
+    await heading("What went well").waitFor();
     for (const answer of stageAnswers) await page.getByText(answer, { exact: true }).waitFor();
     assert.equal(await page.getByText("QA-SYNTHETIC-STAGE-NOTE").count(), 0, "candidate notes are absent from feedback");
 
@@ -468,8 +468,8 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     })}`);
     assert.deepEqual(answersAfterStart, QA_RESEARCHED_CODING_PROMPTS.map((prompt) => prompt.answer));
     await heading("QA Analyst (test role)", 1).waitFor();
-    await heading("What landed well").waitFor();
-    await heading("One thing to strengthen").waitFor();
+    await heading("What went well").waitFor();
+    await heading("Areas to grow").waitFor();
     for (const prompt of QA_RESEARCHED_CODING_PROMPTS) await page.getByText(prompt.answer, { exact: true }).waitFor();
     await overflow("fictional-researched-round-review");
     await scenario({ blueprint: "not_researched" });
@@ -675,7 +675,7 @@ export async function runTargetJourneys({ page, step, baseUrl, mock, viewport, o
     await poll(async () => (await getState()).ended, { message: "the business-roles practice to end" });
     const completed = await getState();
     assert.deepEqual(completed.answers.slice(answersBefore), QA_BUSINESS_CASE_PROMPTS.map((prompt) => prompt.answer));
-    await heading("What landed well").waitFor();
+    await heading("What went well").waitFor();
     for (const prompt of QA_BUSINESS_CASE_PROMPTS) await page.getByText(prompt.answer, { exact: true }).waitFor();
     await overflow("business-roles-review");
   });
