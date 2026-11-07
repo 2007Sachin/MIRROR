@@ -370,7 +370,7 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
         assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Stay in the conversation");
         await page.keyboard.press("Enter");
         await sheet.waitFor({ state: "hidden" });
-        assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Step away", "focus returns to the trigger");
+        assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Pause", "focus returns to the trigger");
         await heading(QUESTIONS[1], 1).waitFor();
         await page.locator("#typed-answer").waitFor();
         assert.equal((await getState()).ended, false, "backing out of the sheet never ends the interview");
@@ -404,8 +404,8 @@ async function runViewport({ browser, viewport, baseUrl, mock, password, outDir 
   // 5. Review/report, and persistence across reload.
   const assertReview = async () => {
     await heading(ROLE, 1).waitFor();
-    await heading("What landed well").waitFor();
-    await heading("One thing to strengthen").waitFor();
+    await heading("What went well").waitFor();
+    await heading("Areas to grow").waitFor();
     await heading("Try this next").or(page.getByText("Try this next")).first().waitFor();
     for (const answer of ANSWERS) await page.getByText(answer, { exact: true }).waitFor();
     await page.getByText("QA-FIXTURE-QUOTE-SUPPORTS").first().waitFor();

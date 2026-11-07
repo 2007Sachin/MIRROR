@@ -24,10 +24,10 @@ import { loading, report as reportCopy, review as t, tryAgain as tryCopy } from 
 import { shellCopy } from "@/lib/copy-shell";
 import { reflect, reflection as r } from "@/lib/copy-practice";
 import { attemptsByAnswer, latestAttempt } from "@/lib/attempt-view";
-import { formatDay } from "@/lib/dashboard-view";
+import { developmentState, formatDay } from "@/lib/dashboard-view";
 import { focusFor, modeCopy, startPracticeHref } from "@/lib/practice-view";
 import { claimGroups, timecode, type ClaimGroup } from "@/lib/review-groups";
-import { answerBlocks, answerTargets, practiceNext, reviewStrengths, strengthenItem, type AnswerTarget } from "@/lib/review-view";
+import { answerBlocks, answerTargets, practiceNext, qualitativeLabel, qualitativeMark, reviewStrengths, strengthenItem, type AnswerTarget } from "@/lib/review-view";
 
 type ViewState = "loading" | "processing" | "error" | "ready";
 
@@ -334,8 +334,27 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
         </aside>
       ) : null}
 
+      {review.dimensions.length ? (
+        <ul className="pr-dimension-tiles">
+          {review.dimensions.slice(0, 3).map((dimension) => {
+            const state = developmentState(dimension.state);
+            const mark = qualitativeMark(state);
+            return (
+              <li key={dimension.key} className={`pr-dimension-tile is-${mark}`}>
+                <h3>{dimension.label}</h3>
+                <p className="pr-dimension-mark">{qualitativeLabel(state)}</p>
+                <span className="pr-dimension-bar" aria-hidden="true" />
+                <p>{dimension.note}</p>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="dh-review-empty">{t.tilesEmpty}</p>
+      )}
+
       <div className="dh-home-sections">
-        <Section id="review-landed" title={r.landedTitle}>
+        <Section id="review-landed" title={t.wentWellTitle}>
           {strengths.length ? (
             <ul className="pr-reflection-list">
               {strengths.map((strength, index) => (
@@ -351,7 +370,7 @@ export function ReviewPage({ sessionId }: { sessionId: string }) {
           )}
         </Section>
 
-        <Section id="review-strengthen" title={r.strengthenTitle}>
+        <Section id="review-strengthen" title={t.areasToGrowTitle}>
           {workItems.length ? (
             <div className="pr-reflection-list">
               {workItems.map((item, index) => (

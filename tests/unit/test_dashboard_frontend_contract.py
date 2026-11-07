@@ -228,6 +228,7 @@ def test_home_surfaces_an_interview_within_two_days_without_competing_with_the_p
     assert "upcoming_interview?: HomeUpcomingInterview | null;" in API
     layout = SECTIONS[SECTIONS.index('<div className="hm-layout">'):]
     assert layout.index("<Primary ") < layout.index("<UpcomingInterview")
+    assert layout.index("<UpcomingInterview ") < layout.index('<aside className="hm-rail"')
     assert '<aside className="hm-upcoming" aria-label={t.upcoming.label}>' in SECTIONS
     assert 'className="hm-text-action" href={briefHref(event)}' in SECTIONS  # a text link, never a second primary button
     assert "return `/roles/${event.role_profile_id}/interviews/${event.event_id}`;" in HOME_VIEW
@@ -244,16 +245,16 @@ def test_home_p5_composes_one_focus_slip_with_sticky_context_rail() -> None:
     assert "hm-focus-slip" in SECTIONS
     assert ".hm-layout" in (WEB / "styles" / "home.css").read_text(encoding="utf-8")
     css = (WEB / "styles" / "home.css").read_text(encoding="utf-8")
-    assert "grid-template-columns: minmax(0, 1fr) minmax(17rem, 20rem)" in css
-    assert ".hm-rail" in css and "position: sticky" in css and "top: 5rem" in css
-    assert "@media (max-width: 1020px)" in css and "position: static" in css
+    assert "grid-template-columns: minmax(0, 1fr)" in css
+    assert ".hm-rail" in css and "repeat(3, minmax(0, 1fr))" in css and "position: static" in css
+    assert "@media (max-width: 1020px)" in css and "grid-template-columns: 1fr" in css
 
 
 def test_home_p5_keeps_secondary_surfaces_out_of_the_primary_action_lane() -> None:
     layout = SECTIONS[SECTIONS.index('<div className="hm-layout">'):]
     assert layout.index("<Primary ") < layout.index('<aside className="hm-rail"')
     assert layout.index("<Primary ") < layout.index("<OtherRole ")
-    assert layout.index('<aside className="hm-rail"') < layout.index("<UpcomingInterview ")
+    assert layout.index("<UpcomingInterview ") < layout.index('<aside className="hm-rail"')
     assert "<Preparation " in layout and "<Activity " in layout
     assert 'label="hm-other" dominant={false}' in SECTIONS
     assert 'className="hm-secondary-action" href={continueHref(practice.session_id)}' in SECTIONS
